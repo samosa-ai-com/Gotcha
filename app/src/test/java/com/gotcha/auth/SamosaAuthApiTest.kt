@@ -1,7 +1,6 @@
 package com.gotcha.auth
 
 import com.gotcha.ui.formatScaledCredits
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -13,10 +12,20 @@ import org.junit.Test
  */
 class SamosaAuthApiTest {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        explicitNulls = false
-        encodeDefaults = false
+    private val json = SamosaAuthApi.samosaJson
+
+    @Test
+    fun `a null profile picture reads as empty instead of failing the reply`() {
+        // The hub sends null for an account with no avatar (seen on a phone: it crashed sign-in).
+        val decoded = json.decodeFromString(
+            RegisterResponse.serializer(),
+            """
+            {"token":"t","refreshToken":"r","app":"gotcha-android",
+             "user":{"id":"u","email":"a@b.com","profile_picture":null,"role":"user"}}
+            """.trimIndent()
+        )
+        assertEquals("", decoded.user.profilePicture)
+        assertEquals("a@b.com", decoded.user.email)
     }
 
     @Test

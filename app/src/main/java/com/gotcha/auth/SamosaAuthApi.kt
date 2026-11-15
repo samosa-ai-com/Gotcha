@@ -185,13 +185,21 @@ interface SamosaAuthApi {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */
         val AUTH_BASE_URL: String = "${BuildConfig.SAMOSA_API_URL}/"
 
+        /**
+         * How the backend's JSON is read. `coerceInputValues` turns a null the
+         * backend sends for a text field, such as `profile_picture` for an account
+         * with no avatar, into that field's default instead of failing the reply.
+         */
+        @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+        internal val samosaJson = Json {
+            ignoreUnknownKeys = true
+            explicitNulls = false
+            encodeDefaults = false
+            coerceInputValues = true
+        }
+
         fun create(): SamosaAuthApi {
-            @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-            val json = Json {
-                ignoreUnknownKeys = true
-                explicitNulls = false
-                encodeDefaults = false
-            }
+            val json = samosaJson
             val logging = HttpLoggingInterceptor().apply {
                 // The request URL is the configured endpoint — not for release logcat.
                 level = if (BuildConfig.DEBUG) {

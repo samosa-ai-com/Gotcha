@@ -204,6 +204,56 @@ failure.
   and resume handling in `MainActivity.kt`.
 - Unit tests: `./gradlew :app:testDebugUnitTest --tests 'com.gotcha.auth.*'`.
 
+## Device test results (2026-11-14)
+
+Run on a physical Samsung phone against a local test backend, with Chrome as
+the default browser. Numbers match the checklist above.
+
+| Step | Result |
+|------|--------|
+| 1. Sign-in card, website button and "Use Google instead" | Pass |
+| 2. Custom Tab opens on the sign-in page | Pass |
+| 3. Finish signing in on the website | Pass, including the invite-code dialog for a new account |
+| 4. Close the tab | Pass: "Sign-in cancelled." within a few seconds |
+| 5. Decline on the website | Pass: ends as a cancel |
+| 6. Gotcha killed while the browser is open | Pass: it restarts, finishes the sign-in and shows "Signed in as …" |
+| 12. Manage account | Pass: opens already signed in, same credits as the app |
+| 15. Session ended from another device | Pass after a fix (below) |
+| 17. Silent renewal of an expired token | Pass: renewed once, still signed in |
+| 8, 9, 10, 11, 13, 14, 16, 18, 19, 20 | Not run yet |
+
+Found and fixed during the run:
+
+- **Sign-in crashed the app for an account with no profile picture.** The
+  backend sends `null` there and the app only accepted text. The reply is now
+  read leniently, and an unreadable reply ends the sign-in with an error
+  instead of crashing.
+- **A session ended from another device left the card on "Signed in".** Only
+  the chat path had a callback for it. The session itself now reports it, so
+  every screen shows the message and the sign-in button.
+
+The test phone's default browser could not open local test pages, so the
+default was switched to Chrome for the run.
+
+## Testing against a local backend
+
+Nothing about the backend is fixed in the code. Point a debug build at a local
+stack with build settings, then reach it from the phone over USB:
+
+```
+SAMOSA_API_URL=http://localhost:9000 \
+SAMOSA_DASHBOARD_URL=http://localhost:9001 \
+./gradlew :app:assembleDebug
+
+adb reverse tcp:9000 tcp:<backend port on this computer>
+adb reverse tcp:9001 tcp:<website port on this computer>
+```
+
+The same settings (`SAMOSA_API_URL`, `SAMOSA_DASHBOARD_URL`,
+`SAMOSA_DASHBOARD_SIGN_IN`) go in the release environment or
+`local.properties`. The release build uses the production API address and the
+website address; no code changes when the backend moves.
+
 ## Phase 6: Release
 
 - CHANGELOG entry and translations for the new strings.

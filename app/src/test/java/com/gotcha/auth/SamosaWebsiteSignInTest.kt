@@ -294,6 +294,25 @@ class SamosaWebsiteSignInTest {
     }
 
     @Test
+    fun `a reply the app cannot read ends the sign-in instead of crashing`() = runBlocking {
+        val api = object : SamosaAuthApi by FakeApi() {
+            override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse =
+                throw kotlinx.serialization.SerializationException("bad body")
+        }
+        val browser = FakeBrowser()
+        val auth = manager(api, browser)
+
+        val signIn = async { auth.signInWithWebsite(context) }
+        auth.handleRedirect(redirect(browser.firstOpen.await().getQueryParameter("state")))
+
+        assertEquals(
+            SamosaSignInResult.Error(context.getString(R.string.samosa_auth_unexpected_error)),
+            signIn.await()
+        )
+        assertEquals("", store.loadSamosaTokens().accessToken)
+    }
+
+    @Test
     fun `a disabled account is told so`() = runBlocking {
         val api = FakeApi().apply { exchangeError = httpError(403) }
         val browser = FakeBrowser()

@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 import java.io.IOException
 import java.util.UUID
@@ -283,6 +284,10 @@ class SamosaAuthManager(
     } catch (e: IOException) {
         GotchaLog.d(TAG, e) { "Network error during code exchange" }
         SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_network_error_check_your_connection))
+    } catch (e: SerializationException) {
+        // A reply the app cannot read must end the sign-in, not crash the app.
+        Log.w(TAG, "Unreadable sign-in reply", e)
+        SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_unexpected_error))
     }
 
     private fun mapExchangeError(code: Int): String = when (code) {
@@ -327,6 +332,9 @@ class SamosaAuthManager(
     } catch (e: IOException) {
         GotchaLog.d(TAG, e) { "Network error during register" }
         SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_network_error_check_your_connection))
+    } catch (e: SerializationException) {
+        Log.w(TAG, "Unreadable sign-in reply", e)
+        SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_unexpected_error))
     }
 
     /** Stores the session from /register or /oauth/token and reads the full profile. */

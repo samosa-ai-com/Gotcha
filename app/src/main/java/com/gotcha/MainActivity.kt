@@ -406,6 +406,11 @@ class MainActivity : ComponentActivity() {
         window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
+        // Any request that finds the Samosa session over tells the user and brings
+        // the sign-in button back, including ones with no 401 callback of their own.
+        com.gotcha.auth.SamosaSession.current?.onSignedOut = { reason ->
+            runOnUiThread { showSamosaSignedOut(reason) }
+        }
         // Gotcha may have been restarted while the browser was open, so the
         // sign-in link can arrive here as well as in onNewIntent.
         handleSamosaRedirect(intent)
@@ -910,6 +915,8 @@ class MainActivity : ComponentActivity() {
     /** Any Samosa 401 (LLM or audio) clears the session and refreshes the
      *  ChatViewModel so the UI reflects the unauthenticated state. */
     fun onSamosaUnauthorized() {
+        // The session already ended and the user was told (see showSamosaSignedOut).
+        if (com.gotcha.auth.SamosaSession.current?.tokens()?.accessToken.isNullOrBlank()) return
         val current = settingsRepository.load()
         val samosaUsed = current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI
         val samosaToken = current.samosaSessionToken
@@ -928,6 +935,19 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         chatViewModel.refreshSettings()
         // An open Settings page shows the sign-in button again.
+        samosaAuthManager.notifySessionChanged()
+    }
+
+    /** Tells the user their Samosa session ended and refreshes what shows it. */
+    private fun showSamosaSignedOut(reason: com.gotcha.auth.SignOutReason) {
+        val message = when (reason) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            com.gotcha.auth.SignOutReason.DEACTIVATED -> getString(R.string.samosa_session_deactivated)
+            com.gotcha.auth.SignOutReason.EXPIRED -> getString(R.string.samosa_session_ended)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        chatViewModel.refreshSettings()
         samosaAuthManager.notifySessionChanged()
     }
 
