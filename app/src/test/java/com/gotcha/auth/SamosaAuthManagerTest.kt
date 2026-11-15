@@ -66,6 +66,8 @@ class SamosaAuthManagerTest {
         }
 
         override suspend fun logout(bearer: String) {}
+
+        override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse = registerResponse
     }
 
     @Test

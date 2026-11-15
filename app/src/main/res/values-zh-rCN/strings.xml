@@ -1579,4 +1579,21 @@
     <plurals name="scheduled_retries">
         <item quantity="other">重试 %1$d 次</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">没有可用于打开 Samosa 登录的浏览器。请安装或启用网页浏览器后重试。</string>
+    <string name="samosa_auth_sign_in_timed_out">等待浏览器超时，登录未完成。请重试。</string>
+    <string name="samosa_auth_sign_in_link_mismatch">登录回复与本次请求不匹配。请重试。</string>
+    <string name="samosa_auth_sign_in_expired">此次登录已过期。请重试。</string>
+    <string name="samosa_auth_sign_in_refused">Samosa 登录未完成。请重试。</string>
+    <string name="samosa_sign_in_website">登录 Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">改用 Google</string>
+    <string name="samosa_sign_in_hint_website">请在 Samosa AI 网站上登录以使用 Samosa AI。你的 OpenAI 兼容设置单独保存，不受影响。</string>
+    <string name="samosa_opening_sign_in">正在打开 Samosa 登录…</string>
+    <string name="samosa_manage_account">管理账号</string>
+    <string name="samosa_add_credits">添加额度</string>
+    <string name="samosa_sign_in_cancelled">已取消登录。</string>
+    <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>
+    <string name="samosa_session_deactivated">此 Samosa AI 账号已停用。</string>
+    <string name="error_out_of_credits_http_402">额度已用完 (HTTP 402)。请添加额度后继续。Samosa AI：设置 → AI 配置 → 添加额度。</string>
 </resources>

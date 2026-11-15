@@ -1602,4 +1602,21 @@
         <item quantity="one">%1$d बार फिर कोशिश करें</item>
         <item quantity="other">%1$d बार फिर कोशिश करें</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">Samosa साइन-इन खोलने के लिए कोई ब्राउज़र उपलब्ध नहीं है। कोई वेब ब्राउज़र इंस्टॉल या चालू करें और फिर से कोशिश करें।</string>
+    <string name="samosa_auth_sign_in_timed_out">ब्राउज़र का इंतज़ार करते हुए साइन-इन का समय खत्म हो गया। कृपया फिर से कोशिश करें।</string>
+    <string name="samosa_auth_sign_in_link_mismatch">साइन-इन का जवाब इस अनुरोध से मेल नहीं खाता। कृपया फिर से कोशिश करें।</string>
+    <string name="samosa_auth_sign_in_expired">यह साइन-इन समाप्त हो गया है। कृपया फिर से कोशिश करें।</string>
+    <string name="samosa_auth_sign_in_refused">Samosa साइन-इन पूरा नहीं हुआ। कृपया फिर से कोशिश करें।</string>
+    <string name="samosa_sign_in_website">Samosa AI में साइन इन करें</string>
+    <string name="samosa_sign_in_google_instead">इसके बजाय Google इस्तेमाल करें</string>
+    <string name="samosa_sign_in_hint_website">Samosa AI इस्तेमाल करने के लिए Samosa AI वेबसाइट पर साइन इन करें। आपकी OpenAI-संगत सेटिंग्स अलग रखी जाती हैं और उन पर कोई असर नहीं पड़ता।</string>
+    <string name="samosa_opening_sign_in">Samosa साइन-इन खुल रहा है…</string>
+    <string name="samosa_manage_account">खाता प्रबंधित करें</string>
+    <string name="samosa_add_credits">क्रेडिट जोड़ें</string>
+    <string name="samosa_sign_in_cancelled">साइन-इन रद्द किया गया।</string>
+    <string name="samosa_session_ended">आप Samosa AI से साइन आउट हो गए हैं। इसे इस्तेमाल करते रहने के लिए फिर से साइन इन करें।</string>
+    <string name="samosa_session_deactivated">यह Samosa AI खाता निष्क्रिय कर दिया गया है।</string>
+    <string name="error_out_of_credits_http_402">क्रेडिट खत्म (HTTP 402)। जारी रखने के लिए क्रेडिट जोड़ें। Samosa AI के लिए: सेटिंग्स → AI कॉन्फ़िगरेशन → क्रेडिट जोड़ें।</string>
 </resources>

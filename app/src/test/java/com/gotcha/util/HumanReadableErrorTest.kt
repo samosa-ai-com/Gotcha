@@ -27,6 +27,7 @@ class HumanReadableErrorTest {
         assertTrue(HumanReadableError.fromHttpCode(400, strings = strings).contains("Bad request"))
         assertTrue(HumanReadableError.fromHttpCode(401, strings = strings).contains("Authentication failed"))
         assertTrue(HumanReadableError.fromHttpCode(403, strings = strings).contains("Access restricted"))
+        assertTrue(HumanReadableError.fromHttpCode(402, strings = strings).contains("Out of credits"))
         assertTrue(HumanReadableError.fromHttpCode(404, strings = strings).contains("Resource not found"))
         assertTrue(HumanReadableError.fromHttpCode(408, strings = strings).contains("Request timeout"))
         assertTrue(HumanReadableError.fromHttpCode(429, strings = strings).contains("Rate limit"))

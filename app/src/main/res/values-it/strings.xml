@@ -1624,4 +1624,21 @@
         <item quantity="many">Riprova %1$d volte</item>
         <item quantity="other">Riprova %1$d volte</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">Nessun browser disponibile per aprire l\'accesso a Samosa. Installa o attiva un browser web e riprova.</string>
+    <string name="samosa_auth_sign_in_timed_out">Tempo scaduto in attesa del browser. Riprova.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">La risposta di accesso non corrisponde a questa richiesta. Riprova.</string>
+    <string name="samosa_auth_sign_in_expired">Questo accesso è scaduto. Riprova.</string>
+    <string name="samosa_auth_sign_in_refused">L\'accesso a Samosa non è stato completato. Riprova.</string>
+    <string name="samosa_sign_in_website">Accedi a Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">Usa Google invece</string>
+    <string name="samosa_sign_in_hint_website">Accedi sul sito web di Samosa AI per usare Samosa AI. Le impostazioni compatibili con OpenAI sono conservate a parte e non cambiano.</string>
+    <string name="samosa_opening_sign_in">Apertura dell\'accesso a Samosa…</string>
+    <string name="samosa_manage_account">Gestisci account</string>
+    <string name="samosa_add_credits">Aggiungi crediti</string>
+    <string name="samosa_sign_in_cancelled">Accesso annullato.</string>
+    <string name="samosa_session_ended">Sei stato disconnesso da Samosa AI. Accedi di nuovo per continuare a usarlo.</string>
+    <string name="samosa_session_deactivated">Questo account Samosa AI è stato disattivato.</string>
+    <string name="error_out_of_credits_http_402">Crediti esauriti (HTTP 402). Aggiungi crediti per continuare. Per Samosa AI: Impostazioni → Configurazione IA → Aggiungi crediti.</string>
 </resources>

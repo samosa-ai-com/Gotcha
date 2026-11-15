@@ -1624,4 +1624,21 @@
         <item quantity="many">Reintentar %1$d veces</item>
         <item quantity="other">Reintentar %1$d veces</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">No hay ningún navegador disponible para abrir el inicio de sesión de Samosa. Instala o activa un navegador web e inténtalo de nuevo.</string>
+    <string name="samosa_auth_sign_in_timed_out">Se agotó el tiempo de espera del navegador. Inténtalo de nuevo.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">La respuesta del inicio de sesión no coincide con esta solicitud. Inténtalo de nuevo.</string>
+    <string name="samosa_auth_sign_in_expired">Este inicio de sesión ha caducado. Inténtalo de nuevo.</string>
+    <string name="samosa_auth_sign_in_refused">El inicio de sesión de Samosa no se completó. Inténtalo de nuevo.</string>
+    <string name="samosa_sign_in_website">Iniciar sesión en Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">Usar Google en su lugar</string>
+    <string name="samosa_sign_in_hint_website">Inicia sesión en el sitio web de Samosa AI para usar Samosa AI. Tu configuración compatible con OpenAI se guarda por separado y no se ve afectada.</string>
+    <string name="samosa_opening_sign_in">Abriendo el inicio de sesión de Samosa…</string>
+    <string name="samosa_manage_account">Gestionar cuenta</string>
+    <string name="samosa_add_credits">Añadir créditos</string>
+    <string name="samosa_sign_in_cancelled">Inicio de sesión cancelado.</string>
+    <string name="samosa_session_ended">Se cerró tu sesión de Samosa AI. Vuelve a iniciar sesión para seguir usándolo.</string>
+    <string name="samosa_session_deactivated">Esta cuenta de Samosa AI se desactivó.</string>
+    <string name="error_out_of_credits_http_402">Sin créditos (HTTP 402). Añade créditos para continuar. Para Samosa AI, abre Ajustes → Configuración de IA → Añadir créditos.</string>
 </resources>

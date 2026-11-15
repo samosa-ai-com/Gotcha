@@ -69,6 +69,13 @@ fun SpeechScreen(
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
+    /**
+     * Google sign-in, when the account website is the main sign-in. Null when
+     * Google is the only sign-in (then [onSamosaSignIn] is Google).
+     */
+    onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
+    /** Fires when the Samosa session changed outside this screen; it re-reads it. */
+    samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
     onSamosaSignOut: suspend () -> Unit = {},
     /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
     onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
@@ -137,6 +144,44 @@ fun SpeechScreen(
             val profile = onFetchSamosaProfile()
             samosaUser = profile
             samosaCredits = profile?.creditsRemaining
+        }
+    }
+    SamosaSessionSync(
+        sessionChanges = samosaSessionChanges,
+        onSessionChanged = {
+            val current = load()
+            samosaToken = current.samosaSessionToken
+            samosaEmail = current.samosaEmail
+        },
+        onResumed = {
+            if (samosaToken.isNotBlank()) {
+                scope.launch {
+                    onFetchSamosaProfile()?.let { profile ->
+                        samosaUser = profile
+                        samosaCredits = profile.creditsRemaining
+                    }
+                }
+            }
+        }
+    )
+
+    /** Runs one sign-in attempt and shows how it went. */
+    fun runSamosaSignIn(startStatus: Int, signIn: suspend () -> Result<Pair<String, String>>) {
+        samosaBusy = true
+        status = localContext.getString(startStatus)
+        scope.launch {
+            val result = signIn()
+            result.onSuccess { (email, token) ->
+                samosaEmail = email
+                samosaToken = token
+                val profile = onFetchSamosaProfile()
+                samosaUser = profile
+                samosaCredits = profile?.creditsRemaining
+                status = localContext.getString(R.string.samosa_signed_in_as, email)
+            }.onFailure { e ->
+                status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
+            }
+            samosaBusy = false
         }
     }
 
@@ -272,21 +317,18 @@ fun SpeechScreen(
                     }
                 },
                 onSignIn = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_in_google)
-                    scope.launch {
-                        val result = onSamosaSignIn()
-                        result.onSuccess { (email, token) ->
-                            samosaEmail = email
-                            samosaToken = token
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = profile
-                            samosaCredits = profile?.creditsRemaining
-                            status = localContext.getString(R.string.samosa_signed_in_as, email)
-                        }.onFailure { e ->
-                            status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
-                        }
-                        samosaBusy = false
+                    runSamosaSignIn(
+                        if (onSamosaSignInWithGoogle != null) {
+                            R.string.samosa_opening_sign_in
+                        } else {
+                            R.string.samosa_signing_in_google
+                        },
+                        onSamosaSignIn
+                    )
+                },
+                onSignInWithGoogle = onSamosaSignInWithGoogle?.let { google ->
+                    {
+                        runSamosaSignIn(R.string.samosa_signing_in_google, google)
                     }
                 },
                 onSignOut = {

@@ -173,6 +173,20 @@ class SamosaSessionTest {
     }
 
     @Test
+    fun `the app hears about a session that ended, once`() {
+        store.saveSamosaSession("access-1", "user@example.com", "refresh-1")
+        val session = SamosaSession(store, CountingRefresher(RefreshReply.Rejected(SignOutReason.EXPIRED)))
+        val heard = mutableListOf<SignOutReason>()
+        session.onSignedOut = { heard += it }
+
+        session.refresh("access-1")
+        // A later request with the old token finds nothing stored; the user was already told.
+        session.refresh("access-1")
+
+        assertEquals(listOf(SignOutReason.EXPIRED), heard)
+    }
+
+    @Test
     fun `refresh answers map to ending the session only when they are about the session`() {
         val expired = RefreshReply.Rejected(SignOutReason.EXPIRED)
         assertEquals(expired, HttpSamosaRefresher.rejection(401, """{"detail":"Invalid refresh token"}"""))
@@ -205,6 +219,7 @@ class SamosaSessionTest {
             override suspend fun me(bearer: String) = MeResponse(SamosaUser(email = "user@example.com"))
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
+            override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
         }
 
         val result = SamosaAuthManager(context, store, api).register("google-id-token")
@@ -223,6 +238,7 @@ class SamosaSessionTest {
             override suspend fun me(bearer: String) = MeResponse(SamosaUser(email = "user@example.com"))
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
+            override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
         }
 
         SamosaAuthManager(context, store, api).register("google-id-token")

@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
@@ -59,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -72,11 +74,13 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.BuildConfig
 import com.gotcha.R
 import com.gotcha.auth.ReferralClipboardHelper
+import com.gotcha.auth.SamosaDashboard
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
 import com.gotcha.i18n.StringLookup
 import com.gotcha.ui.theme.fade
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -718,8 +722,24 @@ fun SamosaAuthSection(
     referralBusy: Boolean = false,
     referralError: String? = null,
     /** Applied to the sign-in button only, so the tour can spotlight it. */
-    signInModifier: Modifier = Modifier
+    signInModifier: Modifier = Modifier,
+    /**
+     * Set when the account website is the main sign-in: shows a secondary
+     * "Use Google instead" button that runs this.
+     */
+    onSignInWithGoogle: (() -> Unit)? = null
 ) {
+    val websiteSignIn = onSignInWithGoogle != null
+    val context = LocalContext.current
+    val openDashboard: (SamosaDashboard.Section) -> Unit = { section ->
+        if (!SamosaDashboard.open(context, section)) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.samosa_auth_no_browser),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -753,18 +773,34 @@ fun SamosaAuthSection(
             )
         }
         if (signedIn && creditsRemaining != null) {
-            Text(
-                text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { openDashboard(SamosaDashboard.Section.BILLING) }) {
+                    Text(stringResource(R.string.samosa_add_credits))
+                }
+            }
         }
         if (!signedIn) {
             Text(
-                text = stringResource(R.string.samosa_sign_in_hint),
+                text = stringResource(
+                    if (websiteSignIn) R.string.samosa_sign_in_hint_website else R.string.samosa_sign_in_hint
+                ),
                 style = MaterialTheme.typography.bodySmall
             )
         }
         if (signedIn) {
+            OutlinedButton(
+                onClick = { openDashboard(SamosaDashboard.Section.OVERVIEW) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.samosa_manage_account)) }
+
             OutlinedButton(
                 onClick = onSignOut,
                 enabled = !busy,
@@ -791,8 +827,57 @@ fun SamosaAuthSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(signInModifier)
-            ) { Text(stringResource(if (busy) R.string.samosa_signing_in else R.string.samosa_sign_in)) }
+            ) {
+                Text(
+                    stringResource(
+                        when {
+                            busy -> R.string.samosa_signing_in
+                            websiteSignIn -> R.string.samosa_sign_in_website
+                            else -> R.string.samosa_sign_in
+                        }
+                    )
+                )
+            }
+            if (onSignInWithGoogle != null) {
+                TextButton(
+                    onClick = onSignInWithGoogle,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.samosa_sign_in_google_instead)) }
+            }
         }
+    }
+}
+
+/**
+ * Keeps a Samosa sign-in card current while its screen is open: re-reads the
+ * session through [onSessionChanged] when [sessionChanges] fires (a sign-in
+ * that finished after a restart, or a session that ended elsewhere), and calls
+ * [onResumed] each time the screen comes back, for example from the account
+ * website, so credits bought there show up.
+ */
+@Composable
+fun SamosaSessionSync(
+    sessionChanges: Flow<Unit>,
+    onSessionChanged: () -> Unit,
+    onResumed: () -> Unit
+) {
+    val latestOnSessionChanged by androidx.compose.runtime.rememberUpdatedState(onSessionChanged)
+    val latestOnResumed by androidx.compose.runtime.rememberUpdatedState(onResumed)
+    LaunchedEffect(sessionChanges) {
+        sessionChanges.collect { latestOnSessionChanged() }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var first = true
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                // The first resume is the screen opening; it loads on its own.
+                if (first) first = false else latestOnResumed()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
 

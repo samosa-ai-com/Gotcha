@@ -1602,4 +1602,21 @@
         <item quantity="one">%1$d-mal wiederholen</item>
         <item quantity="other">%1$d-mal wiederholen</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">Kein Browser verfügbar, um die Samosa-Anmeldung zu öffnen. Installiere oder aktiviere einen Webbrowser und versuche es erneut.</string>
+    <string name="samosa_auth_sign_in_timed_out">Zeitüberschreitung beim Warten auf den Browser. Bitte versuche es erneut.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">Die Antwort der Anmeldung passt nicht zu dieser Anfrage. Bitte versuche es erneut.</string>
+    <string name="samosa_auth_sign_in_expired">Diese Anmeldung ist abgelaufen. Bitte versuche es erneut.</string>
+    <string name="samosa_auth_sign_in_refused">Die Samosa-Anmeldung wurde nicht abgeschlossen. Bitte versuche es erneut.</string>
+    <string name="samosa_sign_in_website">Bei Samosa AI anmelden</string>
+    <string name="samosa_sign_in_google_instead">Stattdessen Google verwenden</string>
+    <string name="samosa_sign_in_hint_website">Melde dich auf der Samosa-AI-Website an, um Samosa AI zu nutzen. Deine OpenAI-kompatiblen Einstellungen werden getrennt gespeichert und bleiben unverändert.</string>
+    <string name="samosa_opening_sign_in">Samosa-Anmeldung wird geöffnet…</string>
+    <string name="samosa_manage_account">Konto verwalten</string>
+    <string name="samosa_add_credits">Guthaben aufladen</string>
+    <string name="samosa_sign_in_cancelled">Anmeldung abgebrochen.</string>
+    <string name="samosa_session_ended">Du wurdest von Samosa AI abgemeldet. Melde dich erneut an, um es weiter zu nutzen.</string>
+    <string name="samosa_session_deactivated">Dieses Samosa-AI-Konto wurde deaktiviert.</string>
+    <string name="error_out_of_credits_http_402">Kein Guthaben mehr (HTTP 402). Lade Guthaben auf, um weiterzumachen. Für Samosa AI: Einstellungen → KI-Konfiguration → Guthaben aufladen.</string>
 </resources>
