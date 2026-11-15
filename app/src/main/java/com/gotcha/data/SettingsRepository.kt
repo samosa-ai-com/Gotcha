@@ -900,6 +900,40 @@ class SettingsRepository(context: Context) : SettingsStore {
             .commit()
     }
 
+    /**
+     * Remember a website sign-in that is waiting for the browser. Written with
+     * `commit`: Android may stop Gotcha while the browser is open, and the
+     * verifier has to be on disk to finish the sign-in when the browser returns.
+     */
+    @android.annotation.SuppressLint("ApplySharedPref")
+    fun savePendingSamosaSignIn(pending: com.gotcha.auth.PendingSamosaSignIn) {
+        prefs.edit()
+            .putString(KEY_SAMOSA_PENDING_VERIFIER, pending.verifier)
+            .putString(KEY_SAMOSA_PENDING_STATE, pending.state)
+            .putLong(KEY_SAMOSA_PENDING_STARTED_AT, pending.startedAtMillis)
+            .commit()
+    }
+
+    /** The website sign-in waiting for the browser, or null when there is none. */
+    fun loadPendingSamosaSignIn(): com.gotcha.auth.PendingSamosaSignIn? {
+        val verifier = string(KEY_SAMOSA_PENDING_VERIFIER)
+        val state = string(KEY_SAMOSA_PENDING_STATE)
+        if (verifier.isBlank() || state.isBlank()) return null
+        return com.gotcha.auth.PendingSamosaSignIn(
+            verifier = verifier,
+            state = state,
+            startedAtMillis = prefs.getLong(KEY_SAMOSA_PENDING_STARTED_AT, 0L)
+        )
+    }
+
+    fun clearPendingSamosaSignIn() {
+        prefs.edit()
+            .remove(KEY_SAMOSA_PENDING_VERIFIER)
+            .remove(KEY_SAMOSA_PENDING_STATE)
+            .remove(KEY_SAMOSA_PENDING_STARTED_AT)
+            .apply()
+    }
+
     /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
     fun clearSamosaSession() {
         prefs.edit()
@@ -929,6 +963,9 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_MODEL = "model"
         const val KEY_SAMOSA_TOKEN = "samosa_session_token"
         const val KEY_SAMOSA_REFRESH_TOKEN = "samosa_refresh_token"
+        const val KEY_SAMOSA_PENDING_VERIFIER = "samosa_pending_sign_in_verifier"
+        const val KEY_SAMOSA_PENDING_STATE = "samosa_pending_sign_in_state"
+        const val KEY_SAMOSA_PENDING_STARTED_AT = "samosa_pending_sign_in_started_at"
         const val KEY_SAMOSA_EMAIL = "samosa_email"
         const val KEY_SUB_AGENT_MODEL = "sub_agent_model"
         const val KEY_NAVIGATOR_MODEL = "navigator_model"

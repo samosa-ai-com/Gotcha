@@ -72,6 +72,15 @@ class SamosaSession(
     @Volatile
     private var lastSignOutReason: SignOutReason? = null
 
+    /**
+     * Called when the session ends without the user signing out (signed out
+     * elsewhere, expired, account disabled), whichever request found out. The app
+     * uses it to tell the user and bring the sign-in button back, so no screen
+     * has to wire its own 401 callback. Runs on the calling thread.
+     */
+    @Volatile
+    var onSignedOut: ((SignOutReason) -> Unit)? = null
+
     fun tokens(): SamosaTokens = store.loadSamosaTokens()
 
     /** The reason for the most recent forced sign-out, handed out once. */
@@ -115,6 +124,7 @@ class SamosaSession(
         GotchaLog.d(TAG) { "Samosa session ended: $reason" }
         lastSignOutReason = reason
         store.clearSamosaSession()
+        runCatching { onSignedOut?.invoke(reason) }
         return RefreshOutcome.SignedOut(reason)
     }
 
@@ -209,7 +219,7 @@ class HttpSamosaRefresher(
         }
 
         private fun createApi(): SamosaRefreshApi {
-            val json = Json { ignoreUnknownKeys = true }
+            val json = SamosaAuthApi.samosaJson
             val client = OkHttpClient.Builder()
                 .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)

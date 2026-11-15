@@ -35,6 +35,8 @@ object HumanReadableError {
     private fun fromHttpCodeOnly(code: Int, rawMessage: String?, strings: StringLookup): String = when (code) {
         400 -> strings(R.string.error_bad_request_http_400_the)
         401 -> strings(R.string.error_authentication_failed_http_401_please)
+        // Payment required: the account's credits are used up.
+        402 -> strings(R.string.error_out_of_credits_http_402)
         403 -> {
             if (!rawMessage.isNullOrBlank()) {
                 rawMessage

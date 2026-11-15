@@ -48,6 +48,21 @@ android {
             "SAMOSA_API_URL",
             "\"${samosaConfig("SAMOSA_API_URL", "https://api.samosa-ai.example")}\""
         )
+        // Samosa account website: hosts sign-in for the app and the account pages
+        // (usage, devices, billing) that "Manage account" opens.
+        buildConfigField(
+            "String",
+            "SAMOSA_DASHBOARD_URL",
+            "\"${samosaConfig("SAMOSA_DASHBOARD_URL", "https://dashboard.samosa-ai.com")}\""
+        )
+        // true: sign in through the account website, with Google as a fallback.
+        // false: Google sign-in only, as before.
+        buildConfigField(
+            "boolean",
+            "SAMOSA_DASHBOARD_SIGN_IN",
+            samosaConfig("SAMOSA_DASHBOARD_SIGN_IN", "true").trim().lowercase().toBooleanStrictOrNull()
+                ?.toString() ?: "true"
+        )
         buildConfigField(
             "String",
             "SAMOSA_SKILL_HOST",
