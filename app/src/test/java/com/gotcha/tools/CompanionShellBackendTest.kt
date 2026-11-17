@@ -111,12 +111,20 @@ class CompanionShellBackendTest {
     }
 
     @Test
-    fun `a different interface version is refused before any command`() = runTest {
-        service.shellInfo.interfaceVersion = 3
+    fun `an older interface version is refused before any command`() = runTest {
+        service.shellInfo.interfaceVersion = CompanionShellBackend.INTERFACE_VERSION - 1
         val result = backend.runCommand("echo hi")
         assertFalse(result.success)
-        assertTrue(result.message, "interface version 3" in result.message)
+        assertTrue(result.message, "interface version ${CompanionShellBackend.INTERFACE_VERSION - 1}" in result.message)
         assertTrue(service.started.isEmpty())
+    }
+
+    @Test
+    fun `a newer interface version is accepted because changes are additive`() = runTest {
+        service.shellInfo.interfaceVersion = CompanionShellBackend.INTERFACE_VERSION + 1
+        val result = backend.runCommand("echo hi")
+        assertTrue(result.message, result.success)
+        assertTrue(service.started.isNotEmpty())
     }
 
     @Test

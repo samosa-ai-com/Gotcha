@@ -188,7 +188,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
 
         if (
             allowed && current?.rootfsReady == true &&
-            current.interfaceVersion == CompanionShellBackend.INTERFACE_VERSION
+            current.interfaceVersion >= CompanionShellBackend.INTERFACE_VERSION
         ) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
@@ -261,8 +261,6 @@ private fun appDetail(identity: CompanionIdentity, info: ShellInfo?): String = w
     info == null -> stringResource(R.string.linux_shell_app_unreachable, identity.versionName.orEmpty())
     info.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION ->
         stringResource(R.string.linux_shell_app_too_old, identity.versionName.orEmpty())
-    info.interfaceVersion > CompanionShellBackend.INTERFACE_VERSION ->
-        stringResource(R.string.linux_shell_app_too_new, identity.versionName.orEmpty())
     else -> stringResource(
         R.string.linux_shell_app_installed,
         identity.versionName.orEmpty(),

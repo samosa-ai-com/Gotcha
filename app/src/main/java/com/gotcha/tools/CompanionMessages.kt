@@ -62,9 +62,8 @@ internal object CompanionMessages {
     )
 
     fun versionMismatch(found: Int, expected: Int) = ToolResult.error(
-        "Gotcha Shell speaks interface version $found but this Gotcha needs version $expected. Tell the user " +
-            "to update " + (if (found < expected) "Gotcha Shell" else "Gotcha") +
-            ". Do not retry."
+        "Gotcha Shell speaks interface version $found but this Gotcha needs version $expected or newer. " +
+            "Tell the user to update Gotcha Shell. Do not retry."
     )
 
     fun rootfsMissing(installing: Boolean) = ToolResult.error(

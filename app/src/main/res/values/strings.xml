@@ -1908,7 +1908,6 @@
     <string name="linux_shell_app_untrusted">An app with Gotcha Shell\'s name is installed, but it is not signed by the makers of Gotcha, so Gotcha will not use it. Uninstall it, then install the Gotcha Shell build you were given.</string>
     <string name="linux_shell_app_unreachable">Gotcha Shell %1$s is installed, but it did not answer. If your phone has an Autostart setting, allow it for Gotcha Shell, then come back to this page.</string>
     <string name="linux_shell_app_too_old">Gotcha Shell %1$s is too old for this version of Gotcha. Update Gotcha Shell.</string>
-    <string name="linux_shell_app_too_new">Gotcha Shell %1$s is newer than this version of Gotcha understands. Update Gotcha.</string>
     <string name="linux_shell_app_installed">Gotcha Shell %1$s is installed and uses %2$s of storage.</string>
     <string name="linux_shell_system_title">Linux system</string>
     <string name="linux_shell_system_unknown">Not checked yet.</string>

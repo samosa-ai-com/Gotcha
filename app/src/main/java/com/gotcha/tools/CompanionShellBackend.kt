@@ -298,7 +298,9 @@ class CompanionShellBackend(
         val info = link.call { it.info }
         CompanionShellState.setRootfsReady(context, info.rootfsReady)
         return when {
-            info.interfaceVersion != INTERFACE_VERSION ->
+            // Interface changes are additive, so a newer companion still answers every call this
+            // build makes. Only an older one can lack a call Gotcha relies on.
+            info.interfaceVersion < INTERFACE_VERSION ->
                 CompanionMessages.versionMismatch(info.interfaceVersion, INTERFACE_VERSION)
             !info.rootfsReady -> CompanionMessages.rootfsMissing(info.installing)
             else -> null
@@ -353,7 +355,7 @@ class CompanionShellBackend(
     companion object {
         const val ID = "companion"
 
-        /** The Binder interface version this build was compiled against; see `shell-interface.lock`. */
+        /** The Binder interface version this build was compiled against, and the oldest it accepts; see `shell-interface.lock`. */
         const val INTERFACE_VERSION = 2
 
         private const val GUEST_HOME = "/root"
