@@ -27,5 +27,9 @@ internal fun newTerminalView(
     view.setTextSize(initialTextSizePx)
     view.setTypeface(Typeface.MONOSPACE)
     view.keepScreenOn = true
+    // Termux sets these in its layout XML. Without them the keyboard is never offered to the view
+    // ("showSoftInput ... is not served") and typed keys reach nobody.
+    view.isFocusable = true
+    view.isFocusableInTouchMode = true
     return TerminalViewParts(view, client)
 }

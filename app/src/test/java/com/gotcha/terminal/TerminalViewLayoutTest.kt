@@ -104,6 +104,14 @@ class TerminalViewLayoutTest {
     }
 
     @Test
+    fun `the view can take focus and the keyboard, as Termux's own layout makes it`() {
+        val view = newTerminalView(context, 40, 20..80) { }.view
+        assertTrue(view.isFocusable)
+        assertTrue(view.isFocusableInTouchMode)
+        assertTrue("it must say it is a text editor, or the keyboard is never offered", view.onCheckIsTextEditor())
+    }
+
+    @Test
     fun `a second layout at another size, as after rotation, resizes the emulator`() {
         val parts = newTerminalView(context, 40, 20..80) { }
         parts.view.attachSession(session)

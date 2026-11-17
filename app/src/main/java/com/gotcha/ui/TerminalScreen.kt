@@ -61,6 +61,7 @@ import com.gotcha.terminal.refusalMessage
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
+import kotlinx.coroutines.delay
 
 /**
  * Settings ▸ Linux shell ▸ Terminal: a real terminal in the Linux system of Gotcha Shell.
@@ -210,6 +211,8 @@ private fun TerminalPane(live: TerminalUiState.Live, viewModel: TerminalViewMode
     LaunchedEffect(view, live.ended) {
         if (!live.ended) {
             view.requestFocus()
+            // The window needs a moment to hand the keyboard to a newly focused view.
+            delay(KEYBOARD_DELAY_MS)
             context.getSystemService(Context.INPUT_METHOD_SERVICE).let { it as InputMethodManager }
                 .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
         }
@@ -323,6 +326,7 @@ private const val KEY_TEXT_PX = "text_size_px"
 private const val DEFAULT_TEXT_SP = 14
 private const val MIN_TEXT_SP = 8
 private const val MAX_TEXT_SP = 32
+private const val KEYBOARD_DELAY_MS = 300L
 private const val KEY_HEIGHT = 44
 private const val KEY_TEXT_SP = 14
 private const val KEY_BAR = 0xFF1B1B1F
