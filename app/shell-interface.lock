@@ -1,0 +1,10 @@
+# The Binder interface Gotcha was built against. The .aidl files under
+# src/main/aidl/com/gotcha/shell are copies owned by samosa-ai-com/Gotcha-Shell:
+# never edit them here. To take a newer interface, copy the files again and
+# update the three values below; ShellInterfacePinTest fails until they agree.
+#
+# sha256 = sha256 of the .aidl files concatenated in name order:
+#   cat $(ls *.aidl | LC_ALL=C sort) | sha256sum
+companionCommit=eb3fd14
+interfaceVersion=2
+sha256=b87f8310f0b0299c478d21d7d963b9b4bfc339b26382b633983e89e6fa4882fe

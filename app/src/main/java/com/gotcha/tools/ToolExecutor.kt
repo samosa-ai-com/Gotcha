@@ -51,6 +51,9 @@ class ToolExecutor(
     }
 
     private val appContext = context.applicationContext
+
+    /** Fences shell output and remembers that this request has read some. See [ShellOutputGuard]. */
+    val shellOutputGuard = ShellOutputGuard(canonicalPath = { fileResolver.canonicalPath(it) })
     private val phoneTool = PhoneTool(appContext)
     private val settingsRouter = SettingsRouter(appContext)
     private val systemTool = SystemTool(appContext, settingsRouter)
@@ -86,7 +89,6 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
-    private val termuxFileBridge = TermuxFileBridge(appContext)
     private val fileResolver = FileResolver(appContext)
     private val podcastTool = PodcastTool(
         appContext,
@@ -105,7 +107,7 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
-    private val termuxTool = TermuxTool(appContext)
+    private val shell: ShellBackend = ShellBackends.active(appContext)
     private val healthTool = HealthTool(appContext)
 
     /** The audit log; the engine also writes the answers to its confirmation prompts here. */
@@ -131,40 +133,42 @@ class ToolExecutor(
          */
         hiddenTools: Set<String> = emptySet()
     ): ToolResult {
-        if (!ToolRegistry.contains(name)) {
+        // A chat or scheduled task saved before the shell tools were renamed still calls the old names.
+        val tool = ShellTools.canonical(name)
+        if (!ToolRegistry.contains(tool)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
-        if (name in hiddenTools) {
-            return unavailableResult(name)
+        if (tool in hiddenTools) {
+            return unavailableResult(tool)
         }
-        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
+        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(tool, agent)) {
             return ToolResult.error(
                 "This action is not available in ${agent.name} mode. " +
                     "Switch to Operator mode if you need to perform this action."
             )
         }
-        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(name)) {
+        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(tool)) {
             return ToolResult.error(
-                "Tool '$name' is not available to sub-agents (no recursive delegation)."
+                "Tool '$tool' is not available to sub-agents (no recursive delegation)."
             )
         }
-        onBeforeTool?.invoke(name, args)?.let { refused ->
-            actionLog.record(name, args.redactedForAudit(), refused)
+        onBeforeTool?.invoke(tool, args)?.let { refused ->
+            actionLog.record(tool, args.redactedForAudit(), refused)
             return refused
         }
         val result = try {
-            withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }
+            withContext(Dispatchers.IO) { shellOutputGuard.label(tool, dispatch(tool, args, hiddenTools)) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            ToolResult.error("Tool '$name' failed: ${e.message}")
+            ToolResult.error("Tool '$tool' failed: ${e.message}")
         }
         // Do not log result.message — tool payloads can contain sensitive user data
         // (SMS bodies, clipboard text, file contents, location, etc.).
         GotchaLog.d(TAG) {
-            "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
+            "execute: $tool -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
         }
-        actionLog.record(name, args.redactedForAudit(), result)
+        actionLog.record(tool, args.redactedForAudit(), result)
         return result
     }
 
@@ -290,8 +294,10 @@ class ToolExecutor(
                 bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
-            "pull_from_termux" -> termuxFileBridge.pull(
-                termuxPath = args.requireString("termux_path") ?: return missing("termux_path"),
+            "pull_from_shell" -> shell.exportFile(
+                guestPath = args.requireString(ShellTools.PULL_PATH)
+                    ?: args.requireString(ShellTools.PULL_PATH_LEGACY)
+                    ?: return missing(ShellTools.PULL_PATH),
                 // Resolve relative paths against the session working dir like every other file
                 // tool; a raw string would resolve against the JVM process CWD instead.
                 destination = java.io.File(
@@ -669,7 +675,7 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
-            "run_termux_command" -> termuxTool.runCommand(
+            "run_shell" -> shell.runCommand(
                 command = args.requireString("command") ?: return missing("command"),
                 workingDir = args.requireString("working_dir"),
                 timeoutSeconds = args.requireInt("timeout_seconds"),

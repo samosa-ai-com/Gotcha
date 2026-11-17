@@ -62,7 +62,7 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 ## 🐧 Termux (Linux shell)
 
 Termux (the F-Droid or GitHub build) gives Gotcha a real Linux user-space
-on Android and is reached through the `run_termux_command` tool, which
+on Android and is reached through the `run_shell` tool, which
 runs headlessly under Termux's user id. It is genuinely useful for
 package installs, scripts, compilers, Python, git, and the rest of the
 long Unix tail — but it is not a server. There is no root, no systemd,

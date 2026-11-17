@@ -67,7 +67,7 @@ class SubAgentSession(
 
         val maxRounds = settings.maxToolRounds
         val hiddenTools = hiddenTools()
-        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
+        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools, ShellBackends.toolNotes(appContext))
 
         for (round in 0 until maxRounds) {
             GotchaLog.d(TAG) { "Sub-agent round ${round + 1}/$maxRounds" }

@@ -21,7 +21,7 @@ import java.net.Socket
 import java.nio.file.Files
 
 /**
- * `pull_from_termux`'s `TermuxFileBridge`. The live transfer (a real `cp` through `/sdcard`, or a
+ * `pull_from_shell`'s `TermuxFileBridge`. The live transfer (a real `cp` through `/sdcard`, or a
  * loopback `python3` send) needs a real Termux install and is verified by hand — what is covered
  * here is everything that decides the outcome without Termux: `~`/`$HOME` expansion, the exact
  * `python3` sender command and program, the shared-storage-vs-loopback selection, and the socket

@@ -495,24 +495,35 @@ object ToolRegistry {
      */
     fun toolsForAgent(
         agent: AgentMode,
-        hiddenTools: Set<String> = emptySet()
+        hiddenTools: Set<String> = emptySet(),
+        /** The active Linux shell's notes for `run_shell`, see [ShellTools.describe]. */
+        shellNotes: String? = null
     ): List<ToolDefinition> {
         val dynamic = dynamicSet
         val allowed = when (agent) {
             AgentMode.MONITOR -> baseMonitorTools + ConnectorCatalog.monitorTools + dynamic.readOnlyNames
             AgentMode.OPERATOR -> definitions.keys + dynamic.definitions.keys - setOf("ask_final_answer")
         }
-        return (definitions + dynamic.definitions)
-            .filterKeys { it in allowed && it !in hiddenTools }
-            .values.toList()
+        return ShellTools.describe(
+            (definitions + dynamic.definitions)
+                .filterKeys { it in allowed && it !in hiddenTools }
+                .values.toList(),
+            shellNotes
+        )
     }
 
-    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
+    fun toolsForSubAgent(
+        hiddenTools: Set<String> = emptySet(),
+        shellNotes: String? = null
+    ): List<ToolDefinition> {
         val dynamic = dynamicSet
         val allowed = definitions.keys + dynamic.definitions.keys - subAgentExcluded
-        return (definitions + dynamic.definitions)
-            .filterKeys { it in allowed && it !in hiddenTools }
-            .values.toList()
+        return ShellTools.describe(
+            (definitions + dynamic.definitions)
+                .filterKeys { it in allowed && it !in hiddenTools }
+                .values.toList(),
+            shellNotes
+        )
     }
 
     fun toolsForNavigator(): List<ToolDefinition> =

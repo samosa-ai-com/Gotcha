@@ -1759,23 +1759,17 @@ object ToolDefinitions {
         }
     )
 
-    val pullFromTermux = tool(
-        "pull_from_termux",
-        "Copy a file that currently lives inside Termux (its Linux user-space) out to a path Gotcha " +
-            "and the user can reach, e.g. '/storage/emulated/0/Download/name.mp4'. Uses the shared-storage " +
-            "bridge when Termux's storage is linked, and a loopback transfer otherwise, so it works even " +
-            "before 'termux-setup-storage' is granted. This is how a file produced inside Termux " +
-            "(yt-dlp downloads, script output, server files) gets into the user's Downloads/Gotcha " +
-            "folder — run the producing command first with run_termux_command, then pull the result. " +
-            "Needs Termux installed.",
+    val pullFromShell = tool(
+        ShellTools.PULL,
+        ShellTools.PULL_DESCRIPTION,
         schema {
             putJsonObject("properties") {
-                putJsonObject("termux_path") {
+                putJsonObject(ShellTools.PULL_PATH) {
                     put("type", "string")
                     put(
                         "description",
-                        "Absolute path of the file inside Termux, e.g. " +
-                            "'/data/data/com.termux/files/home/gotcha_guide.mp4' or '~/gotcha_guide.mp4'."
+                        "Path of the file inside the Linux shell, absolute or starting with '~/', e.g. " +
+                            "'~/gotcha_guide.mp4'."
                     )
                 }
                 putJsonObject("destination") {
@@ -1788,7 +1782,7 @@ object ToolDefinitions {
                 }
             }
             putJsonArray("required") {
-                add("termux_path")
+                add(ShellTools.PULL_PATH)
                 add("destination")
             }
         }
@@ -2468,65 +2462,16 @@ object ToolDefinitions {
         }
     )
 
-    val runTermuxCommand = tool(
-        "run_termux_command",
-        "Run a shell command inside Termux, which has a real Linux user-space — `pkg install`/`apt`, " +
-            "python3, git, ssh, compilers. Use this for anything that needs a package installed or a " +
-            "non-trivial script; it runs headlessly, with no terminal opening in front of the user. " +
-            "Only offered when Termux is installed.\n" +
-            "Each call is a SEPARATE shell: `cd`, `export`, and activated virtualenvs do NOT carry " +
-            "over to your next call, which starts again in Termux's home. Chain dependent steps in " +
-            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them. " +
-            "For scripts use a single heredoc/stdin payload (e.g. `python3 - << 'PY'\\n...\\nPY` or " +
-            "`sh -s << 'EOF'\\n...\\nEOF`) via the stdin tool param — prefer stdin over " +
-            "write_file to /sdcard for payloads <100KB.\n" +
-            "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
-            "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
-            "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
-            "rather than retrying.\n" +
-            "\nRealistic limits to factor in:\n" +
-            "- No interactive prompts — there is no terminal here, so any command that waits for typed input " +
-            "(pkg install without -y, ssh password, read, mysql>) blocks until the 600s timeout. Always " +
-            "pass -y / --yes / -q where the tool supports them.\n" +
-            "- Output is capped at 32KB by Gotcha and ~100KB by Termux. For larger output, redirect to a " +
-            "file inside Termux (e.g. `... > /sdcard/Download/out.txt`) and read it back via read_file.\n" +
-            "- You cannot kill a command after submitting it. A timed-out command keeps running under " +
-            "Termux's UID. There is no kill from here. To stop a stuck one, open the notifications shade " +
-            "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
-            "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
-            "Exit on the Termux notification.\n" +
-            "- Lock contention: an `exit 100` whose error names `lock-frontend` / `Could not get lock` / " +
-            "`held by process <pid>` means ANOTHER pkg/apt is already running and holds the package lock — " +
-            "this is NOT a mirror problem. Wait for it or tap Exit on the Termux notification to end all " +
-            "sessions; never delete the lock files or kill -9 the process, which corrupts the package " +
-            "database without releasing the lock.\n" +
-            "- Interactive prompts: if output shows `Configuration file '...'` with `Y/I/N/O/D/Z`, a " +
-            "package manager is waiting for an answer no terminal can provide and will block until the " +
-            "timeout. Package operations are run non-interactively by default; if a bare `dpkg " +
-            "--configure` still asks, supply the answer via the stdin param (`echo N | dpkg --configure " +
-            "<pkg>`).\n" +
-            "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
-            "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
-            "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
-            "- Android 12+ foreground-service rule: if Gotcha is in the background and the assistive ball " +
-            "is off, this tool fails with 'Not allowed to start service'. Tell the user to bring Gotcha to " +
-            "the foreground (or switch the assistive ball on).\n" +
-            "\nIf `pkg install` hangs at \"0% [Connecting to packages.termux.dev]\" or fails with NO_PUBKEY, " +
-            "the default mirror is slow or blocked on the user's network. Tell the user to open Termux and " +
-            "run `termux-change-repo` once, then retry. The full mirror list and the non-interactive " +
-            "sources.list swap are in the termux_repositories skill.\n" +
-            "\nFor long-running processes (servers, watchers, daemons), the foreground process is orphaned " +
-            "the moment Gotcha returns. The persistence pattern (`nohup ... > log 2>&1 < /dev/null & echo $! " +
-            "> pid; disown`) and the termux-wake-lock requirement are in the termux_background skill. For " +
-            "full Debian/Ubuntu via proot-distro (when Termux's bionic/busybox is not enough), see the " +
-            "termux_proot skill.",
+    val runShell = tool(
+        ShellTools.RUN,
+        ShellTools.RUN_DESCRIPTION,
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
                     put("type", "string")
                     put(
                         "description",
-                        "Shell command line to run in Termux, e.g. 'pkg install python -y' or " +
+                        "Shell command line to run in the Linux shell, e.g. " +
                             "'python3 -c \"print(1+1)\"'. Pipes and multiple statements are fine."
                     )
                 }
@@ -2534,7 +2479,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Absolute path inside Termux's filesystem. Defaults to Termux's home. " +
+                        "Absolute path inside the Linux shell's filesystem. Defaults to its home. " +
                             "Applies to this call only — it is not remembered for the next one."
                     )
                 }
@@ -2542,7 +2487,8 @@ object ToolDefinitions {
                     put("type", "integer")
                     put(
                         "description",
-                        "Timeout in seconds (1-600). Default 60 — raise it for package installs and builds."
+                        "Timeout in seconds. Default 60 — raise it for package installs and builds. " +
+                            "The description above gives the ceiling for the installed shell."
                     )
                 }
                 putJsonObject("stdin") {
@@ -2552,7 +2498,7 @@ object ToolDefinitions {
                         "Text piped to the command's standard input. Supply this for anything that would " +
                             "otherwise wait for typed input — there is no terminal to type into, so an " +
                             "unanswered prompt just runs until the timeout. Prefer non-interactive flags " +
-                            "(e.g. 'pkg install -y') where they exist."
+                            "(e.g. 'apt install -y') where they exist."
                     )
                 }
             }
@@ -3174,8 +3120,8 @@ object ToolDefinitions {
         mediaEdit,
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
-        // Pull a file produced inside Termux out to Gotcha-accessible storage (Operator only)
-        pullFromTermux,
+        // Pull a file produced inside the Linux shell out to Gotcha-accessible storage (Operator only)
+        pullFromShell,
         // Script-to-speech podcast synthesis (Operator only)
         synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
         // Audio-file transcription via the STT API (Operator only)
@@ -3193,7 +3139,7 @@ object ToolDefinitions {
         lockScreen, disableCamera, setPasswordPolicy,
 
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, runTermuxCommand, writeSecureSettings,
+        checkRoot, runRootCommand, runShell, writeSecureSettings,
 
         searchSkills,
 

@@ -576,6 +576,8 @@ interface SettingsStore {
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
 class SettingsRepository(context: Context) : SettingsStore {
 
+    private val appContext: Context = context.applicationContext ?: context
+
     val prefs: SharedPreferences by lazy {
         SafeEncryptedSharedPreferences.create(context, SETTINGS_PREFS_FILE)
     }
@@ -879,6 +881,8 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_SAMOSA_REFRESH_TOKEN, refreshToken)
             .putString(KEY_SAMOSA_EMAIL, email)
             .apply()
+        // What was known about the previous session's plan does not carry over.
+        com.gotcha.tools.ShellEntitlement.onSignedIn(appContext)
     }
 
     /** The session's tokens, read on their own: two decrypts where [load] does one per setting. */
@@ -941,6 +945,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .remove(KEY_SAMOSA_REFRESH_TOKEN)
             .remove(KEY_SAMOSA_EMAIL)
             .apply()
+        com.gotcha.tools.ShellEntitlement.onSignedOut(appContext)
     }
 
     /**

@@ -226,6 +226,10 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             """
         )
     )
+    SettingsPage.LINUX_SHELL -> SettingsSearchEntry(
+        page,
+        words("linux, shell, ubuntu, command, terminal, package, apt, python, gotcha shell, companion")
+    )
     SettingsPage.TERMUX -> SettingsSearchEntry(
         page,
         words("linux, shell, command, terminal, ffmpeg, package, bash")

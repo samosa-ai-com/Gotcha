@@ -209,9 +209,9 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
             PermissionItem(
                 R.string.permission_termux_commands_optional,
                 R.string.permission_termux_commands_optional_description,
-                com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND,
+                com.gotcha.tools.TermuxShellBackend.PERMISSION_RUN_COMMAND,
                 null,
-                { c -> checkPerm(c, com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND) },
+                { c -> checkPerm(c, com.gotcha.tools.TermuxShellBackend.PERMISSION_RUN_COMMAND) },
                 isRelevant = { c -> com.gotcha.tools.DeviceCapabilities.termuxUsable(c) }
             ),
             PermissionItem(

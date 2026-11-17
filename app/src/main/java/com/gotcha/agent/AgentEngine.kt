@@ -227,7 +227,7 @@ class AgentEngine(
                 }
             },
             onUpdateUserProfile = onUpdateUserProfile,
-            onBeforeTool = { name, args -> foregroundControl.check(name, args) },
+            onBeforeTool = { name, args -> foregroundControl.check(name, args) ?: confirmAfterShellOutput(name, args) },
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -565,6 +565,7 @@ class AgentEngine(
      */
     suspend fun run(agent: AgentMode) {
         foregroundControl.reset()
+        toolExecutor.shellOutputGuard.reset()
         try {
             runLoop(agent)
         } finally {
@@ -649,10 +650,16 @@ class AgentEngine(
                 add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
+            // The daily plan check for the Linux shell. A disk read unless a check is due.
+            com.gotcha.tools.ShellEntitlement.refresh(appContext)
             val response = try {
                 llm.chat(
                     messages,
-                    ToolRegistry.toolsForAgent(agent, hiddenTools()),
+                    ToolRegistry.toolsForAgent(
+                        agent,
+                        hiddenTools(),
+                        com.gotcha.tools.ShellBackends.toolNotes(appContext)
+                    ),
                     sessionId = promptCacheKey ?: sessionId
                 ).also { lastModelRequestFailed = false }
             } catch (e: CancellationException) {
@@ -1101,9 +1108,17 @@ class AgentEngine(
     private suspend fun confirmOrSkip(
         toolNames: List<String>,
         description: String,
-        recordSkip: Boolean = true
+        recordSkip: Boolean = true,
+        /**
+         * For changes to Gotcha itself: ask even when the chat skips protections, if this
+         * request has read shell output. See [com.gotcha.tools.ShellOutputGuard].
+         */
+        askAfterShellOutput: Boolean = false
     ): ConfirmOutcome {
-        if (!skipProtections) return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        val mustAsk = askAfterShellOutput && toolExecutor.shellOutputGuard.shellOutputSeen
+        if (!skipProtections || mustAsk) {
+            return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        }
         if (recordSkip) {
             toolExecutor.actionLog.record(
                 toolNames.joinToString(","),
@@ -1112,6 +1127,21 @@ class AgentEngine(
             )
         }
         return ConfirmOutcome(true, true)
+    }
+
+    /**
+     * Asks before a tool changes Gotcha's memory, profile or own files in a request that has
+     * read shell output; null lets the tool run. Settings and scheduled tasks have their own
+     * prompts, which [confirmOrSkip] keeps on in the same situation. Not skippable: the point
+     * is that the request may no longer be the user's own.
+     */
+    private suspend fun confirmAfterShellOutput(name: String, args: JsonObject): ToolResult? {
+        val what = toolExecutor.shellOutputGuard.gotchaChange(name, args) ?: return null
+        val approved = events.awaitConfirmation(listOf(name), com.gotcha.tools.ShellOutputGuard.question(what))
+        // A refusal is logged by the executor, which records whatever is returned in the tool's place.
+        if (!approved) return com.gotcha.tools.ShellOutputGuard.declined(what)
+        toolExecutor.actionLog.record(name, "(approved) change to $what after shell output", ToolResult.ok("Allowed"))
+        return null
     }
 
     /** An approval decision and whether it was pre-granted by a skip. */
@@ -1214,7 +1244,8 @@ class AgentEngine(
                     val (approved, skipped) = confirmOrSkip(
                         listOf("update_gotcha_settings"),
                         GotchaSettingsUpdate.describe(plan, request.reason),
-                        recordSkip = false
+                        recordSkip = false,
+                        askAfterShellOutput = true
                     )
                     val decided = if (approved) {
                         handler(plan)
@@ -1264,7 +1295,8 @@ class AgentEngine(
             val (approved, skipped) = confirmOrSkip(
                 listOf(call.function.name),
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) },
-                recordSkip = false
+                recordSkip = false,
+                askAfterShellOutput = true
             )
             val decided = if (approved) {
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }
@@ -1559,17 +1591,17 @@ class AgentEngine(
         // Operator-only and suppressed in voice-call brevity mode. The skill
         // local_serve carries the exact recipe; this nudge is the cheap index-0
         // default that causes the agent to fetch it. Most complex/long-running
-        // commands only work reliably with run_termux_command, so prefer Termux
-        // when available — do not waste turns probing run_command toybox when the
-        // task needs python/build/serve and Termux is installed.
+        // commands only work reliably with run_shell, so prefer the Linux
+        // shell when available — do not waste turns probing run_command toybox when the
+        // task needs python/build/serve and a Linux shell is installed.
         val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
             "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
                 "and does not specify how to run it, default to a self-contained HTML page " +
                 "in the Gotcha chats folder and serve it on a free local port so it is " +
                 "immediately usable on this phone — do not wait for a follow-up 'run it'. " +
-                "If Termux is available (check <env> Termux installed: yes), prefer " +
-                "run_termux_command: copy the HTML to \$HOME via stdin and serve with " +
-                "termux-wake-lock + python3 -m http.server; otherwise use run_command " +
+                "If a Linux shell is available (the run_shell tool is offered), prefer " +
+                "run_shell: copy the HTML to \$HOME via stdin and serve with " +
+                "python3 -m http.server (in Termux, take termux-wake-lock first); otherwise use run_command " +
                 "toybox nc loop. If the request is genuinely ambiguous (could be an " +
                 "Android APK vs a web app vs a Python script vs a Termux program), ask one " +
                 "clarifying question whether they want it runnable on this phone as a web app " +
@@ -1739,7 +1771,7 @@ class AgentEngine(
         val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
-        val termux = com.gotcha.tools.TermuxTool(app).status()
+        val shellLines = com.gotcha.tools.ShellBackends.envLines(app)
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -1776,23 +1808,7 @@ class AgentEngine(
             )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
-            // run_termux_command is withheld unless Termux is installed, and refuses until its
-            // RUN_COMMAND permission is granted, so this line is how the model knows to say
-            // "install Termux" or "allow the permission" rather than just failing.
-            appendLine(
-                when {
-                    !termux.installed ->
-                        "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
-                    !termux.pluginApiAvailable ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}) but this build " +
-                            "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
-                            "run_termux_command is unavailable and no permission can fix it; only replacing " +
-                            "Termux with the F-Droid or GitHub build would."
-                    else ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
-                            "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
-                }
-            )
+            shellLines.forEach { appendLine(it) }
             // Tools depending on a capability that is "no" here are withheld from
             // the tool list, so these lines are the model's only way to explain
             // what the user should enable.
