@@ -93,6 +93,30 @@ class ShellEntitlementTest {
     }
 
     @Test
+    fun `an unanswered ask is not repeated on every call`() = runTest {
+        val offline = Source(TierAnswer.Unavailable)
+        refresh(offline)
+        refresh(offline)
+        now += 10 * 60 * 1000
+        refresh(offline)
+        assertEquals(1, offline.calls)
+
+        now += 6 * 60 * 1000
+        refresh(offline)
+        assertEquals(2, offline.calls)
+    }
+
+    @Test
+    fun `asking by hand ignores the rest after an unanswered ask`() = runTest {
+        val source = Source(TierAnswer.Unavailable)
+        refresh(source)
+        source.answer = TierAnswer.Tier("pro")
+        refresh(source, force = true)
+        assertEquals(2, source.calls)
+        assertEquals(Access.ALLOWED, remembered())
+    }
+
+    @Test
     fun `a daily check that succeeds restarts the offline window`() = runTest {
         val source = Source(TierAnswer.Tier("pro"))
         refresh(source)

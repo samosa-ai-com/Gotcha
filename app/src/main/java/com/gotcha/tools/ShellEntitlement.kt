@@ -52,18 +52,32 @@ object ShellEntitlement {
     }
 
     /** The remembered answer. [state] is null when nothing is remembered. */
-    internal data class Record(val state: String?, val confirmedAt: Long, val checkedAt: Long)
+    internal data class Record(
+        val state: String?,
+        val confirmedAt: Long,
+        val checkedAt: Long,
+        /** The last time the backend was asked, answered or not. */
+        val attemptedAt: Long = 0L
+    )
 
     /** Tiers that include the shell: Pro, and Influencer, which carries Pro's features. */
     val SHELL_TIERS = setOf("pro", "influencer")
     const val OFFLINE_WINDOW_MILLIS = 72L * 60 * 60 * 1000
     const val RECHECK_AFTER_MILLIS = 24L * 60 * 60 * 1000
 
+    /**
+     * After an unanswered ask the backend is left alone this long. [refresh] runs before every model
+     * round, and each ask can wait [FETCH_TIMEOUT_MILLIS], so without this a bad connection would
+     * add that wait to every round.
+     */
+    const val RETRY_AFTER_MILLIS = 15L * 60 * 1000
+
     private const val TAG = "ShellEntitlement"
     private const val PREFS = "companion_shell"
     private const val KEY_STATE = "access_state"
     private const val KEY_CONFIRMED_AT = "access_confirmed_at"
     private const val KEY_CHECKED_AT = "access_checked_at"
+    private const val KEY_ATTEMPTED_AT = "access_attempted_at"
     private const val STATE_PRO = "pro"
     private const val STATE_NOT_PRO = "not_pro"
     private const val STATE_SIGNED_OUT = "signed_out"
@@ -107,8 +121,11 @@ object ShellEntitlement {
     }
 
     /** True when the backend should be asked now. */
-    internal fun isDue(record: Record, now: Long): Boolean =
-        record.state == null || now - record.checkedAt !in 0 until RECHECK_AFTER_MILLIS
+    internal fun isDue(record: Record, now: Long): Boolean {
+        val stale = record.state == null || now - record.checkedAt !in 0 until RECHECK_AFTER_MILLIS
+        val resting = now - record.attemptedAt in 0 until RETRY_AFTER_MILLIS
+        return stale && !resting
+    }
 
     /**
      * Asks the backend when a check is due, or always with [force], and returns the resulting
@@ -122,11 +139,12 @@ object ShellEntitlement {
     ): Access = refreshLock.withLock {
         val app = context.applicationContext ?: context
         if (force || isDue(read(app), now())) {
+            val asked = now()
             when (val answer = source.fetch()) {
                 is TierAnswer.Tier ->
                     write(app, if (answer.id in SHELL_TIERS) STATE_PRO else STATE_NOT_PRO, now())
                 TierAnswer.SignedOut -> write(app, STATE_SIGNED_OUT, now())
-                TierAnswer.Unavailable -> Unit
+                TierAnswer.Unavailable -> prefs(app).edit().putLong(KEY_ATTEMPTED_AT, asked).apply()
             }
         }
         access(app, now())
@@ -134,7 +152,8 @@ object ShellEntitlement {
 
     /** A new sign-in: whatever was remembered belonged to another session. */
     fun onSignedIn(context: Context) {
-        prefs(context).edit().remove(KEY_STATE).remove(KEY_CONFIRMED_AT).remove(KEY_CHECKED_AT).apply()
+        prefs(context).edit().remove(KEY_STATE).remove(KEY_CONFIRMED_AT).remove(KEY_CHECKED_AT)
+            .remove(KEY_ATTEMPTED_AT).apply()
     }
 
     /** Signing out turns the shell off without waiting for the next check. */
@@ -153,7 +172,8 @@ object ShellEntitlement {
         return Record(
             state = prefs.getString(KEY_STATE, null),
             confirmedAt = prefs.getLong(KEY_CONFIRMED_AT, 0L),
-            checkedAt = prefs.getLong(KEY_CHECKED_AT, 0L)
+            checkedAt = prefs.getLong(KEY_CHECKED_AT, 0L),
+            attemptedAt = prefs.getLong(KEY_ATTEMPTED_AT, 0L)
         )
     }
 

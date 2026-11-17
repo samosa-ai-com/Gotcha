@@ -122,6 +122,7 @@ class CompanionShellBackendTest {
     @Test
     fun `a newer interface version is accepted because changes are additive`() = runTest {
         service.shellInfo.interfaceVersion = CompanionShellBackend.INTERFACE_VERSION + 1
+        service.script(exited(0, stdout = "hi\n"))
         val result = backend.runCommand("echo hi")
         assertTrue(result.message, result.success)
         assertTrue(service.started.isNotEmpty())
