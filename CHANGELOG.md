@@ -4,6 +4,21 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **A Linux shell for the assistant** (#181). Samosa AI Pro and Influencer
+  accounts can install Gotcha Shell, a separate app that gives the assistant a
+  full Ubuntu system (`run_shell`, `pull_from_shell`). It runs under its own
+  Android user, so nothing a command does can change Gotcha's settings, chats or
+  memory, and what a command prints reaches the model marked as untrusted.
+  Settings > Linux shell shows its state and offers Repair, Reset and Uninstall.
+  Termux stays as the fallback.
+- **A terminal of your own** (Settings > Linux shell > Open terminal). Type
+  commands in that Linux system yourself, with the full screen of programs like
+  vim, an Esc, Tab, Ctrl and Alt bar and arrow keys, pinch to zoom, and the
+  terminal resizing with the keyboard and with rotation. The session keeps
+  running when you rotate the phone or leave the screen; "End the session" or
+  `exit` ends it. The assistant does not see what you type there. Built on
+  Termux's terminal emulator and view (Apache-2.0, see
+  `third_party/termux-terminal`).
 - **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
   about you, the people in your life, your plans and preferences in plain
   Markdown files in `Gotcha/memory/` on your phone, which you can read any
