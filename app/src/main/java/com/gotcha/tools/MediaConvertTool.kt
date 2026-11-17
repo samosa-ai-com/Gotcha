@@ -24,8 +24,11 @@ import java.io.File
  */
 class MediaConvertTool(
     private val context: Context,
-    private val shell: ShellBackend = ShellBackends.active(context)
+    /** Asked on every use, so a shell that becomes usable after this tool was built is picked up. */
+    private val shellProvider: () -> ShellBackend = { ShellBackends.active(context) }
 ) {
+
+    private val shell: ShellBackend get() = shellProvider()
 
     private val resolver = FileResolver(context)
 
