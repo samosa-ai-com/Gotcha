@@ -1,7 +1,10 @@
 package com.gotcha.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.view.KeyEvent
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +81,7 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
 
     // Only a screen that finds nothing open starts a session; after a refusal the user decides.
     LaunchedEffect(Unit) { if (viewModel.state.value is TerminalUiState.Idle) viewModel.open() }
+    ResizeForKeyboard()
 
     Scaffold(
         topBar = {
@@ -101,7 +105,8 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                             expanded = menuOpen,
                             ended = (state as TerminalUiState.Live).ended,
                             onDismiss = { menuOpen = false },
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            onEnded = onBack
                         )
                     }
                 }
@@ -119,8 +124,31 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
     }
 }
 
+/**
+ * While this screen is up the window shrinks for the keyboard instead of sliding under it or
+ * panning, so the last rows and the extra-keys bar stay visible and the terminal reports its
+ * true size. The window's previous mode is put back when the screen goes.
+ */
 @Composable
-private fun TerminalMenu(expanded: Boolean, ended: Boolean, onDismiss: () -> Unit, viewModel: TerminalViewModel) {
+private fun ResizeForKeyboard() {
+    val context = LocalContext.current
+    DisposableEffect(context) {
+        val window = generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+            .filterIsInstance<Activity>().firstOrNull()?.window
+        val previous = window?.attributes?.softInputMode
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        onDispose { previous?.let { window.setSoftInputMode(it) } }
+    }
+}
+
+@Composable
+private fun TerminalMenu(
+    expanded: Boolean,
+    ended: Boolean,
+    onDismiss: () -> Unit,
+    viewModel: TerminalViewModel,
+    onEnded: () -> Unit
+) {
     SkinDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         if (!ended) {
             DropdownMenuItem(
@@ -144,6 +172,8 @@ private fun TerminalMenu(expanded: Boolean, ended: Boolean, onDismiss: () -> Uni
             onClick = {
                 onDismiss()
                 viewModel.close()
+                // Nothing is left to show here, so leave the screen.
+                onEnded()
             },
             modifier = Modifier.testTag("terminal_end")
         )
