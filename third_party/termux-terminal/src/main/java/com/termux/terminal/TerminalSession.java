@@ -149,6 +149,8 @@ public final class TerminalSession extends TerminalOutput {
     private void finish() {
         drain();
         mRunning = false;
+        // Nothing more will be sent: the shell ended by itself, so there is nobody to hang up.
+        mWriter.shutdown();
         if (!mFinishedReported) {
             mFinishedReported = true;
             if (mClient != null) mClient.onSessionFinished(this);

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +59,7 @@ private data class InstallProgress(val phase: String, val done: Long, val total:
  * coroutine and the page shows what is in progress.
  */
 @Composable
-fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
+fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTerminal: () -> Unit) {
     val context = LocalContext.current
     val manager = remember(context) { CompanionShellManager(context) }
     val overlay = rememberSettingsOverlayState()
@@ -140,6 +141,19 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         }
 
         if (current?.rootfsReady == true) {
+            val terminalSupported = current.interfaceVersion >= CompanionShellBackend.INTERFACE_VERSION
+            Button(
+                onClick = onOpenTerminal,
+                enabled = allowed && terminalSupported && running == null,
+                modifier = Modifier.fillMaxWidth().testTag("linux_shell_open_terminal")
+            ) { Text(stringResource(R.string.linux_shell_action_open_terminal)) }
+            if (!terminalSupported) {
+                Text(
+                    stringResource(R.string.linux_shell_terminal_needs_update),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = {
