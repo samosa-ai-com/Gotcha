@@ -1,7 +1,6 @@
 package com.gotcha.ui
 
 import android.content.Context
-import android.graphics.Typeface
 import android.view.KeyEvent
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
@@ -57,6 +56,7 @@ import com.gotcha.R
 import com.gotcha.terminal.GotchaTerminalViewClient
 import com.gotcha.terminal.TerminalUiState
 import com.gotcha.terminal.TerminalViewModel
+import com.gotcha.terminal.newTerminalView
 import com.gotcha.terminal.refusalMessage
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.termux.terminal.TerminalSession
@@ -197,16 +197,13 @@ private fun TerminalPane(live: TerminalUiState.Live, viewModel: TerminalViewMode
         val default = with(density) { DEFAULT_TEXT_SP.sp.roundToPx() }
         prefs.getInt(KEY_TEXT_PX, default).coerceIn(limits.first, limits.last)
     }
-    val view = remember(context) { TerminalView(context, null) }
-    val client = remember(view) {
-        GotchaTerminalViewClient(view, initialPx, limits) { px -> prefs.edit().putInt(KEY_TEXT_PX, px).apply() }
+    val parts = remember(context) {
+        newTerminalView(context, initialPx, limits) { px -> prefs.edit().putInt(KEY_TEXT_PX, px).apply() }
     }
+    val view = parts.view
+    val client = parts.client
 
-    DisposableEffect(view, client) {
-        view.setTerminalViewClient(client)
-        view.setTypeface(Typeface.MONOSPACE)
-        view.setTextSize(initialPx)
-        view.keepScreenOn = true
+    DisposableEffect(view) {
         viewModel.attachView(view)
         onDispose { viewModel.attachView(null) }
     }
