@@ -128,6 +128,13 @@ class CompanionTerminalTest {
         assertTrue(refusal() is Refusal.Failed)
     }
 
+    @Test
+    fun `a session that opened but cannot be used is hung up, not left counting toward the cap`() = runTest {
+        service.sendNoSocket = true
+        assertTrue(refusal() is Refusal.Failed)
+        assertEquals(listOf(FakeService.ID), service.closed)
+    }
+
     private class FakeLink(private val service: IShellService) : CompanionLink {
         var unavailable: CompanionUnavailable? = null
         var calls = 0
@@ -153,6 +160,7 @@ class CompanionTerminalTest {
         val closed = mutableListOf<String>()
         var openFailure: Exception? = null
         var failCalls: Exception? = null
+        var sendNoSocket = false
 
         override fun getInfo(): ShellInfo = shellInfo
 
@@ -161,7 +169,7 @@ class CompanionTerminalTest {
             opened += rows to cols
             return SessionHandle().apply {
                 sessionId = ID
-                socket = ParcelFileDescriptor.createPipe()[0]
+                socket = if (sendNoSocket) null else ParcelFileDescriptor.createPipe()[0]
             }
         }
 

@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
+import com.gotcha.shell.SessionHandle
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.io.InputStream
@@ -64,7 +65,7 @@ class CompanionTerminal(
                 !info.rootfsReady -> refused(Refusal.NoLinuxSystem(info.installing))
                 else -> {
                     val handle = link.call { it.openSessionHandle(rows, cols) }
-                    Opened.Session(ShellSession(handle.sessionId, handle.socket, link))
+                    Opened.Session(sessionFrom(handle))
                 }
             }
         } catch (e: CancellationException) {
@@ -90,6 +91,33 @@ class CompanionTerminal(
             refused(Refusal.Failed(e.message))
         } catch (e: IOException) {
             refused(Refusal.Failed(e.message))
+        }
+    }
+
+    /**
+     * Wraps an opened session. The companion has already counted it toward its cap, so if the
+     * streams cannot be set up the session is hung up here rather than left open until the
+     * companion notices.
+     */
+    private suspend fun sessionFrom(handle: SessionHandle): ShellSession {
+        val socket: ParcelFileDescriptor? = handle.socket
+        return try {
+            if (socket == null) throw IOException("Gotcha Shell sent no socket for the session")
+            ShellSession(handle.sessionId, socket, link)
+        } catch (e: IOException) {
+            runCatching { socket?.close() }
+            hangUp(handle.sessionId)
+            throw e
+        }
+    }
+
+    private suspend fun hangUp(sessionId: String) {
+        try {
+            link.call { it.closeSession(sessionId) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Closing the socket ends the session on the companion's side as well.
         }
     }
 
