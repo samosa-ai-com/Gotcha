@@ -9,18 +9,40 @@ extra Maven repository.
 | Source | https://github.com/termux/termux-app |
 | Tag | `v0.118.3` |
 | Commit | `5b657c6adf4304e5198951ce815fe0205dcac29c` |
-| Licence | Apache License 2.0 (text in `LICENSE`) |
+| Licence | Apache License 2.0 (text in `LICENSE`), see the caveat below |
 
 ## Licence
 
-Termux's `LICENSE.md` (under "Exceptions") says the code of these two libraries is released
-under the Apache License 2.0; it comes from the Android Terminal Emulator project
-(https://github.com/jackpal/Android-Terminal-Emulator). Termux's source files carry no licence
-header of their own and the two modules have no licence file of their own, so the statement in
-that root file is what we rely on. The rest of the Termux repository is GPLv3 and is not used
-here. Apache-2.0 code may be combined with Gotcha's AGPL-3.0.
+Termux's root `LICENSE.md` says, word for word:
 
-The Apache licence text is in `LICENSE` here and is shipped in the app as
+> The `termux/termux-app` repository is released under GPLv3 only license.
+>
+> Exceptions
+>
+> - Terminal Emulator for Android code is used which is released under Apache License 2.0.
+>   Check `terminal-view` and `terminal-emulator` libraries.
+
+That is the only licence statement covering these files: they carry no licence header, and the
+two modules have no licence file of their own. We read it as placing the two libraries under
+Apache-2.0, which is also how Termux publishes and others reuse them.
+
+**Caveat.** The wording names the code that came from Terminal Emulator for Android
+(https://github.com/jackpal/Android-Terminal-Emulator); it does not say in so many words that
+Termux's own later additions to these libraries are Apache-2.0 too (for example
+`textselection/TextSelectionCursorController`, added by Termux in 2021). If any of that were
+GPLv3-only instead:
+
+- distributing Gotcha is still fine, because GPLv3 section 13 and AGPLv3 section 13 allow the
+  two to be combined;
+- but that code could not be relicensed along with Gotcha's own code. Before any relicensing
+  or dual licensing of Gotcha, get a written confirmation from Termux or replace these files.
+
+Attribution: the original code is Copyright (c) 2005-2008 The Android Open Source Project (as
+recorded in the `NOTICE` file of Terminal Emulator for Android); Termux's changes are by Fredrik
+Fornwall and the Termux contributors.
+
+The rest of the Termux repository is GPLv3 and is not used here. The Apache licence text is in
+`LICENSE` here and is shipped in the app, with the attribution above, as
 `app/src/main/assets/licenses/termux-terminal-notice.txt`.
 
 ## What is copied unchanged
@@ -35,7 +57,7 @@ with its original package names:
   `TerminalViewClient`, and `textselection/*`.
 - `res/`: the strings and the two text-selection handle drawables of `terminal-view`.
 
-`ShellTerminalPinTest` fails if any of these files differs from its checksum, so an edit made
+`TermuxCopyPinTest` fails if any of these files differs from its checksum, so an edit made
 here cannot go unnoticed. Do not edit them: to take a newer Termux, copy the files again and
 update the tag, the commit and `UPSTREAM.sha256`.
 

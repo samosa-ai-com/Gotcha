@@ -5,11 +5,14 @@ This product includes the terminal emulator and terminal view libraries of the T
 project (https://github.com/termux/termux-app, tag v0.118.3, commit
 5b657c6adf4304e5198951ce815fe0205dcac29c), used for the Linux shell screen.
 
-Termux's LICENSE.md states that the code of these two libraries is released under the
-Apache License 2.0; it originates from the Android Terminal Emulator project
-(https://github.com/jackpal/Android-Terminal-Emulator). The source files are included
-unchanged in third_party/termux-terminal; see third_party/termux-terminal/NOTICE.md in the
-Gotcha source repository for the list of files and what replaces the rest.
+Termux's LICENSE.md states that these two libraries use code of the Android Terminal
+Emulator project (https://github.com/jackpal/Android-Terminal-Emulator), released under
+the Apache License 2.0. The source files are included unchanged in
+third_party/termux-terminal; see third_party/termux-terminal/NOTICE.md in the Gotcha
+source repository for the list of files and what replaces the rest.
+
+Copyright (c) 2005-2008, The Android Open Source Project
+Copyright (c) Fredrik Fornwall and the Termux contributors
 
 The Apache License, Version 2.0 follows.
 

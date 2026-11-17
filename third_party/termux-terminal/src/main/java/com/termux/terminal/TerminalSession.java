@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2026 Samosa AI
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * Gotcha's own code, not Termux's: unlike the other files of this module it is not under the
+ * Apache License in LICENSE here, but under the GNU Affero General Public License like the rest of
+ * Gotcha. See NOTICE.md.
+ */
 package com.termux.terminal;
 
 import android.os.Handler;
