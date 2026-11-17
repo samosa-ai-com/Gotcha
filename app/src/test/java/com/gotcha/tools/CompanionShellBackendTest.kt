@@ -9,6 +9,7 @@ import com.gotcha.shell.IShellService
 import com.gotcha.shell.JobStatus
 import com.gotcha.shell.RunRequest
 import com.gotcha.shell.RunResult
+import com.gotcha.shell.SessionHandle
 import com.gotcha.shell.ShellInfo
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import kotlinx.coroutines.CancellationException
@@ -112,10 +113,11 @@ class CompanionShellBackendTest {
 
     @Test
     fun `an older interface version is refused before any command`() = runTest {
-        service.shellInfo.interfaceVersion = CompanionShellBackend.INTERFACE_VERSION - 1
+        service.shellInfo.interfaceVersion = CompanionShellBackend.MIN_INTERFACE_VERSION - 1
         val result = backend.runCommand("echo hi")
         assertFalse(result.success)
-        assertTrue(result.message, "interface version ${CompanionShellBackend.INTERFACE_VERSION - 1}" in result.message)
+        val found = CompanionShellBackend.MIN_INTERFACE_VERSION - 1
+        assertTrue(result.message, "interface version $found" in result.message)
         assertTrue(service.started.isEmpty())
     }
 
@@ -126,6 +128,14 @@ class CompanionShellBackendTest {
         val result = backend.runCommand("echo hi")
         assertTrue(result.message, result.success)
         assertTrue(service.started.isNotEmpty())
+    }
+
+    @Test
+    fun `a version 2 companion still runs commands, since the terminal is all that needs 3`() = runTest {
+        service.shellInfo.interfaceVersion = CompanionShellBackend.MIN_INTERFACE_VERSION
+        service.script(exited(0, stdout = "hi\n"))
+        val result = backend.runCommand("echo hi")
+        assertTrue(result.message, result.success)
     }
 
     @Test
@@ -463,6 +473,9 @@ class CompanionShellBackendTest {
         }
 
         override fun openSession(rows: Int, cols: Int): ParcelFileDescriptor = error("not used")
+        override fun openSessionHandle(rows: Int, cols: Int): SessionHandle = error("not used")
+        override fun resizeSession(sessionId: String, rows: Int, cols: Int): Boolean = error("not used")
+        override fun closeSession(sessionId: String): Boolean = error("not used")
         override fun install(callback: IInstallCallback?): String? = null
         override fun repair(): RunResult = result(0)
         override fun reset() = Unit

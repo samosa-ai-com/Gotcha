@@ -10,6 +10,7 @@ import com.gotcha.shell.IInstallCallback;
 import com.gotcha.shell.JobStatus;
 import com.gotcha.shell.RunRequest;
 import com.gotcha.shell.RunResult;
+import com.gotcha.shell.SessionHandle;
 import com.gotcha.shell.ShellInfo;
 
 interface IShellService {
@@ -18,7 +19,10 @@ interface IShellService {
     /** Runs request.cmd with /bin/sh -c and waits. Output is capped at 32 KB per stream. */
     RunResult run(in RunRequest request);
 
-    /** Starts a login shell on a pty; returns our end of a socket pair carrying its bytes. */
+    /**
+     * Starts a login shell on a pty; returns our end of a socket pair carrying its bytes.
+     * Counts toward the session cap. Throws IllegalStateException("Too many sessions") at the cap.
+     */
     ParcelFileDescriptor openSession(int rows, int cols);
 
     /**
@@ -51,4 +55,15 @@ interface IShellService {
 
     /** Opens guestPath for reading, or returns null if it is not a readable regular file. */
     @nullable ParcelFileDescriptor exportFile(String guestPath);
+
+    // Added in interface version 3.
+
+    /** Like openSession, but also returns the session's id. Same cap and errors. */
+    SessionHandle openSessionHandle(int rows, int cols);
+
+    /** Sets the pty's window size. Returns false if the id is unknown or the session ended. */
+    boolean resizeSession(String sessionId, int rows, int cols);
+
+    /** Hangs up the session. Returns false if the id is unknown. */
+    boolean closeSession(String sessionId);
 }

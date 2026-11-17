@@ -5,6 +5,6 @@
 #
 # sha256 = sha256 of the .aidl files concatenated in name order:
 #   cat $(ls *.aidl | LC_ALL=C sort) | sha256sum
-companionCommit=eb3fd14
-interfaceVersion=2
-sha256=b87f8310f0b0299c478d21d7d963b9b4bfc339b26382b633983e89e6fa4882fe
+companionCommit=a2b9f6f
+interfaceVersion=3
+sha256=e9495b5aed06dfc9a1b86f03b14c5ab9617f2d5aac9e94f111e4201b5b8d6ee4
