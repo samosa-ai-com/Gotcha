@@ -7,6 +7,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +32,17 @@ class TerminalViewLayoutTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val shellOut = PipedOutputStream()
     private val resizes = mutableListOf<Pair<Int, Int>>()
+    private val typed = java.io.ByteArrayOutputStream()
+
+    private fun awaitTyped(expected: ByteArray) {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!synchronized(typed) { typed.toByteArray().contentEquals(expected) }) {
+            check(System.nanoTime() < deadline) {
+                "expected ${expected.toList()}, got ${synchronized(typed) { typed.toByteArray().toList() }}"
+            }
+            Thread.sleep(5)
+        }
+    }
 
     private class Client : TerminalSessionClient {
         override fun onTextChanged(changedSession: TerminalSession) = Unit
@@ -54,7 +66,9 @@ class TerminalViewLayoutTest {
     private val session = TerminalSession(
         PipedInputStream(shellOut),
         object : TerminalSession.Host {
-            override fun write(data: ByteArray, offset: Int, count: Int) = Unit
+            override fun write(data: ByteArray, offset: Int, count: Int) {
+                synchronized(typed) { typed.write(data, offset, count) }
+            }
             override fun resize(rows: Int, columns: Int) {
                 synchronized(resizes) { resizes += rows to columns }
             }
@@ -122,6 +136,34 @@ class TerminalViewLayoutTest {
 
         assertTrue("more columns when wider", session.emulator.mColumns > portraitColumns)
         assertEquals(session.emulator, parts.view.currentSession.emulator)
+    }
+
+    @Test
+    fun `an extra-keys character takes an armed Ctrl and uses it up`() {
+        val parts = newTerminalView(context, 40, 20..80) { }
+        parts.view.attachSession(session)
+        layOut(parts.view, 1080, 1600)
+
+        parts.client.toggleCtrl()
+        typeExtraText(parts.view, "/")
+        typeExtraText(parts.view, "/")
+
+        // Ctrl-/ is 0x1f; the second press is a plain slash because the latch was used up.
+        awaitTyped(byteArrayOf(0x1f, '/'.code.toByte()))
+        assertFalse(parts.client.ctrlArmed)
+    }
+
+    @Test
+    fun `an extra-keys character takes an armed Alt as a leading escape`() {
+        val parts = newTerminalView(context, 40, 20..80) { }
+        parts.view.attachSession(session)
+        layOut(parts.view, 1080, 1600)
+
+        parts.client.toggleAlt()
+        typeExtraText(parts.view, "-")
+
+        awaitTyped(byteArrayOf(0x1b, '-'.code.toByte()))
+        assertFalse(parts.client.altArmed)
     }
 
     @Test

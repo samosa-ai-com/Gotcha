@@ -33,3 +33,12 @@ internal fun newTerminalView(
     view.isFocusableInTouchMode = true
     return TerminalViewParts(view, client)
 }
+
+/**
+ * Types [text] from an extra-keys button the way the keyboard would: through the view, so an armed
+ * Ctrl or Alt applies to it and is used up (Ctrl then `/` sends 0x1f, Alt then `-` sends Esc `-`).
+ * Writing to the session directly would skip the latch and leave it armed for the next key.
+ */
+internal fun typeExtraText(view: TerminalView, text: String) {
+    text.codePoints().forEach { view.inputCodePoint(it, false, false) }
+}

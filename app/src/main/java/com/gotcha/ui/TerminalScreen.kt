@@ -61,8 +61,8 @@ import com.gotcha.terminal.TerminalUiState
 import com.gotcha.terminal.TerminalViewModel
 import com.gotcha.terminal.newTerminalView
 import com.gotcha.terminal.refusalMessage
+import com.gotcha.terminal.typeExtraText
 import com.gotcha.ui.theme.SkinDropdownMenu
-import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 
@@ -257,7 +257,7 @@ private fun TerminalPane(live: TerminalUiState.Live, viewModel: TerminalViewMode
         if (live.ended) {
             EndedBar(onRestart = { viewModel.open() })
         } else {
-            ExtraKeys(client = client, view = view, session = live.session)
+            ExtraKeys(client = client, view = view)
         }
     }
 }
@@ -285,7 +285,7 @@ private sealed interface ExtraKey {
 }
 
 @Composable
-private fun ExtraKeys(client: GotchaTerminalViewClient, view: TerminalView, session: TerminalSession) {
+private fun ExtraKeys(client: GotchaTerminalViewClient, view: TerminalView) {
     val keys = listOf(
         ExtraKey.Key(stringResource(R.string.linux_terminal_key_esc), null, KeyEvent.KEYCODE_ESCAPE),
         ExtraKey.Key(stringResource(R.string.linux_terminal_key_tab), null, KeyEvent.KEYCODE_TAB),
@@ -307,7 +307,7 @@ private fun ExtraKeys(client: GotchaTerminalViewClient, view: TerminalView, sess
                     view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key.keyCode))
                     view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key.keyCode))
                 }
-                is ExtraKey.Text -> KeyButton(key.text, armed = false) { session.write(key.text) }
+                is ExtraKey.Text -> KeyButton(key.text, armed = false) { typeExtraText(view, key.text) }
                 ExtraKey.Ctrl -> KeyButton(
                     stringResource(R.string.linux_terminal_key_ctrl),
                     armed = client.ctrlArmed,
