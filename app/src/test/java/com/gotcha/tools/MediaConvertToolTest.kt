@@ -65,6 +65,42 @@ class MediaConvertToolTest {
         overwrite: Boolean = false
     ): ToolResult = runBlocking { tool.convert(input, output, bitrate, overwrite) }
 
+    // ---- which shell ----
+
+    private class CountingShell : ShellBackend {
+        var asked = 0
+        override val id = "fake"
+        override val home = "/root"
+        override val toolNotes = ""
+        override fun status() = object : ShellStatus {
+            override val usable = true
+            override val envLine = ""
+        }
+        override suspend fun runCommand(command: String, workingDir: String?, timeoutSeconds: Int?, stdin: String?) =
+            ToolResult.error("not run")
+        override fun guestPathFor(hostFile: File): String? {
+            asked++
+            return null
+        }
+        override suspend fun exportFile(guestPath: String, destination: File) = ToolResult.error("not run")
+    }
+
+    @Test
+    fun `the shell is looked up on every call, so one that becomes usable later is picked up`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val first = CountingShell()
+        val second = CountingShell()
+        val queue = ArrayDeque(listOf(first, second))
+        val lookup = MediaConvertTool(context) { queue.removeFirst() }
+
+        // Both refuse at the same guard, which asks the shell whether it can see the file.
+        runBlocking { lookup.convert(placeholder(sandbox, "a.m4a").path, File(shared, "out.mp3").path) }
+        runBlocking { lookup.convert(placeholder(sandbox, "b.m4a").path, File(shared, "out2.mp3").path) }
+
+        assertTrue("first call used the first shell", first.asked > 0)
+        assertTrue("second call used the second shell", second.asked > 0)
+    }
+
     // ---- target format ----
 
     @Test

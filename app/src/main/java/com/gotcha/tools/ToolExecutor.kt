@@ -107,7 +107,12 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
-    private val shell: ShellBackend = ShellBackends.active(appContext)
+
+    /**
+     * Chosen on every use, not once here: this executor outlives sign-in, the plan check and the
+     * companion's install, and each of them changes which shell, if any, can run a command.
+     */
+    private val shell: ShellBackend get() = ShellBackends.active(appContext)
     private val healthTool = HealthTool(appContext)
 
     /** The audit log; the engine also writes the answers to its confirmation prompts here. */
