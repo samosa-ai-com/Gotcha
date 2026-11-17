@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
 /** The terminal's life: opening, being refused, ending, restarting, and being closed by the user. */
@@ -38,13 +39,19 @@ class TerminalViewModelTest {
 
     /** Records what reaches the companion, in place of Binder. */
     private class Link : CompanionLink {
-        val closed = mutableListOf<String>()
+        val closed: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
+
+        /** When set, closeSession waits for it, like a companion that does not answer. */
+        @Volatile
+        var closeGate: CountDownLatch? = null
+
         override fun identity() = CompanionIdentity(installed = true, trusted = true, versionName = "0.1.2")
 
         @Suppress("UNCHECKED_CAST")
         override suspend fun <T> call(block: (IShellService) -> T): T = block(
             object : IShellService.Stub() {
                 override fun closeSession(sessionId: String): Boolean {
+                    closeGate?.await()
                     closed += sessionId
                     return true
                 }
@@ -183,7 +190,22 @@ class TerminalViewModelTest {
         val onCleared = androidx.lifecycle.ViewModel::class.java.getDeclaredMethod("onCleared")
         onCleared.isAccessible = true
         onCleared.invoke(viewModel)
-        assertTrue("s1" in link.closed)
         assertFalse(live().session.isRunning)
+        awaitMain { "s1" in link.closed }
+    }
+
+    @Test(timeout = 5_000)
+    fun `leaving for good does not wait for Gotcha Shell on the main thread`() {
+        next = { session("s1") }
+        viewModel.open()
+        live().session.updateSize(80, 24, 10, 20)
+        link.closeGate = CountDownLatch(1)
+        val onCleared = androidx.lifecycle.ViewModel::class.java.getDeclaredMethod("onCleared")
+        onCleared.isAccessible = true
+        onCleared.invoke(viewModel)
+        // Returned while the companion is still not answering.
+        assertFalse("s1" in link.closed)
+        link.closeGate!!.countDown()
+        awaitMain { "s1" in link.closed }
     }
 }

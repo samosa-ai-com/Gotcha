@@ -8,6 +8,7 @@ import com.gotcha.tools.ShellSession
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -128,11 +129,21 @@ class TerminalViewModel internal constructor(
         viewModelScope.launch(io) { toClose.close() }
     }
 
+    /**
+     * Runs on the main thread, and closing a session asks Gotcha Shell over Binder (up to the bind
+     * timeout if it is gone), so nothing here waits for that.
+     */
     override fun onCleared() {
         val current = _state.value
-        if (current is TerminalUiState.Live && !current.ended) current.session.finishIfRunning()
-        shell?.let { leftOver -> kotlinx.coroutines.runBlocking { leftOver.close() } }
+        val leftOver = shell
         shell = null
+        if (current is TerminalUiState.Live && !current.ended) {
+            // Hangs up on the session's writer thread, which closes the connection there.
+            current.session.finishIfRunning()
+        } else if (leftOver != null) {
+            // viewModelScope is already cancelled, so this outlives it on purpose.
+            CoroutineScope(io).launch { leftOver.close() }
+        }
     }
 
     /** Keystrokes and size changes to the shell, off the main thread (the session calls these on its writer thread). */
