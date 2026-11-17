@@ -96,6 +96,8 @@ internal class GotchaTerminalViewClient(
         return armed
     }
 
+    // Debug builds only, errors included: Termux's messages can quote typed or printed text. See
+    // TerminalRelay.
     override fun logError(tag: String?, message: String?) = GotchaLog.d(TAG) { "$tag: $message" }
 
     override fun logWarn(tag: String?, message: String?) = GotchaLog.d(TAG) { "$tag: $message" }

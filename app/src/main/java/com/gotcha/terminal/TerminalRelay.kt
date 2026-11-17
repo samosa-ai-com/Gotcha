@@ -57,6 +57,8 @@ internal class TerminalRelay(private val context: Context) : TerminalSessionClie
 
     override fun getTerminalCursorStyle(): Int? = null
 
+    // Debug builds only, errors included: Termux's messages quote what the shell printed (control
+    // strings, OSC 52 clipboard text), which must not reach logcat in a release build.
     override fun logError(tag: String?, message: String?) = GotchaLog.d(TAG) { "$tag: $message" }
 
     override fun logWarn(tag: String?, message: String?) = GotchaLog.d(TAG) { "$tag: $message" }
