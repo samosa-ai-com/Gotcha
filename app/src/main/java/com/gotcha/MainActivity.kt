@@ -46,6 +46,7 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaAuthManager
+import com.gotcha.auth.SamosaRedirectOutcome
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.FeedbackPrefill
@@ -166,6 +167,16 @@ class MainActivity : ComponentActivity() {
 
     /** Chat to open, set when a task-finished notification is tapped (issue #97). */
     private var openSessionRequested by mutableStateOf<String?>(null)
+
+    /**
+     * A website sign-in that finished with no screen waiting for it (Gotcha
+     * was restarted while the browser was open). The UI offers the invite-code
+     * dialog for it, as it does after a sign-in from Settings.
+     */
+    private var samosaWelcome by mutableStateOf<SamosaSignInResult.Success?>(null)
+
+    /** Checks, shortly after a resume, whether a website sign-in was abandoned. */
+    private var samosaReturnCheck: kotlinx.coroutines.Job? = null
 
     /**
      * Prompt and mode a new chat should open with, set when a notification
@@ -395,6 +406,14 @@ class MainActivity : ComponentActivity() {
         window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
+        // Any request that finds the Samosa session over tells the user and brings
+        // the sign-in button back, including ones with no 401 callback of their own.
+        com.gotcha.auth.SamosaSession.current?.onSignedOut = { reason ->
+            runOnUiThread { showSamosaSignedOut(reason) }
+        }
+        // Gotcha may have been restarted while the browser was open, so the
+        // sign-in link can arrive here as well as in onNewIntent.
+        handleSamosaRedirect(intent)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
@@ -666,7 +685,39 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
             openedFromBall = true
         }
+        handleSamosaRedirect(intent)
         handleNotificationIntent(intent)
+    }
+
+    /** Finishes a website sign-in when [intent] is the account website's sign-in link. */
+    private fun handleSamosaRedirect(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (!SamosaAuthManager.isSignInRedirect(uri)) return
+        // Consumed: a recreation must not replay a code that is already spent.
+        intent.data = null
+        lifecycleScope.launch {
+            val outcome = samosaAuthManager.handleRedirect(uri)
+            if (outcome is SamosaRedirectOutcome.Finished) showFinishedSamosaSignIn(outcome.result)
+        }
+    }
+
+    /** Reports a website sign-in that no screen was waiting for. */
+    private fun showFinishedSamosaSignIn(result: SamosaSignInResult) {
+        when (result) {
+            is SamosaSignInResult.Success -> {
+                chatViewModel.refreshSettings()
+                Toast.makeText(this, getString(R.string.samosa_signed_in_as, result.email), Toast.LENGTH_LONG).show()
+                samosaWelcome = result
+            }
+            is SamosaSignInResult.Error -> Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+            SamosaSignInResult.Cancelled -> Unit
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        samosaReturnCheck?.cancel()
+        samosaAuthManager.onHostPaused()
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
@@ -765,6 +816,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Back from the browser without the sign-in link means the user closed it.
+        samosaReturnCheck?.cancel()
+        samosaReturnCheck = lifecycleScope.launch {
+            kotlinx.coroutines.delay(SamosaAuthManager.RETURN_GRACE_MS)
+            samosaAuthManager.onHostSettled()
+        }
         // What the inactivity reminder counts from, and the inbox badge (issue #100).
         lifecycleScope.launch(Dispatchers.IO) {
             localNotificationStore.setLastOpenedAt(System.currentTimeMillis())
@@ -858,6 +915,8 @@ class MainActivity : ComponentActivity() {
     /** Any Samosa 401 (LLM or audio) clears the session and refreshes the
      *  ChatViewModel so the UI reflects the unauthenticated state. */
     fun onSamosaUnauthorized() {
+        // The session already ended and the user was told (see showSamosaSignedOut).
+        if (com.gotcha.auth.SamosaSession.current?.tokens()?.accessToken.isNullOrBlank()) return
         val current = settingsRepository.load()
         val samosaUsed = current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI
         val samosaToken = current.samosaSessionToken
@@ -866,8 +925,30 @@ class MainActivity : ComponentActivity() {
             return
         }
         settingsRepository.clearSamosaSession()
-        Toast.makeText(this, "Samosa session expired — please sign in again.", Toast.LENGTH_LONG).show()
+        // A banned account cannot sign in again, so "sign in again" would send the user in a circle.
+        val message = when (com.gotcha.auth.SamosaSession.current?.consumeSignOutReason()) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            com.gotcha.auth.SignOutReason.DEACTIVATED -> getString(R.string.samosa_session_deactivated)
+            else -> getString(R.string.samosa_session_ended)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         chatViewModel.refreshSettings()
+        // An open Settings page shows the sign-in button again.
+        samosaAuthManager.notifySessionChanged()
+    }
+
+    /** Tells the user their Samosa session ended and refreshes what shows it. */
+    private fun showSamosaSignedOut(reason: com.gotcha.auth.SignOutReason) {
+        val message = when (reason) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            com.gotcha.auth.SignOutReason.DEACTIVATED -> getString(R.string.samosa_session_deactivated)
+            com.gotcha.auth.SignOutReason.EXPIRED -> getString(R.string.samosa_session_ended)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        chatViewModel.refreshSettings()
+        samosaAuthManager.notifySessionChanged()
     }
 
     override fun onStop() {
@@ -923,6 +1004,35 @@ class MainActivity : ComponentActivity() {
         var referralPrefillCode by remember { mutableStateOf<String?>(null) }
         var referralClaimBusy by remember { mutableStateOf(false) }
         var referralClaimError by remember { mutableStateOf<String?>(null) }
+        // A first sign-in offers the invite-code dialog while the claim window is open.
+        val offerInviteCode: (SamosaSignInResult.Success) -> Unit = { r ->
+            if (r.isNewUser && r.user?.referral?.canClaim == true) {
+                referralPrefillCode = ReferralClipboardHelper.getReferralFromClipboard(this@MainActivity)
+                referralClaimError = null
+                showReferralInviteDialog = true
+            }
+        }
+        LaunchedEffect(samosaWelcome) {
+            samosaWelcome?.let { r ->
+                samosaWelcome = null
+                offerInviteCode(r)
+            }
+        }
+        val toSamosaSignInResult: (SamosaSignInResult) -> Result<Pair<String, String>> = { r ->
+            when (r) {
+                is SamosaSignInResult.Success -> {
+                    // Token is already persisted by the auth manager.
+                    val token = settingsRepository.load().samosaSessionToken
+                    chatViewModel.refreshSettings()
+                    offerInviteCode(r)
+                    Result.success(r.email to token)
+                }
+                is SamosaSignInResult.Cancelled ->
+                    Result.failure(Exception(getString(R.string.samosa_sign_in_cancelled)))
+                is SamosaSignInResult.Error ->
+                    Result.failure(Exception(r.message))
+            }
+        }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
@@ -1179,25 +1289,14 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onSamosaSignIn = {
-                            when (val r = samosaAuthManager.signIn(this@MainActivity)) {
-                                is SamosaSignInResult.Success -> {
-                                    // Token is already persisted by the auth manager.
-                                    val token = settingsRepository.load().samosaSessionToken
-                                    chatViewModel.refreshSettings()
-                                    if (r.isNewUser && r.user?.referral?.canClaim == true) {
-                                        val ctx = this@MainActivity
-                                        referralPrefillCode = ReferralClipboardHelper.getReferralFromClipboard(ctx)
-                                        referralClaimError = null
-                                        showReferralInviteDialog = true
-                                    }
-                                    Result.success(r.email to token)
-                                }
-                                is SamosaSignInResult.Cancelled ->
-                                    Result.failure(Exception("Sign-in cancelled."))
-                                is SamosaSignInResult.Error ->
-                                    Result.failure(Exception(r.message))
-                            }
+                            toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity))
                         },
+                        onSamosaSignInWithGoogle = if (samosaAuthManager.websiteSignIn) {
+                            { toSamosaSignInResult(samosaAuthManager.signInWithGoogle(this@MainActivity)) }
+                        } else {
+                            null
+                        },
+                        samosaSessionChanges = samosaAuthManager.sessionChanges,
                         onSamosaSignOut = {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()

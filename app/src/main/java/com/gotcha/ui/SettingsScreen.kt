@@ -88,6 +88,10 @@ fun SettingsScreen(
         Result.failure(Exception("Not available"))
     },
     /** Logs out of Samosa (clears JWT + Google state). */
+    /** Google sign-in when the account website is the main sign-in; null when Google is the only one. */
+    onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
+    /** Fires when the Samosa session changed outside a screen's own sign-in or sign-out. */
+    samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
     onSamosaSignOut: suspend () -> Unit = {},
     /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
     onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
@@ -232,6 +236,8 @@ fun SettingsScreen(
                     onTestConnection = onTestConnection,
                     onRefreshChatModels = onRefreshChatModels,
                     onSamosaSignIn = onSamosaSignIn,
+                    onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
+                    samosaSessionChanges = samosaSessionChanges,
                     onSamosaSignOut = onSamosaSignOut,
                     onFetchSamosaProfile = onFetchSamosaProfile,
                     onClaimReferral = onClaimReferral,
@@ -244,6 +250,8 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onRefreshAudioModels = onRefreshAudioModels,
                     onSamosaSignIn = onSamosaSignIn,
+                    onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
+                    samosaSessionChanges = samosaSessionChanges,
                     onSamosaSignOut = onSamosaSignOut,
                     onFetchSamosaProfile = onFetchSamosaProfile,
                     onClaimReferral = onClaimReferral,

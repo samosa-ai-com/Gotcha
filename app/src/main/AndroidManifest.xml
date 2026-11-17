@@ -114,6 +114,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Needed on API 30+ to find Custom Tabs browsers (Samosa sign-in prefers Chrome). -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
         <!-- Needed on API 30+ so set_alarm / delete_alarm can resolve the system clock app. -->
         <intent>
             <action android:name="android.intent.action.SET_ALARM" />
@@ -171,6 +175,15 @@
                  permission list (Android 13 and below). -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+            <!-- Samosa sign-in: the account website returns here with the sign-in
+                 code (com.gotcha:/oauth2redirect). A path filter needs a host, which
+                 this URI has none of, so the path is checked in SamosaAuthManager. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.gotcha" />
             </intent-filter>
         </activity>
 

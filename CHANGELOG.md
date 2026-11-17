@@ -33,8 +33,24 @@ All notable changes to Gotcha are documented here.
   the other engines on the phone. The layout is not right-to-left yet.
 - **A launch animation.** Gotcha opens with a short, silent animation of its
   new logo, and the app icon is sharper.
+- **Sign in to Samosa AI on the Samosa website.** Tapping sign-in opens the
+  Samosa AI website inside Gotcha. Sign in there once and Gotcha is signed in,
+  even if Android closed Gotcha while the page was open. "Use Google instead"
+  still signs in the old way.
+- **Manage your Samosa account from Gotcha.** When signed in, Manage account
+  opens the Samosa AI website for usage, devices and billing, and Add credits
+  sits next to your credit balance. Credits bought there show up when you come
+  back.
 
 ### Changed
+- **Samosa AI sign-in renews itself.** With a Samosa backend that issues
+  short-lived sessions, Gotcha now renews the session in the background, so
+  you stay signed in as long as you use Gotcha at least once a week. A
+  connection problem during renewal does not sign you out.
+- **Clearer Samosa sign-out messages.** If your Samosa session ends because
+  you signed out on another device or on the website, Gotcha says so and shows
+  the sign-in button again. A deactivated account gets its own message, and
+  running out of credits (HTTP 402) says how to add more.
 - **A tidier drawer.** The drawer floats over the screen and holds where you
   go: New chat, Recent chats, Scheduled tasks, Second Brain, Connectors and
   Settings. Long-press a chat to delete it. Import and Back up all chats moved
@@ -51,6 +67,11 @@ All notable changes to Gotcha are documented here.
   home network.
 
 ### Fixed
+- **Signing in on the account website no longer gets stuck when your default
+  browser is not Chrome.** Gotcha now opens the sign-in page in Chrome when it
+  is installed. Some browsers (seen with Aloha) left Google's account chooser
+  on a blank page, so the sign-in never came back to Gotcha. Without Chrome,
+  your default browser is used as before.
 - **Turning on the floating ball no longer crashes Gotcha** (#148) when the
   microphone permission hasn't been granted; it asks for it first.
 - **Screen Lens reads the app underneath again** (#149), so its smart

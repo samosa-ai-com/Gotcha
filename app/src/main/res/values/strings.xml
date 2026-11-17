@@ -1937,4 +1937,21 @@
         <item quantity="one">Retry %1$d time</item>
         <item quantity="other">Retry %1$d times</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">No browser is available to open Samosa sign-in. Install or enable a web browser and try again.</string>
+    <string name="samosa_auth_sign_in_timed_out">Sign-in timed out waiting for the browser. Please try again.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">The sign-in reply did not match this request. Please try again.</string>
+    <string name="samosa_auth_sign_in_expired">This sign-in has expired. Please try again.</string>
+    <string name="samosa_auth_sign_in_refused">Samosa sign-in did not complete. Please try again.</string>
+    <string name="samosa_sign_in_website">Sign in to Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">Use Google instead</string>
+    <string name="samosa_sign_in_hint_website">Sign in on the Samosa AI website to use Samosa AI. Your OpenAI-compatible settings are kept separately and are unaffected.</string>
+    <string name="samosa_opening_sign_in">Opening Samosa sign-in…</string>
+    <string name="samosa_manage_account">Manage account</string>
+    <string name="samosa_add_credits">Add credits</string>
+    <string name="samosa_sign_in_cancelled">Sign-in cancelled.</string>
+    <string name="samosa_session_ended">You were signed out of Samosa AI. Sign in again to keep using it.</string>
+    <string name="samosa_session_deactivated">This Samosa AI account was deactivated.</string>
+    <string name="error_out_of_credits_http_402">Out of credits (HTTP 402). Add credits to keep going. For Samosa AI, open Settings → AI Configuration → Add credits.</string>
 </resources>

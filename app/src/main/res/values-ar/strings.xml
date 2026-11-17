@@ -1990,4 +1990,21 @@
         <item quantity="many">%1$d إعادة محاولة</item>
         <item quantity="other">%1$d إعادة محاولة</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">لا يتوفر متصفح لفتح تسجيل الدخول إلى Samosa. ثبّت متصفح ويب أو فعّله ثم حاول مرة أخرى.</string>
+    <string name="samosa_auth_sign_in_timed_out">انتهت مهلة انتظار المتصفح. يُرجى المحاولة مرة أخرى.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">رد تسجيل الدخول لا يطابق هذا الطلب. يُرجى المحاولة مرة أخرى.</string>
+    <string name="samosa_auth_sign_in_expired">انتهت صلاحية تسجيل الدخول هذا. يُرجى المحاولة مرة أخرى.</string>
+    <string name="samosa_auth_sign_in_refused">لم يكتمل تسجيل الدخول إلى Samosa. يُرجى المحاولة مرة أخرى.</string>
+    <string name="samosa_sign_in_website">تسجيل الدخول إلى Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">استخدام Google بدلاً من ذلك</string>
+    <string name="samosa_sign_in_hint_website">سجّل الدخول على موقع Samosa AI لاستخدام Samosa AI. تُحفظ إعداداتك المتوافقة مع OpenAI بشكل منفصل ولا تتأثر.</string>
+    <string name="samosa_opening_sign_in">جارٍ فتح تسجيل الدخول إلى Samosa…</string>
+    <string name="samosa_manage_account">إدارة الحساب</string>
+    <string name="samosa_add_credits">إضافة رصيد</string>
+    <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
+    <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
+    <string name="samosa_session_deactivated">تم إلغاء تنشيط حساب Samosa AI هذا.</string>
+    <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. في Samosa AI: الإعدادات ← إعداد الذكاء الاصطناعي ← إضافة رصيد.</string>
 </resources>

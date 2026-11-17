@@ -1624,4 +1624,21 @@
         <item quantity="many">Tentar de novo %1$d vezes</item>
         <item quantity="other">Tentar de novo %1$d vezes</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">Nenhum navegador disponível para abrir o login do Samosa. Instale ou ative um navegador e tente novamente.</string>
+    <string name="samosa_auth_sign_in_timed_out">O tempo de espera pelo navegador acabou. Tente novamente.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">A resposta do login não corresponde a esta solicitação. Tente novamente.</string>
+    <string name="samosa_auth_sign_in_expired">Este login expirou. Tente novamente.</string>
+    <string name="samosa_auth_sign_in_refused">O login do Samosa não foi concluído. Tente novamente.</string>
+    <string name="samosa_sign_in_website">Entrar no Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">Usar o Google</string>
+    <string name="samosa_sign_in_hint_website">Entre no site do Samosa AI para usar o Samosa AI. Suas configurações compatíveis com OpenAI ficam separadas e não são alteradas.</string>
+    <string name="samosa_opening_sign_in">Abrindo o login do Samosa…</string>
+    <string name="samosa_manage_account">Gerenciar conta</string>
+    <string name="samosa_add_credits">Adicionar créditos</string>
+    <string name="samosa_sign_in_cancelled">Login cancelado.</string>
+    <string name="samosa_session_ended">Você saiu do Samosa AI. Entre novamente para continuar usando.</string>
+    <string name="samosa_session_deactivated">Esta conta do Samosa AI foi desativada.</string>
+    <string name="error_out_of_credits_http_402">Sem créditos (HTTP 402). Adicione créditos para continuar. No Samosa AI: Configurações → Configuração de IA → Adicionar créditos.</string>
 </resources>

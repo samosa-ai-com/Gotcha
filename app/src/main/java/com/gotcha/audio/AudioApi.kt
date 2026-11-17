@@ -2,6 +2,7 @@ package com.gotcha.audio
 
 import android.util.Log
 import com.gotcha.BuildConfig
+import com.gotcha.auth.SamosaAuthInterceptor
 import com.gotcha.util.GotchaLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -55,17 +56,8 @@ class AudioApi(
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(timeoutSeconds * 2, TimeUnit.SECONDS)
             .writeTimeout(timeoutSeconds * 2, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                if (apiKey.isNotBlank()) {
-                    request.addHeader("Authorization", "Bearer $apiKey")
-                }
-                val response = chain.proceed(request.build())
-                if (response.code == 401) {
-                    onUnauthorized?.invoke()
-                }
-                response
-            }
+            // Adds the bearer token; for Samosa AI it also keeps the session renewed.
+            .addInterceptor(SamosaAuthInterceptor(apiKey, onUnauthorized))
             .addInterceptor(logging)
             .build()
     }
