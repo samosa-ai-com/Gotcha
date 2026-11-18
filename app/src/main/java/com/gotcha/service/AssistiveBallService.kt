@@ -958,7 +958,9 @@ class AssistiveBallService : Service() {
         // The call hides the ball almost immediately, so the visual ack has to
         // be kicked off before it starts — see AssistiveBallOverlay.playWakeAnimation.
         overlay.playWakeAnimation()
-        if (!callController.startWakeWordCall()) {
+        val callStarted = callController.startWakeWordCall()
+        com.gotcha.telemetry.Telemetry.track(com.gotcha.telemetry.TelemetryEvents.wakeWord(callStarted))
+        if (!callStarted) {
             // The call was refused before it began — no provider configured, no
             // API key, the mic grant gone. startCall() reports that through
             // onError() and leaves the state machine in IDLE, so the collector

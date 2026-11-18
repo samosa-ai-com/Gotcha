@@ -32,7 +32,12 @@ class TelemetrySchemaTest {
             ok = false, latencyMs = 15_000, promptTokens = null, completionTokens = null,
             cacheHit = false, error = AiError.TIMEOUT
         ),
-        TelemetryEvents.toolCall("open_app", ok = true, durationMs = 400)
+        TelemetryEvents.toolCall("open_app", ok = true, durationMs = 400),
+        TelemetryEvents.voiceCall(CallTrigger.WAKE_WORD, 95_000, turns = 3, SpeechKind.ANDROID, SpeechKind.SAMOSA),
+        TelemetryEvents.wakeWord(ledToCall = true),
+        TelemetryEvents.shell(ShellKind.GOTCHA_SHELL, ok = false),
+        TelemetryEvents.scheduledTask(TaskSource.PRESET, TaskTrigger.ALARM, TaskStart.BUSY),
+        TelemetryEvents.update(UpdatePhase.DOWNLOAD_OK)
     )
 
     @Test

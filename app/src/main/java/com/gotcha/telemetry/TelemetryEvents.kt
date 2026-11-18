@@ -90,6 +90,62 @@ enum class AgentModeWire(override val wire: String) : WireWord {
     OPERATOR("operator")
 }
 
+/** How a voice call was started. */
+enum class CallTrigger(override val wire: String) : WireWord {
+    BALL("ball"),
+    WAKE_WORD("wake_word")
+}
+
+/** A speech provider, by kind. */
+enum class SpeechKind(override val wire: String) : WireWord {
+    ANDROID("android"),
+    SAMOSA("samosa"),
+    API("api"),
+    NONE("none")
+}
+
+/** Which Linux shell ran a command. */
+enum class ShellKind(override val wire: String) : WireWord {
+    GOTCHA_SHELL("gotcha_shell"),
+    TERMUX("termux"),
+    OTHER("other");
+
+    companion object {
+        fun of(backendId: String): ShellKind = when (backendId) {
+            com.gotcha.tools.CompanionShellBackend.ID -> GOTCHA_SHELL
+            "termux" -> TERMUX
+            else -> OTHER
+        }
+    }
+}
+
+/** A scheduled task that ships with the app, or one the user made. */
+enum class TaskSource(override val wire: String) : WireWord {
+    PRESET("preset"),
+    CUSTOM("custom")
+}
+
+enum class TaskTrigger(override val wire: String) : WireWord {
+    ALARM("alarm"),
+    MANUAL("manual")
+}
+
+/** What happened when a scheduled task was due or run by hand. */
+enum class TaskStart(override val wire: String) : WireWord {
+    STARTED("started"),
+    BUSY("busy"),
+    QUEUED("queued"),
+    FAILED("failed")
+}
+
+/** A step of an app update. */
+enum class UpdatePhase(override val wire: String) : WireWord {
+    NOTIFIED("notified"),
+    DOWNLOAD_OK("download_ok"),
+    DOWNLOAD_FAILED("download_failed"),
+    INSTALL_STARTED("install_started")
+}
+
 /**
  * The events and their schema, side by side so the two cannot drift: each
  * factory builds exactly the properties its [TelemetrySchema.define] lists.
@@ -103,6 +159,11 @@ object TelemetryEvents {
     const val AGENT_RUN = "agent_run"
     const val AI_REQUEST = "ai_request"
     const val TOOL_CALL = "tool_call"
+    const val VOICE_CALL = "voice_call"
+    const val WAKE_WORD = "wake_word"
+    const val SHELL = "shell"
+    const val SCHEDULED_TASK = "scheduled_task"
+    const val UPDATE = "update"
 
     /** Longest exception class or frame name sent; longer ones are cut. */
     const val CODE_NAME_MAX = 160
@@ -161,7 +222,63 @@ object TelemetryEvents {
             "ok" to Prop(Vocab.Bool),
             "ms" to Prop(Vocab.Words(Buckets.MS))
         )
+        schema.define(
+            VOICE_CALL,
+            "trigger" to Prop(words<CallTrigger>()),
+            "length_s" to Prop(Vocab.Words(Buckets.SECONDS)),
+            "turns" to Prop(Vocab.Words(Buckets.COUNT)),
+            "stt" to Prop(words<SpeechKind>()),
+            "tts" to Prop(words<SpeechKind>())
+        )
+        schema.define(
+            WAKE_WORD,
+            "led_to_call" to Prop(Vocab.Bool)
+        )
+        schema.define(
+            SHELL,
+            "backend" to Prop(words<ShellKind>()),
+            "ok" to Prop(Vocab.Bool)
+        )
+        schema.define(
+            SCHEDULED_TASK,
+            "source" to Prop(words<TaskSource>()),
+            "trigger" to Prop(words<TaskTrigger>()),
+            "start" to Prop(words<TaskStart>())
+        )
+        schema.define(
+            UPDATE,
+            "phase" to Prop(words<UpdatePhase>())
+        )
     }
+
+    /** A voice call ended. [turns] counts what the user said, never what. */
+    fun voiceCall(trigger: CallTrigger, lengthMs: Long, turns: Int, stt: SpeechKind, tts: SpeechKind) =
+        TelemetryEvent(
+            VOICE_CALL,
+            mapOf(
+                "trigger" to word(trigger),
+                "length_s" to JsonPrimitive(Buckets.seconds(lengthMs / MS_PER_SECOND)),
+                "turns" to JsonPrimitive(Buckets.count(turns)),
+                "stt" to word(stt),
+                "tts" to word(tts)
+            )
+        )
+
+    /** "Hey Gotcha" was heard; [ledToCall] false when the call could not start. */
+    fun wakeWord(ledToCall: Boolean) = TelemetryEvent(WAKE_WORD, mapOf("led_to_call" to JsonPrimitive(ledToCall)))
+
+    /** A shell command finished; the command and its output are never part of it. */
+    fun shell(backend: ShellKind, ok: Boolean) = TelemetryEvent(
+        SHELL,
+        mapOf("backend" to word(backend), "ok" to JsonPrimitive(ok))
+    )
+
+    fun scheduledTask(source: TaskSource, trigger: TaskTrigger, start: TaskStart) = TelemetryEvent(
+        SCHEDULED_TASK,
+        mapOf("source" to word(source), "trigger" to word(trigger), "start" to word(start))
+    )
+
+    fun update(phase: UpdatePhase) = TelemetryEvent(UPDATE, mapOf("phase" to word(phase)))
 
     /**
      * One agent run, from its terminal path. [toolNames] and [failedTools] are
@@ -287,6 +404,11 @@ object TelemetryEvents {
         AGENT_RUN -> R.string.telemetry_event_agent_run
         AI_REQUEST -> R.string.telemetry_event_ai_request
         TOOL_CALL -> R.string.telemetry_event_tool_call
+        VOICE_CALL -> R.string.telemetry_event_voice_call
+        WAKE_WORD -> R.string.telemetry_event_wake_word
+        SHELL -> R.string.telemetry_event_shell
+        SCHEDULED_TASK -> R.string.telemetry_event_scheduled_task
+        UPDATE -> R.string.telemetry_event_update
         else -> null
     }
 
