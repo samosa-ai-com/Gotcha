@@ -78,7 +78,12 @@ class SubAgentSession(
             }
 
             val response = try {
-                subLlm.chat(messages, subAgentTools, sessionId = sessionId)
+                subLlm.chat(
+                    messages,
+                    subAgentTools,
+                    sessionId = sessionId,
+                    feature = com.gotcha.telemetry.LlmFeature.SUB_AGENT
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -324,7 +329,10 @@ class SubAgentSession(
         )
 
         try {
-            val response = llm.chat(listOf(compactionSystem, compactionUser))
+            val response = llm.chat(
+                listOf(compactionSystem, compactionUser),
+                feature = com.gotcha.telemetry.LlmFeature.COMPACTION
+            )
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()

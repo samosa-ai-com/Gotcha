@@ -202,6 +202,9 @@
     <string name="telemetry_event_app_open">That Gotcha was opened, and for a cold start roughly how long it took</string>
     <string name="telemetry_event_session_end">Roughly how long Gotcha stayed open</string>
     <string name="telemetry_event_opt_in">That usage data was turned on</string>
+    <string name="telemetry_event_agent_run">For each request: where it came from (chat, call or scheduled task), Monitor or Operator, Samosa AI or your own server, whether it finished, roughly how long it took and how many actions it took</string>
+    <string name="telemetry_event_ai_request">For each call to the AI model: what it was for, Samosa AI or your own server (named only as a kind, such as \"local\" or \"other\"), the Samosa AI model if you use one, whether it worked and the kind of error, roughly how long it took and how many tokens it used</string>
+    <string name="telemetry_event_tool_call">For each action: which of Gotcha\'s built-in actions it was (actions from MCP servers or connected accounts are only counted, not named), whether it worked and roughly how long it took</string>
     <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->

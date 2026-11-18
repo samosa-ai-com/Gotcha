@@ -98,7 +98,8 @@ class AppNavigatorSession(
                         ChatMessage(role = "user", content = userContent)
                     ),
                     tools = navTools,
-                    sessionId = sessionId
+                    sessionId = sessionId,
+                    feature = com.gotcha.telemetry.LlmFeature.NAVIGATOR
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -242,7 +243,8 @@ class AppNavigatorSession(
                         ChatMessage(role = "system", content = JsonPrimitive(summaryPrompt))
                     ),
                     tools = emptyList(),
-                    sessionId = sessionId
+                    sessionId = sessionId,
+                    feature = com.gotcha.telemetry.LlmFeature.NAVIGATOR
                 )
                 val summary = summaryResponse.choices.firstOrNull()?.message?.textContent
                 if (!summary.isNullOrBlank()) {
