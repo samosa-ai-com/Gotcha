@@ -45,13 +45,17 @@ class GotchaApp : Application() {
         super.onCreate()
         // Before anything can send a Samosa request: every client looks the session up here.
         com.gotcha.auth.SamosaSession.install(this)
+        // Opt-in usage data. Off unless the user turned it on, and a no-op in a build
+        // without an endpoint; installed early so the crash handler below can use it.
+        com.gotcha.telemetry.Telemetry.install(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
-                startedActivities++
+                if (startedActivities++ == 0) com.gotcha.telemetry.Telemetry.onForeground()
             }
 
             override fun onActivityStopped(activity: Activity) {
                 startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                if (startedActivities == 0) com.gotcha.telemetry.Telemetry.onBackground()
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -81,6 +85,9 @@ class GotchaApp : Application() {
                     com.gotcha.tools.ShellBackends.refreshIfUnknown(this@GotchaApp)
                 }
             }
+            // Sends what an earlier run queued, a crash included. Spaced and
+            // network-gated inside, so a quick reopen does not send again.
+            com.gotcha.telemetry.Telemetry.flushInBackground()
         }.start()
         setupUncaughtExceptionHandler()
     }
@@ -91,6 +98,12 @@ class GotchaApp : Application() {
             try {
                 Log.e(TAG, "Uncaught exception on thread ${thread.name}: ${throwable.message}", throwable)
                 appendCrashLog(thread, throwable)
+            } catch (_: Throwable) {
+                // Ensure logging itself never throws
+            }
+            try {
+                // Class and throwing method only, and only with usage data on.
+                com.gotcha.telemetry.Telemetry.recordCrash(thread, throwable, hasStartedActivity)
             } catch (_: Throwable) {
                 // Ensure logging itself never throws
             }

@@ -165,7 +165,12 @@ class ReminderCheckReceiver : BroadcastReceiver() {
             try {
                 runLocalNotificationCheck(app, includeTip = false)
             } finally {
-                runUpdateCheck(app)
+                try {
+                    runUpdateCheck(app)
+                } finally {
+                    // Opt-in usage data rides on this alarm rather than arming its own.
+                    com.gotcha.telemetry.Telemetry.flush()
+                }
             }
         }
     }
