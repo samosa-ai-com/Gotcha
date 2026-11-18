@@ -17,7 +17,7 @@
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
-        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. Optional usage data, off unless you turn it on, sends counts and outcomes only and can be deleted from Settings → Privacy.</item>
         <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
