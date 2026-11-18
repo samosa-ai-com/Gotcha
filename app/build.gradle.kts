@@ -124,6 +124,21 @@ android {
             "FEEDBACK_ENTRY_CHAT_LOG",
             "\"${samosaConfig("FEEDBACK_ENTRY_CHAT_LOG", "")}\""
         )
+        // Opt-in usage data (Settings ▸ Privacy): the ingest endpoint and its key,
+        // injected the same way as FEEDBACK_FORM_URL. The key ships in the APK, so it
+        // is an ingest key, never a secret. Either one blank hides the Usage data
+        // section and makes telemetry a no-op, so a public checkout or a fork can
+        // never send anything.
+        buildConfigField(
+            "String",
+            "TELEMETRY_URL",
+            "\"${samosaConfig("TELEMETRY_URL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "TELEMETRY_KEY",
+            "\"${samosaConfig("TELEMETRY_KEY", "")}\""
+        )
         // Google Form for the influencer program signup, injected the same way as
         // FEEDBACK_FORM_URL above. A blank URL hides the influencer card, keeping
         // a public checkout inert.

@@ -179,6 +179,30 @@
     <string name="privacy_where_data_goes_title">Where your data goes</string>
     <string name="privacy_where_data_goes_body">Your chats, calls and settings are stored on this phone. Gotcha goes online only for what you use: the AI backend you chose, the accounts you connect, web pages and searches the assistant fetches, and the update check on GitHub. The data retention policy has the details.</string>
     <string name="privacy_open_policy">Read the data retention policy</string>
+    <string name="privacy_usage_data_title">Usage data</string>
+    <string name="privacy_usage_data_intro">Help improve Gotcha by sending counts and outcomes, such as how long the app was open or what kind of crash happened. Off unless you turn it on.</string>
+    <string name="privacy_usage_data_switch">Share usage data</string>
+    <string name="privacy_usage_data_mobile">Also send on mobile data</string>
+    <string name="privacy_usage_data_status_off">Off. Nothing is sent.</string>
+    <string name="privacy_usage_data_status_waiting">On. Nothing sent yet; it goes out in batches over Wi-Fi.</string>
+    <string name="privacy_usage_data_status_sent">On. Last sent %1$s.</string>
+    <string name="privacy_usage_data_status_paused">On, but paused by the server. Gotcha will try again later.</string>
+    <string name="privacy_what_we_send">What we send</string>
+    <string name="privacy_never_sent">Never sent: your messages or the assistant\'s replies, what is on your screen, your files, contacts, texts, calendar or location, shell commands, the names of your apps, your API key or your Samosa account.</string>
+    <string name="privacy_enable_dialog_title">Share usage data?</string>
+    <string name="privacy_enable_dialog_body">Gotcha will send counts and outcomes to a server run by Samosa AI, tied to a random id that is not linked to your account or your phone. Never your messages, screen, files, contacts, commands or app names. Kept for 90 days. You can turn it off, or delete what was sent, here at any time.</string>
+    <string name="privacy_enable_dialog_confirm">Turn on</string>
+    <string name="privacy_enable_dialog_dismiss">Not now</string>
+    <string name="privacy_delete_usage_data">Delete my usage data</string>
+    <string name="privacy_delete_dialog_title">Delete usage data?</string>
+    <string name="privacy_delete_dialog_body">This asks the server to delete everything sent from this phone, and turns usage data off.</string>
+    <string name="privacy_delete_dialog_confirm">Delete</string>
+    <string name="privacy_delete_done">Deleted. Usage data is off.</string>
+    <string name="privacy_delete_failed">Could not reach the server. Try again later.</string>
+    <string name="telemetry_event_app_open">That Gotcha was opened, and for a cold start roughly how long it took</string>
+    <string name="telemetry_event_session_end">Roughly how long Gotcha stayed open</string>
+    <string name="telemetry_event_opt_in">That usage data was turned on</string>
+    <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->
     <string name="action_back">← Back</string>
