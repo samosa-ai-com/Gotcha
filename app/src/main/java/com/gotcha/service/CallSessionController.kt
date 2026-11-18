@@ -226,7 +226,8 @@ class CallSessionController(
                 settingsRepository.save(plan.applyTo(settingsRepository.load()))
                 ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
             },
-            workingDirRoot = CALLS_WORKING_ROOT
+            workingDirRoot = CALLS_WORKING_ROOT,
+            runSurface = com.gotcha.telemetry.RunSurface.CALL
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
         newEngine.callMode = true

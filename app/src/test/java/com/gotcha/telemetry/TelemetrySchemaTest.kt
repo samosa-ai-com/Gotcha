@@ -16,7 +16,23 @@ class TelemetrySchemaTest {
         TelemetryEvents.sessionEnd(lengthMs = 95_000),
         TelemetryEvents.optIn(OptInSurface.SETTINGS),
         TelemetryEvents.crash("java.lang.IllegalStateException", "ChatRunner.start", CrashThread.MAIN, true),
-        TelemetryEvents.crash("kotlin.KotlinNullPointerException", null, CrashThread.OTHER, false)
+        TelemetryEvents.crash("kotlin.KotlinNullPointerException", null, CrashThread.OTHER, false),
+        TelemetryEvents.agentRun(
+            RunSurface.CHAT, AgentModeWire.OPERATOR, ProviderKind.SAMOSA, EndpointClass.SAMOSA,
+            ok = true, durationMs = 12_000, rounds = 3, toolCalls = 4, toolFailures = 1,
+            delegated = false, end = RunEnd.REPLY
+        ),
+        TelemetryEvents.aiRequest(
+            LlmFeature.AGENT, ProviderKind.SAMOSA, EndpointClass.SAMOSA, "deepseek-v4-flash",
+            ok = true, latencyMs = 3_100, promptTokens = 20_000, completionTokens = 300,
+            cacheHit = false, error = null
+        ),
+        TelemetryEvents.aiRequest(
+            LlmFeature.TITLE, ProviderKind.BYO, EndpointClass.LOCAL, "my-private-finetune",
+            ok = false, latencyMs = 15_000, promptTokens = null, completionTokens = null,
+            cacheHit = false, error = AiError.TIMEOUT
+        ),
+        TelemetryEvents.toolCall("open_app", ok = true, durationMs = 400)
     )
 
     @Test
@@ -84,6 +100,60 @@ class TelemetrySchemaTest {
             )
         }
         assertEquals("ChatRunner.start", TelemetryClient.crashFrame(throwable))
+    }
+
+    @Test
+    fun `a model on the user's own server is never named`() {
+        val byo = samples.first { it.name == TelemetryEvents.AI_REQUEST && it.props["provider"]!!.content == "byo" }
+        assertFalse("model" in byo.props)
+        val samosa = samples.first { it.name == TelemetryEvents.AI_REQUEST && it.props["provider"]!!.content == "samosa" }
+        assertEquals("deepseek-v4-flash", samosa.props["model"]!!.content)
+    }
+
+    @Test
+    fun `a model id with spaces or a path is refused`() {
+        val event = TelemetryEvents.aiRequest(
+            LlmFeature.AGENT, ProviderKind.SAMOSA, EndpointClass.SAMOSA, "my notes about mom",
+            ok = true, latencyMs = 1, promptTokens = null, completionTokens = null, cacheHit = false, error = null
+        )
+        assertFalse(TelemetrySchema.accepts(event))
+    }
+
+    @Test
+    fun `tool names outside Gotcha's catalogue are not sent`() {
+        assertEquals("open_app", BoundedNames.tool("open_app"))
+        assertEquals("mcp", BoundedNames.tool("mcp_myserver__search_my_diary"))
+        assertEquals("other", BoundedNames.tool("something_the_model_made_up"))
+        assertTrue(TelemetrySchema.accepts(TelemetryEvents.toolCall("mcp_myserver__x", true, 1)))
+    }
+
+    @Test
+    fun `endpoint class names a kind of server, never the server`() {
+        assertEquals(EndpointClass.OPENAI, EndpointClass.of("https://api.openai.com/v1/"))
+        assertEquals(EndpointClass.OPENROUTER, EndpointClass.of("https://openrouter.ai/api/v1/"))
+        assertEquals(EndpointClass.GROQ, EndpointClass.of("https://api.groq.com/openai/v1/"))
+        assertEquals(EndpointClass.LOCAL, EndpointClass.of("http://192.168.1.5:8080/v1/"))
+        assertEquals(EndpointClass.LOCAL, EndpointClass.of("http://10.0.2.2:1234/v1/"))
+        assertEquals(EndpointClass.LOCAL, EndpointClass.of("http://172.20.0.3/v1/"))
+        assertEquals(EndpointClass.LOCAL, EndpointClass.of("http://localhost:11434/v1/"))
+        assertEquals(EndpointClass.LOCAL, EndpointClass.of("http://gpu-box.local/v1/"))
+        assertEquals(EndpointClass.OTHER, EndpointClass.of("http://172.32.0.1/v1/"))
+        assertEquals(EndpointClass.OTHER, EndpointClass.of("https://llm.my-name.example/v1/"))
+        assertEquals(EndpointClass.OTHER, EndpointClass.of("not a url"))
+    }
+
+    @Test
+    fun `model errors are classified by kind`() {
+        fun http(code: Int) = retrofit2.HttpException(
+            retrofit2.Response.error<Any>(code, okhttp3.ResponseBody.Companion.create(null, ""))
+        )
+        assertEquals(AiError.AUTH, ErrorClass.of(http(401)))
+        assertEquals(AiError.RATE, ErrorClass.of(http(429)))
+        assertEquals(AiError.HTTP_4XX, ErrorClass.of(http(400)))
+        assertEquals(AiError.HTTP_5XX, ErrorClass.of(http(502)))
+        assertEquals(AiError.TIMEOUT, ErrorClass.of(java.net.SocketTimeoutException()))
+        assertEquals(AiError.OFFLINE, ErrorClass.of(java.net.UnknownHostException()))
+        assertEquals(AiError.OTHER, ErrorClass.of(IllegalStateException()))
     }
 
     @Test

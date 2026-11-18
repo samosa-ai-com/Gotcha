@@ -90,6 +90,15 @@ sealed interface Vocab {
             val CODE_NAME = Regex("[A-Za-z0-9_.$]+")
         }
     }
+
+    /**
+     * A model id such as `deepseek-v4-flash` or `vendor/model:tag`: identifier
+     * characters only, short, no spaces. Used for Samosa AI's catalogue ids.
+     */
+    data object ModelId : Vocab {
+        private val MODEL_ID = Regex("[A-Za-z0-9._:/-]{1,64}")
+        override fun accepts(value: JsonPrimitive) = value.isString && MODEL_ID.matches(value.content)
+    }
 }
 
 /** Ranges are bucketed so a value says how much, never exactly how much. */

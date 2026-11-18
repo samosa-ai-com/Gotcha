@@ -353,7 +353,7 @@ class AssistiveBallService : Service() {
                 history.add(userMsg)
 
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(history.toList())
+                    llmClient.chat(history.toList(), feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
@@ -409,7 +409,7 @@ class AssistiveBallService : Service() {
                     )
                 )
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(history.toList())
+                    llmClient.chat(history.toList(), feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
@@ -682,7 +682,7 @@ class AssistiveBallService : Service() {
         scope.launch {
             try {
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(currentHistory)
+                    llmClient.chat(currentHistory, feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 activeCompanionHistory.add(
@@ -795,7 +795,7 @@ class AssistiveBallService : Service() {
                 scope.launch {
                     try {
                         val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                            llmClient.chat(currentHistory)
+                            llmClient.chat(currentHistory, feature = com.gotcha.telemetry.LlmFeature.BALL)
                         }
                         val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                         activeCompanionHistory.add(
