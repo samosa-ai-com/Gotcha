@@ -136,7 +136,9 @@ private fun ResizeForKeyboard() {
         val window = generateSequence(context) { (it as? ContextWrapper)?.baseContext }
             .filterIsInstance<Activity>().firstOrNull()?.window
         val previous = window?.attributes?.softInputMode
-        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        // Only the adjust bits change; whether the keyboard starts shown or hidden is left as it was.
+        val state = (previous ?: 0) and WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE
+        window?.setSoftInputMode(state or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         onDispose { previous?.let { window.setSoftInputMode(it) } }
     }
 }
