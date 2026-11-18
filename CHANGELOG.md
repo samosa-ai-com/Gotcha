@@ -4,6 +4,15 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Privacy page.** Settings ▸ Privacy shows what Gotcha has recorded about
+  its use on your phone: chats, voice calls, requests and how many finished,
+  actions taken, the models used and crashes. It is worked out on the phone
+  and sent nowhere.
+- **Optional usage data, off by default.** On the same page you can choose
+  to send counts and outcomes (never your messages, screen, files, contacts,
+  commands or app names) to help improve Gotcha, see exactly what is sent,
+  and delete what was sent. The data retention policy has a new Section 11
+  about it, so you will be asked to accept the updated terms once.
 - **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
   about you, the people in your life, your plans and preferences in plain
   Markdown files in `Gotcha/memory/` on your phone, which you can read any

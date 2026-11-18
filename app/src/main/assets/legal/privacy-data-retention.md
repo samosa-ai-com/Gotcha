@@ -4,9 +4,11 @@ Last updated: [effective date]
 
 This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short
-version: the App itself does not collect or retain data on our
-servers — everything stays on your device unless you choose to use a
-backend that transmits data to a third-party AI provider.
+version: the App itself does not collect or retain your content on
+our servers — everything stays on your device unless you choose to use
+a backend that transmits data to a third-party AI provider. If you turn
+on optional usage data (off by default), the App sends us counts and
+outcomes only, never your content; see Section 11.
 
 1. WHAT THE APP STORES, AND WHERE
 
@@ -23,15 +25,17 @@ backend that transmits data to a third-party AI provider.
    1.3 Settings (preferences, model selections, permission choices,
        legal acceptance) are stored in Android's encrypted
        SharedPreferences on your device. They are never uploaded to us.
-   1.4 The App does not ship analytics, crash reporting, telemetry, or
-       any background tracking SDK. We have no server-side record of
-       your activity in the App.
+   1.4 The App does not ship any analytics, crash-reporting or tracking
+       SDK. By default we have no server-side record of your activity in
+       the App. The only exception is optional usage data, which is off
+       unless you turn it on and is described in Section 11.
 
 2. WHAT IS TRANSMITTED, AND WHEN
 
    2.1 The App does not transmit data unless you send a request to an
-       AI backend. A request is sent only when you (or the agent you
-       have configured) initiate one — for example, by typing a message,
+       AI backend, or you have turned on optional usage data (Section
+       11). A request is sent only when you (or the agent you have
+       configured) initiate one — for example, by typing a message,
        starting a voice call, or invoking a tool that needs vision.
 
    2.2 If you choose to use Samosa AI as your backend, requests are
@@ -47,10 +51,12 @@ backend that transmits data to a third-party AI provider.
 3. ZERO COLLECTION / ZERO RETENTION BY US
 
    3.1 We do not operate a server that retains your chats, calls,
-       screenshots, prompts, completions, or credentials. We have no
-       analytics, no logging pipeline, no telemetry endpoint. There is
-       therefore nothing on our side to "delete," because nothing is
-       kept there in the first place.
+       screenshots, prompts, completions, or credentials, and the App
+       never sends them to us. With usage data off, which is the
+       default, nothing about your use of the App is kept on our side.
+       With it on, we keep only the counts and outcomes described in
+       Section 11, for 90 days, and you can delete them from the App at
+       any time.
    3.2 If you want to remove local data, uninstall the App, or use the
        in-app controls (e.g. "Clear chat," "Clear LLM cache").
 
@@ -107,6 +113,8 @@ backend that transmits data to a third-party AI provider.
          (c) clear debug screenshots (Settings → AI Configuration);
          (d) uninstall the App, which removes all app-private data,
              including settings, caches, and history.
+       Uninstalling does not reach usage data already sent to us; use
+       "Delete my usage data" (Section 11) first if you want it gone.
    5.2 Android may retain app-private data in backups (e.g. Auto Backup
        to Google Drive) depending on the user's Android settings. We
        do not control backup behavior; please review your device
@@ -122,8 +130,8 @@ backend that transmits data to a third-party AI provider.
 
 7. YOUR RESPONSIBILITY
 
-   7.1 Because the App does not collect data on our servers, it is
-       your responsibility to:
+   7.1 Because the App does not keep your content on our servers, it
+       is your responsibility to:
          (a) safeguard your device with a screen lock;
          (b) review what permissions you have granted, and revoke
              those you no longer need;
@@ -178,5 +186,49 @@ backend that transmits data to a third-party AI provider.
 
    10.6 You can turn the wake-word feature off at any time; when off, the
         App does not retain or process any audio for wake-word purposes.
+
+11. OPTIONAL USAGE DATA
+
+   11.1 Usage data is off unless you turn it on in Settings → Privacy →
+        "Share usage data". Nothing in the App depends on it, and you
+        will not be asked again if you leave it off.
+
+   11.2 Purpose: to learn which features are used and where the App
+        fails or crashes, so we can fix and improve it. It is never
+        sold, and never used for advertising.
+
+   11.3 What is sent: counts and outcomes only. Each event is one of a
+        fixed list, and each of its values is a yes/no, a range (for
+        example "6–30 seconds"), or a word from a fixed list. The full
+        list of events is shown in the App under Settings → Privacy →
+        "What we send". With each batch the App also sends its version,
+        the Android version, the language setting and whether the
+        device is a phone or a tablet.
+
+   11.4 What is never sent: your messages or the assistant's replies,
+        what is on your screen, files or file names, contacts, text
+        messages, call logs, calendar entries, notifications, location,
+        health data, shell commands or their output, the names of your
+        apps, web addresses, your API key, your Samosa AI account or
+        email, and any device identifier (Android ID, IMEI, serial
+        number or advertising ID). The text of an error is never sent;
+        for a crash, only the type of error and the name of the method
+        it came from.
+
+   11.5 Identifier: the App creates a random id the first time you turn
+        usage data on. It is not derived from your device or your
+        account, and it is not linked to your Samosa AI account.
+
+   11.6 Where it goes and how long it is kept: to a server operated by
+        Samosa AI, over HTTPS. Events are kept for 90 days and then
+        deleted. Your IP address is not stored with them.
+
+   11.7 Your choices: turning usage data off stops sending at once and
+        deletes anything waiting on the phone. "Delete my usage data"
+        asks the server to delete everything sent under your id, then
+        forgets the id. You can also email contact@samosa-ai.com.
+
+   11.8 Builds of the App that you compile yourself from the public
+        source code send no usage data at all.
 
 — END OF DATA RETENTION POLICY —

@@ -63,7 +63,8 @@ class ShareCardClient(
             llm.chat(
                 messages = buildMessages(runs),
                 temperature = MARKETING_TEMPERATURE,
-                sessionId = "marketing_share_card"
+                sessionId = "marketing_share_card",
+                feature = com.gotcha.telemetry.LlmFeature.SHARE_CARD
             ).choices.firstOrNull()?.message?.textContent ?: ""
         } catch (e: CancellationException) {
             throw e

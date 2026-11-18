@@ -13,6 +13,10 @@ import android.view.WindowManager
 import android.widget.TextView
 import com.gotcha.R
 import com.gotcha.i18n.stringLookup
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.LensAction
+import com.gotcha.telemetry.LensKind
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.MaxHeightScrollView
 import com.gotcha.ui.ScreenCropOverlayView
 import com.gotcha.ui.applyOverlayCard
@@ -276,6 +280,7 @@ class ScreenLensController(
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
                 chipButton(appContext.getString(R.string.lens_select), colors, R.drawable.ic_lens_select) {
+                    trackChip(LensAction.SELECT)
                     showSelectableTextCard(cleanText)
                 }
             )
@@ -283,6 +288,7 @@ class ScreenLensController(
 
         chipsLayout.addView(
             chipButton(appContext.getString(R.string.lens_copy), colors, R.drawable.ic_lens_copy) {
+                trackChip(LensAction.COPY)
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -301,6 +307,7 @@ class ScreenLensController(
         if (!isAlreadyInPreferredLang) {
             chipsLayout.addView(
                 chipButton(appContext.getString(R.string.lens_translate), colors, R.drawable.ic_lens_translate) {
+                    trackChip(LensAction.TRANSLATE)
                     val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
                         "and display both original and translated text."
                     encodePendingCrop { base64 -> onImagePrompt(base64, prompt) }
@@ -311,6 +318,7 @@ class ScreenLensController(
 
         chipsLayout.addView(
             chipButton(appContext.getString(R.string.lens_save), colors, R.drawable.ic_lens_save) {
+                trackChip(LensAction.SAVE)
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -324,6 +332,7 @@ class ScreenLensController(
 
         chipsLayout.addView(
             chipButton(appContext.getString(R.string.lens_ask), colors, R.drawable.ic_lens_ask) {
+                trackChip(LensAction.ASK)
                 encodePendingCrop { base64 -> onAskAboutCrop(base64) }
                 cancel()
             }
@@ -726,4 +735,9 @@ class ScreenLensController(
          */
         const val TEXT_CARD_WIDTH_DP = 340
     }
+}
+
+/** One `lens` event for a chip on the Lens bar: which chip, never what was in the region. */
+private fun trackChip(action: LensAction) {
+    Telemetry.track(FeatureEvents.lens(LensKind.LENS, action))
 }

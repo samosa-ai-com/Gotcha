@@ -17,7 +17,7 @@
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
-        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. Optional usage data, off unless you turn it on, sends counts and outcomes only and can be deleted from Settings → Privacy.</item>
         <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
@@ -159,6 +159,64 @@
     <string name="settings_page_about_samosa_summary">Mission, products, pricing, developers</string>
     <string name="settings_page_legal">Legal</string>
     <string name="settings_page_legal_summary">Terms, disclaimer, data retention</string>
+    <string name="settings_page_privacy">Privacy</string>
+    <string name="settings_page_privacy_summary">Your usage on this phone, and where your data goes</string>
+    <string name="privacy_your_usage_title">Your usage</string>
+    <string name="privacy_your_usage_intro">Counted on this phone from the chats, calls and logs Gotcha already keeps. Nothing here is sent anywhere.</string>
+    <string name="privacy_stat_chats">Chats</string>
+    <string name="privacy_stat_calls">Voice calls</string>
+    <string name="privacy_stat_requests">Requests handled</string>
+    <string name="privacy_stat_requests_recent">Requests in the last %1$d days</string>
+    <string name="privacy_stat_success">Finished successfully</string>
+    <string name="privacy_stat_operator">Run in Operator mode</string>
+    <string name="privacy_stat_tool_calls">Actions taken</string>
+    <string name="privacy_stat_ok_failed">%1$s OK · %2$s failed</string>
+    <string name="privacy_stat_scheduled">Scheduled tasks in use</string>
+    <string name="privacy_stat_crashes">Crashes recorded</string>
+    <string name="privacy_stat_first_use">First request still on this phone</string>
+    <string name="privacy_stat_top_tools">Most-used actions</string>
+    <string name="privacy_stat_models">Models used</string>
+    <string name="privacy_where_data_goes_title">Where your data goes</string>
+    <string name="privacy_where_data_goes_body">Your chats, calls and settings are stored on this phone. Gotcha goes online only for what you use: the AI backend you chose, the accounts you connect, web pages and searches the assistant fetches, and the update check on GitHub. The data retention policy has the details.</string>
+    <string name="privacy_open_policy">Read the data retention policy</string>
+    <string name="privacy_usage_data_title">Usage data</string>
+    <string name="privacy_usage_data_intro">Help improve Gotcha by sending counts and outcomes, such as how long the app was open or what kind of crash happened. Off unless you turn it on.</string>
+    <string name="privacy_usage_data_switch">Share usage data</string>
+    <string name="privacy_usage_data_mobile">Also send on mobile data</string>
+    <string name="privacy_usage_data_status_off">Off. Nothing is sent.</string>
+    <string name="privacy_usage_data_status_waiting">On. Nothing sent yet; it goes out in batches over Wi-Fi.</string>
+    <string name="privacy_usage_data_status_sent">On. Last sent %1$s.</string>
+    <string name="privacy_usage_data_status_paused">On, but paused by the server. Gotcha will try again later.</string>
+    <string name="privacy_what_we_send">What we send</string>
+    <string name="privacy_never_sent">Never sent: your messages or the assistant\'s replies, what is on your screen, your files, contacts, texts, calendar or location, shell commands, the names of your apps, your API key or your Samosa account.</string>
+    <string name="privacy_enable_dialog_title">Share usage data?</string>
+    <string name="privacy_enable_dialog_body">Gotcha will send counts and outcomes to a server run by Samosa AI, tied to a random id that is not linked to your account or your phone. Never your messages, screen, files, contacts, commands or app names. Kept for 90 days. You can turn it off, or delete what was sent, here at any time.</string>
+    <string name="privacy_enable_dialog_confirm">Turn on</string>
+    <string name="privacy_enable_dialog_dismiss">Not now</string>
+    <string name="privacy_delete_usage_data">Delete my usage data</string>
+    <string name="privacy_delete_dialog_title">Delete usage data?</string>
+    <string name="privacy_delete_dialog_body">This asks the server to delete everything sent from this phone, and turns usage data off.</string>
+    <string name="privacy_delete_dialog_confirm">Delete</string>
+    <string name="privacy_delete_done">Deleted. Usage data is off.</string>
+    <string name="privacy_delete_failed">Could not reach the server. Try again later.</string>
+    <string name="telemetry_event_app_open">That Gotcha was opened, and for a cold start roughly how long it took</string>
+    <string name="telemetry_event_session_end">Roughly how long Gotcha stayed open</string>
+    <string name="telemetry_event_opt_in">That usage data was turned on</string>
+    <string name="telemetry_event_agent_run">For each request: where it came from (chat, call or scheduled task), Monitor or Operator, Samosa AI or your own server, whether it finished, roughly how long it took and how many actions it took</string>
+    <string name="telemetry_event_ai_request">For each call to the AI model: what it was for, Samosa AI or your own server (named only as a kind, such as \"local\" or \"other\"), the Samosa AI model if you use one, whether it worked and the kind of error, roughly how long it took and how many tokens it used</string>
+    <string name="telemetry_event_tool_call">For each action: which of Gotcha\'s built-in actions it was (actions from MCP servers or connected accounts are only counted, not named), whether it worked and roughly how long it took</string>
+    <string name="telemetry_event_voice_call">For each voice call: whether the ball or \"Hey Gotcha\" started it, roughly how long it lasted, how many times you spoke, and which kind of speech provider was used</string>
+    <string name="telemetry_event_wake_word">That \"Hey Gotcha\" was heard, and whether a call started</string>
+    <string name="telemetry_event_shell">For each Linux shell command: Gotcha Shell or Termux, and whether it worked, never the command or its output</string>
+    <string name="telemetry_event_scheduled_task">When a scheduled task is due or run by hand: whether it is one of the examples or your own, and whether it started, never its name or instructions</string>
+    <string name="telemetry_event_update">The steps of an app update: offered, downloaded, or installing</string>
+    <string name="telemetry_event_connector">When you connect, refresh or disconnect an account such as Gmail, Notion or Home Assistant: which kind of connector it was and whether connecting worked, and for MCP roughly how many servers you have, never their names, addresses or your account</string>
+    <string name="telemetry_event_skill_used">When a skill that ships with Gotcha is offered to the AI or read by it: which skill (skills you imported are counted as \"custom\", never named)</string>
+    <string name="telemetry_event_permission">When a permission Gotcha can use is granted or taken away, such as the microphone or Accessibility: which one, and whether it is now on</string>
+    <string name="telemetry_event_tour">Your progress through the guided setup: which step, and whether it was reached, done or skipped</string>
+    <string name="telemetry_event_setup">When you save the AI setup or test the connection: Samosa AI or your own server (named only as a kind), whether a key is filled in, and whether the test worked, never the key, address or model</string>
+    <string name="telemetry_event_lens">When you use Screen Lens or a Screen Companion suggestion: which kind of action you tapped, such as copy, translate or call, never what was on screen</string>
+    <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->
     <string name="action_back">← Back</string>

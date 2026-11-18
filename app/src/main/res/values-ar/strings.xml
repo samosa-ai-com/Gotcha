@@ -17,7 +17,7 @@
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
-        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. Optional usage data, off unless you turn it on, sends counts and outcomes only and can be deleted from Settings → Privacy.</item>
         <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
@@ -2007,4 +2007,64 @@
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
     <string name="samosa_session_deactivated">تم إلغاء تنشيط حساب Samosa AI هذا.</string>
     <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. في Samosa AI: الإعدادات ← إعداد الذكاء الاصطناعي ← إضافة رصيد.</string>
+
+    <!-- Settings ▸ Privacy, and optional usage data -->
+    <string name="settings_page_privacy">الخصوصية</string>
+    <string name="settings_page_privacy_summary">استخدامك على هذا الهاتف، وإلى أين تذهب بياناتك</string>
+    <string name="privacy_your_usage_title">استخدامك</string>
+    <string name="privacy_your_usage_intro">محسوب على هذا الهاتف من المحادثات والمكالمات والسجلات التي يحتفظ بها Gotcha أصلًا. لا يُرسَل أي شيء من هذا إلى أي مكان.</string>
+    <string name="privacy_stat_chats">المحادثات</string>
+    <string name="privacy_stat_calls">المكالمات الصوتية</string>
+    <string name="privacy_stat_requests">الطلبات المنجزة</string>
+    <string name="privacy_stat_requests_recent">الطلبات في آخر %1$d يومًا</string>
+    <string name="privacy_stat_success">اكتملت بنجاح</string>
+    <string name="privacy_stat_operator">نُفِّذت في وضع التشغيل</string>
+    <string name="privacy_stat_tool_calls">الإجراءات المنفَّذة</string>
+    <string name="privacy_stat_ok_failed">%1$s ناجحة · %2$s فاشلة</string>
+    <string name="privacy_stat_scheduled">المهام المجدولة المستخدمة</string>
+    <string name="privacy_stat_crashes">الأعطال المسجَّلة</string>
+    <string name="privacy_stat_first_use">أول طلب لا يزال على هذا الهاتف</string>
+    <string name="privacy_stat_top_tools">الإجراءات الأكثر استخدامًا</string>
+    <string name="privacy_stat_models">النماذج المستخدمة</string>
+    <string name="privacy_where_data_goes_title">إلى أين تذهب بياناتك</string>
+    <string name="privacy_where_data_goes_body">تُخزَّن محادثاتك ومكالماتك وإعداداتك على هذا الهاتف. لا يتصل Gotcha بالإنترنت إلا لما تستخدمه: خادم الذكاء الاصطناعي الذي اخترته، والحسابات التي تربطها، وصفحات الويب وعمليات البحث التي يجلبها المساعد، والتحقق من التحديثات على GitHub. سياسة الاحتفاظ بالبيانات فيها التفاصيل.</string>
+    <string name="privacy_open_policy">اقرأ سياسة الاحتفاظ بالبيانات</string>
+    <string name="privacy_usage_data_title">بيانات الاستخدام</string>
+    <string name="privacy_usage_data_intro">ساعد في تحسين Gotcha بإرسال أعداد ونتائج، مثل مدة فتح التطبيق أو نوع العطل الذي حدث. متوقفة ما لم تفعّلها.</string>
+    <string name="privacy_usage_data_switch">مشاركة بيانات الاستخدام</string>
+    <string name="privacy_usage_data_mobile">الإرسال عبر بيانات الجوال أيضًا</string>
+    <string name="privacy_usage_data_status_off">متوقفة. لا يُرسَل شيء.</string>
+    <string name="privacy_usage_data_status_waiting">مفعّلة. لم يُرسَل شيء بعد؛ تُرسَل على دفعات عبر Wi-Fi.</string>
+    <string name="privacy_usage_data_status_sent">مفعّلة. آخر إرسال: %1$s.</string>
+    <string name="privacy_usage_data_status_paused">مفعّلة، لكن الخادم أوقفها مؤقتًا. سيحاول Gotcha مجددًا لاحقًا.</string>
+    <string name="privacy_what_we_send">ما نرسله</string>
+    <string name="privacy_never_sent">لا يُرسَل أبدًا: رسائلك أو ردود المساعد، وما على شاشتك، وملفاتك وجهات اتصالك ورسائلك النصية وتقويمك وموقعك، وأوامر الطرفية، وأسماء تطبيقاتك، ومفتاح API، وحسابك في Samosa.</string>
+    <string name="privacy_enable_dialog_title">مشاركة بيانات الاستخدام؟</string>
+    <string name="privacy_enable_dialog_body">سيرسل Gotcha أعدادًا ونتائج إلى خادم تديره Samosa AI، مرتبطة بمعرّف عشوائي غير مرتبط بحسابك أو بهاتفك. لا يُرسَل أبدًا رسائلك أو شاشتك أو ملفاتك أو جهات اتصالك أو أوامرك أو أسماء تطبيقاتك. تُحفَظ 90 يومًا. يمكنك إيقافها، أو حذف ما أُرسل، من هنا في أي وقت.</string>
+    <string name="privacy_enable_dialog_confirm">تفعيل</string>
+    <string name="privacy_enable_dialog_dismiss">ليس الآن</string>
+    <string name="privacy_delete_usage_data">حذف بيانات استخدامي</string>
+    <string name="privacy_delete_dialog_title">حذف بيانات الاستخدام؟</string>
+    <string name="privacy_delete_dialog_body">سيُطلب من الخادم حذف كل ما أُرسل من هذا الهاتف، وستُوقَف بيانات الاستخدام.</string>
+    <string name="privacy_delete_dialog_confirm">حذف</string>
+    <string name="privacy_delete_done">تم الحذف. بيانات الاستخدام متوقفة.</string>
+    <string name="privacy_delete_failed">تعذّر الوصول إلى الخادم. حاول مجددًا لاحقًا.</string>
+    <string name="telemetry_event_app_open">أن Gotcha فُتح، ومدة التشغيل التقريبية عند البدء من الصفر</string>
+    <string name="telemetry_event_session_end">المدة التقريبية التي بقي فيها Gotcha مفتوحًا</string>
+    <string name="telemetry_event_opt_in">أن بيانات الاستخدام فُعّلت</string>
+    <string name="telemetry_event_agent_run">لكل طلب: من أين جاء (محادثة أو مكالمة أو مهمة مجدولة)، وضع المراقبة أو التشغيل، Samosa AI أو خادمك الخاص، هل اكتمل، والمدة التقريبية وعدد الإجراءات المنفَّذة</string>
+    <string name="telemetry_event_ai_request">لكل استدعاء لنموذج الذكاء الاصطناعي: الغرض منه، Samosa AI أو خادمك الخاص (يُذكر نوعه فقط، مثل \"local\" أو \"other\")، ونموذج Samosa AI إن كنت تستخدم واحدًا، وهل نجح ونوع الخطأ، والمدة التقريبية وعدد الرموز المستخدمة</string>
+    <string name="telemetry_event_tool_call">لكل إجراء: أيّ إجراءات Gotcha المدمجة كان (إجراءات خوادم MCP أو الحسابات المرتبطة تُعدّ فقط ولا تُسمّى)، وهل نجح، ومدته التقريبية</string>
+    <string name="telemetry_event_voice_call">لكل مكالمة صوتية: هل بدأتها الكرة أم \"Hey Gotcha\"، ومدتها التقريبية، وعدد مرات حديثك، ونوع مزوّد الصوت المستخدم</string>
+    <string name="telemetry_event_wake_word">أن \"Hey Gotcha\" سُمعت، وهل بدأت مكالمة</string>
+    <string name="telemetry_event_shell">لكل أمر في طرفية Linux: Gotcha Shell أو Termux، وهل نجح، دون الأمر نفسه أو مخرجاته أبدًا</string>
+    <string name="telemetry_event_scheduled_task">عندما يحين موعد مهمة مجدولة أو تُشغَّل يدويًا: هل هي من الأمثلة أم من إنشائك، وهل بدأت، دون اسمها أو تعليماتها أبدًا</string>
+    <string name="telemetry_event_update">خطوات تحديث التطبيق: عُرض، تم تنزيله، أو قيد التثبيت</string>
+    <string name="telemetry_event_connector">عندما تربط حسابًا مثل Gmail أو Notion أو Home Assistant أو تحدّثه أو تفصله: نوع الموصل وهل نجح الربط، وفي MCP العدد التقريبي لخوادمك، دون أسمائها أو عناوينها أو حسابك أبدًا</string>
+    <string name="telemetry_event_skill_used">عندما تُعرَض على الذكاء الاصطناعي مهارة مضمّنة في Gotcha أو يقرؤها: أيّ مهارة (المهارات التي استوردتها تُعدّ \"custom\" ولا تُسمّى)</string>
+    <string name="telemetry_event_permission">عندما يُمنح إذن يمكن لـ Gotcha استخدامه أو يُسحب، مثل الميكروفون أو إمكانية الوصول: أيّ إذن، وهل هو مفعّل الآن</string>
+    <string name="telemetry_event_tour">تقدّمك في الإعداد الموجَّه: أيّ خطوة، وهل وصلت إليها أو أكملتها أو تخطيتها</string>
+    <string name="telemetry_event_setup">عندما تحفظ إعداد الذكاء الاصطناعي أو تختبر الاتصال: Samosa AI أو خادمك الخاص (يُذكر نوعه فقط)، وهل أُدخل مفتاح، وهل نجح الاختبار، دون المفتاح أو العنوان أو النموذج أبدًا</string>
+    <string name="telemetry_event_lens">عندما تستخدم Screen Lens أو اقتراحًا من Screen Companion: نوع الإجراء الذي نقرت عليه، مثل النسخ أو الترجمة أو الاتصال، دون ما كان على الشاشة أبدًا</string>
+    <string name="telemetry_event_crash">عندما يتعطل Gotcha: نوع الخطأ والدالة التي جاء منها، دون رسالته أبدًا</string>
 </resources>

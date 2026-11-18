@@ -143,7 +143,17 @@ class AppUpdateManager(
                 IllegalArgumentException("Untrusted download URL: ${updateInfo.downloadUrl}")
             )
         }
-        return downloadUpdateTo(File(context.cacheDir, "updates"), updateInfo, onProgress)
+        return downloadUpdateTo(File(context.cacheDir, "updates"), updateInfo, onProgress).also {
+            com.gotcha.telemetry.Telemetry.track(
+                com.gotcha.telemetry.TelemetryEvents.update(
+                    if (it.isSuccess) {
+                        com.gotcha.telemetry.UpdatePhase.DOWNLOAD_OK
+                    } else {
+                        com.gotcha.telemetry.UpdatePhase.DOWNLOAD_FAILED
+                    }
+                )
+            )
+        }
     }
 
     /**
@@ -256,6 +266,9 @@ class AppUpdateManager(
             }
 
             context.startActivity(installIntent)
+            com.gotcha.telemetry.Telemetry.track(
+                com.gotcha.telemetry.TelemetryEvents.update(com.gotcha.telemetry.UpdatePhase.INSTALL_STARTED)
+            )
             true
         }.getOrDefault(false)
     }
