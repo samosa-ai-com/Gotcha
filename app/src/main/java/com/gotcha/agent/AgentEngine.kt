@@ -624,6 +624,7 @@ class AgentEngine(
         // Called at every terminal path: builds the structured record and hands
         // it to the host (persists into this session's runSummaries).
         var roundsUsed = 0
+        skillsOfferedThisRun.clear()
         fun emitRunSummary(finalReply: String, succeeded: Boolean, end: com.gotcha.telemetry.RunEnd) {
             val userPrompt = history.lastOrNull { it.role == "user" }?.textContent?.take(400) ?: ""
             val summary = RunSummary(
@@ -1589,8 +1590,12 @@ class AgentEngine(
             communityIds = communityIds,
             history = history
         ) ?: return emptyList()
+        com.gotcha.telemetry.SkillTelemetry.trackOffered(message, skillsOfferedThisRun)
         return listOf(message)
     }
+
+    /** Skills already counted as offered in this run; the summary is re-sent every round. */
+    private val skillsOfferedThisRun = mutableSetOf<String>()
 
     /**
      * Complete System Prompt sent at Index 0.

@@ -79,6 +79,15 @@ sealed interface Vocab {
     }
 
     /**
+     * One of a list the app only knows once it is running, such as the skills
+     * bundled in its assets. Read on every check, so a list that is still
+     * empty refuses everything rather than letting anything through.
+     */
+    class Dynamic(private val words: () -> Set<String>) : Vocab {
+        override fun accepts(value: JsonPrimitive) = value.isString && value.content in words()
+    }
+
+    /**
      * A name taken from the app's own code, such as an exception class: limited
      * to identifier characters and a length, so a message or a path cannot pass.
      */

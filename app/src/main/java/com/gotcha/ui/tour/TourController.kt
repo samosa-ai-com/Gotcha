@@ -6,6 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.gotcha.data.Settings
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.Telemetry
+import com.gotcha.telemetry.TourAction
 
 /**
  * Runs the guided setup: which step is showing, when it is finished, and where
@@ -71,10 +74,12 @@ class TourController(
     fun start(fromStepId: String? = null) {
         index = steps.indexOfFirst { it.id == fromStepId }.takeIf { it >= 0 } ?: 0
         onPersist(current?.id, false)
+        track(current, TourAction.REACHED)
     }
 
     /** Abandons the tour — "Skip tour". Marks it complete so it does not return. */
     fun cancel() {
+        track(current, TourAction.ABANDONED)
         index = -1
         onPersist(null, true)
     }
@@ -119,10 +124,14 @@ class TourController(
      */
     fun skipMissingAnchor() {
         val step = current ?: return
-        if (step.requiresAnchor) moveTo(index + 1)
+        if (step.requiresAnchor) moveTo(index + 1, passed = TourAction.SKIPPED)
     }
 
-    private fun moveTo(newIndex: Int) {
+    /** [passed] is what happened to each step left behind: done, or skipped as not applying. */
+    private fun moveTo(newIndex: Int, passed: TourAction = TourAction.DONE) {
+        if (isRunning) {
+            for (left in index until newIndex) track(steps.getOrNull(left), passed)
+        }
         if (newIndex >= steps.size) {
             index = -1
             onPersist(null, true)
@@ -130,5 +139,11 @@ class TourController(
         }
         index = newIndex
         onPersist(current?.id, false)
+        track(current, TourAction.REACHED)
+    }
+
+    private fun track(step: TourStep?, action: TourAction) {
+        step ?: return
+        Telemetry.track(FeatureEvents.tour(step.id, action))
     }
 }

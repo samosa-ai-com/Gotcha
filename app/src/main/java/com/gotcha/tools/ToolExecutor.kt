@@ -707,6 +707,7 @@ class ToolExecutor(
                 // Same gating as the auto-injected skills: never hand back advice
                 // for tools the model cannot currently call.
                 val results = SkillRegistry.searchSkills(query, hidden)
+                com.gotcha.telemetry.SkillTelemetry.trackFetched(results.map { it.id })
                 if (results.isEmpty()) {
                     ToolResult.ok("No skills found matching '$query'.")
                 } else {

@@ -104,6 +104,9 @@ object SkillRegistry {
 
     fun getAllSkills(): List<Skill> = merged
 
+    /** Ids of the skills shipped in the APK — the only skill ids usage data may name. */
+    fun bundledSkillIds(): Set<String> = synchronized(this) { bundledSkills.mapTo(mutableSetOf()) { it.id } }
+
     /** Returns only community-imported skills (no bundled ones). */
     fun getCommunitySkills(): List<Skill> = communitySkills.toList()
 
