@@ -10,6 +10,7 @@ import com.termux.view.TerminalView
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +57,7 @@ class TerminalViewModel internal constructor(
 
     private var relay: TerminalRelay? = null
     private var shell: ShellSession? = null
+    private var opening: Job? = null
 
     /**
      * Opens a session unless one is open or opening. [rows] and [columns] are a first guess: the
@@ -66,7 +68,7 @@ class TerminalViewModel internal constructor(
         if (current is TerminalUiState.Opening || (current is TerminalUiState.Live && !current.ended)) return
         discardEnded()
         _state.value = TerminalUiState.Opening
-        viewModelScope.launch {
+        opening = viewModelScope.launch {
             when (val opened = opener.open(rows, columns)) {
                 is CompanionTerminal.Opened.Refused -> _state.value = TerminalUiState.Refused(opened.refusal)
                 is CompanionTerminal.Opened.Session -> start(opened.session)
@@ -107,8 +109,13 @@ class TerminalViewModel internal constructor(
         (_state.value as? TerminalUiState.Live)?.takeIf { !it.ended }?.session?.reset()
     }
 
-    /** Ends the session the user asked to end, and goes back to nothing open. */
+    /**
+     * Ends the session the user asked to end, and goes back to nothing open. A session still
+     * opening is given up on; the opener hangs it up if the companion answers anyway.
+     */
     fun close() {
+        opening?.cancel()
+        opening = null
         val current = _state.value
         if (current is TerminalUiState.Live && !current.ended) current.session.finishIfRunning()
         releaseShell()

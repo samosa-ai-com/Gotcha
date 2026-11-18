@@ -12,7 +12,11 @@ import com.gotcha.shell.SessionHandle
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionTerminal.Opened
 import com.gotcha.tools.CompanionTerminal.Refusal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,6 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** [CompanionTerminal] against a stand-in service: what it asks, and every way an open can be refused. */
 @RunWith(RobolectricTestRunner::class)
@@ -135,6 +141,25 @@ class CompanionTerminalTest {
         assertEquals(listOf(FakeService.ID), service.closed)
     }
 
+    @Test(timeout = 10_000)
+    fun `a session the companion opens after the caller gave up is hung up`() = runBlocking {
+        // Like the real link, the call runs on another dispatcher, so the answer has to come back.
+        val ioLink = object : CompanionLink {
+            override fun identity() = link.identity()
+            override suspend fun <T> call(block: (IShellService) -> T): T =
+                withContext(Dispatchers.IO) { link.call(block) }
+        }
+        val opening = CompanionTerminal(context, ioLink) { access }
+        val gate = CountDownLatch(1)
+        service.openGate = gate
+        val job = launch(Dispatchers.Default) { opening.open(24, 80) }
+        assertTrue(service.openEntered.await(5, TimeUnit.SECONDS))
+        job.cancel()
+        gate.countDown()
+        job.join()
+        assertEquals(listOf(FakeService.ID), service.closed)
+    }
+
     private class FakeLink(private val service: IShellService) : CompanionLink {
         var unavailable: CompanionUnavailable? = null
         var calls = 0
@@ -157,15 +182,21 @@ class CompanionTerminalTest {
         }
         val opened = mutableListOf<Pair<Int, Int>>()
         val resized = mutableListOf<Triple<String, Int, Int>>()
-        val closed = mutableListOf<String>()
+        val closed: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
         var openFailure: Exception? = null
         var failCalls: Exception? = null
         var sendNoSocket = false
+
+        /** When set, openSessionHandle waits for it after counting [openEntered] down. */
+        @Volatile var openGate: CountDownLatch? = null
+        val openEntered = CountDownLatch(1)
 
         override fun getInfo(): ShellInfo = shellInfo
 
         override fun openSessionHandle(rows: Int, cols: Int): SessionHandle {
             openFailure?.let { throw it }
+            openEntered.countDown()
+            openGate?.await()
             opened += rows to cols
             return SessionHandle().apply {
                 sessionId = ID

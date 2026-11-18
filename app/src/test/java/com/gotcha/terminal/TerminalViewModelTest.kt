@@ -10,6 +10,7 @@ import com.gotcha.tools.CompanionLink
 import com.gotcha.tools.CompanionTerminal.Opened
 import com.gotcha.tools.CompanionTerminal.Refusal
 import com.gotcha.tools.ShellSession
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -192,6 +193,17 @@ class TerminalViewModelTest {
         onCleared.invoke(viewModel)
         assertFalse(live().session.isRunning)
         awaitMain { "s1" in link.closed }
+    }
+
+    @Test
+    fun `ending the screen while a session is opening does not bring it back`() {
+        val answer = CompletableDeferred<Opened>()
+        val waiting = TerminalViewModel(app, { _, _ -> answer.await() }, dispatcher)
+        waiting.open()
+        assertEquals(TerminalUiState.Opening, waiting.state.value)
+        waiting.close()
+        answer.complete(session("s1"))
+        assertEquals(TerminalUiState.Idle, waiting.state.value)
     }
 
     @Test(timeout = 5_000)

@@ -5,6 +5,10 @@ import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import com.gotcha.shell.SessionHandle
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -63,10 +67,7 @@ class CompanionTerminal(
                 info.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION ->
                     refused(Refusal.TooOld(info.interfaceVersion, CompanionShellBackend.INTERFACE_VERSION))
                 !info.rootfsReady -> refused(Refusal.NoLinuxSystem(info.installing))
-                else -> {
-                    val handle = link.call { it.openSessionHandle(rows, cols) }
-                    Opened.Session(sessionFrom(handle))
-                }
+                else -> Opened.Session(openSession(rows, cols))
             }
         } catch (e: CancellationException) {
             throw e
@@ -91,6 +92,25 @@ class CompanionTerminal(
             refused(Refusal.Failed(e.message))
         } catch (e: IOException) {
             refused(Refusal.Failed(e.message))
+        }
+    }
+
+    /**
+     * Once the companion answers, the session counts toward its cap, so it has to reach the caller
+     * or be hung up. The call is not cancellable: a cancellation while it is under way would throw
+     * the answer away and leave the session holding a place until the companion process ends.
+     */
+    private suspend fun openSession(rows: Int, cols: Int): ShellSession {
+        var opened: ShellSession? = null
+        try {
+            withContext(NonCancellable) {
+                opened = sessionFrom(link.call { it.openSessionHandle(rows, cols) })
+            }
+            currentCoroutineContext().ensureActive()
+            return checkNotNull(opened)
+        } catch (e: CancellationException) {
+            opened?.let { withContext(NonCancellable) { it.close() } }
+            throw e
         }
     }
 
