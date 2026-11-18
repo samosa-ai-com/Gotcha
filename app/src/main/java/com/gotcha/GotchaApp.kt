@@ -116,18 +116,20 @@ class GotchaApp : Application() {
         }
         val existing = if (file.exists()) file.readText() else ""
         // Newest first: prepend, then trim the tail to the cap.
-        file.writeText(trimToMaxEntries(entry + ENTRY_SEPARATOR + existing))
+        file.writeText(trimToMaxEntries(entry + CRASH_ENTRY_SEPARATOR + existing))
     }
 
     private fun trimToMaxEntries(content: String): String {
-        val entries = content.split(ENTRY_SEPARATOR).filter { it.isNotBlank() }
+        val entries = content.split(CRASH_ENTRY_SEPARATOR).filter { it.isNotBlank() }
         val retained = if (entries.size <= MAX_CRASH_ENTRIES) entries else entries.take(MAX_CRASH_ENTRIES)
-        return retained.joinToString(ENTRY_SEPARATOR)
+        return retained.joinToString(CRASH_ENTRY_SEPARATOR)
     }
 
     companion object {
         private const val TAG = "GotchaApp"
-        private const val CRASH_LOG_FILE = "crash.log"
+
+        /** In `filesDir`. The Privacy page counts its entries (see `UsageOverview`). */
+        internal const val CRASH_LOG_FILE = "crash.log"
         private const val MAX_CRASH_ENTRIES = 50
         private const val MAX_STACK_FRAMES = 20
 
@@ -137,6 +139,6 @@ class GotchaApp : Application() {
          * messages rarely contain a full line of equals signs, so this is safe
          * to split on where a bare `---` could collide with message text.
          */
-        private const val ENTRY_SEPARATOR = "\n\n===== Gotcha Crash =====\n\n"
+        internal const val CRASH_ENTRY_SEPARATOR = "\n\n===== Gotcha Crash =====\n\n"
     }
 }

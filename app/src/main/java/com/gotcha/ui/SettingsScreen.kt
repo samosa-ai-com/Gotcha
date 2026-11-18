@@ -263,6 +263,10 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
                 )
+                SettingsPage.PRIVACY -> PrivacyScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange
+                )
                 SettingsPage.LINUX_SHELL -> LinuxShellScreen(
                     onBack = backToHome,
                     onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }

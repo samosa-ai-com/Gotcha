@@ -159,6 +159,26 @@
     <string name="settings_page_about_samosa_summary">Mission, products, pricing, developers</string>
     <string name="settings_page_legal">Legal</string>
     <string name="settings_page_legal_summary">Terms, disclaimer, data retention</string>
+    <string name="settings_page_privacy">Privacy</string>
+    <string name="settings_page_privacy_summary">Your usage on this phone, and where your data goes</string>
+    <string name="privacy_your_usage_title">Your usage</string>
+    <string name="privacy_your_usage_intro">Counted on this phone from the chats, calls and logs Gotcha already keeps. Nothing here is sent anywhere.</string>
+    <string name="privacy_stat_chats">Chats</string>
+    <string name="privacy_stat_calls">Voice calls</string>
+    <string name="privacy_stat_requests">Requests handled</string>
+    <string name="privacy_stat_requests_recent">Requests in the last %1$d days</string>
+    <string name="privacy_stat_success">Finished successfully</string>
+    <string name="privacy_stat_operator">Run in Operator mode</string>
+    <string name="privacy_stat_tool_calls">Actions taken</string>
+    <string name="privacy_stat_ok_failed">%1$s OK · %2$s failed</string>
+    <string name="privacy_stat_scheduled">Scheduled tasks in use</string>
+    <string name="privacy_stat_crashes">Crashes recorded</string>
+    <string name="privacy_stat_first_use">First request still on this phone</string>
+    <string name="privacy_stat_top_tools">Most-used actions</string>
+    <string name="privacy_stat_models">Models used</string>
+    <string name="privacy_where_data_goes_title">Where your data goes</string>
+    <string name="privacy_where_data_goes_body">Your chats, calls and settings are stored on this phone. Gotcha goes online only for what you use: the AI backend you chose, the accounts you connect, web pages and searches the assistant fetches, and the update check on GitHub. The data retention policy has the details.</string>
+    <string name="privacy_open_policy">Read the data retention policy</string>
 
     <!-- Settings: shared frame and cards -->
     <string name="action_back">← Back</string>
