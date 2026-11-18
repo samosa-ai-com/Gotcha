@@ -169,12 +169,23 @@ class TerminalViewModel internal constructor(
             }
         }
 
+        // These run on the session's writer thread, where an exception that got out would end
+        // the process; nothing is waiting for an answer, so none is let out.
+
         override fun resize(rows: Int, columns: Int) {
-            kotlinx.coroutines.runBlocking { shell.resize(rows, columns) }
+            try {
+                kotlinx.coroutines.runBlocking { shell.resize(rows, columns) }
+            } catch (_: Exception) {
+                // The session is ending; the reader reports it.
+            }
         }
 
         override fun hangUp() {
-            kotlinx.coroutines.runBlocking { shell.close() }
+            try {
+                kotlinx.coroutines.runBlocking { shell.close() }
+            } catch (_: Exception) {
+                // Closing the socket already ended it on the companion's side.
+            }
         }
     }
 
