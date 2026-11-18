@@ -211,6 +211,12 @@
     <string name="telemetry_event_shell">For each Linux shell command: Gotcha Shell or Termux, and whether it worked, never the command or its output</string>
     <string name="telemetry_event_scheduled_task">When a scheduled task is due or run by hand: whether it is one of the examples or your own, and whether it started, never its name or instructions</string>
     <string name="telemetry_event_update">The steps of an app update: offered, downloaded, or installing</string>
+    <string name="telemetry_event_connector">When you connect, refresh or disconnect an account such as Gmail, Notion or Home Assistant: which kind of connector it was and whether connecting worked, and for MCP roughly how many servers you have, never their names, addresses or your account</string>
+    <string name="telemetry_event_skill_used">When a skill that ships with Gotcha is offered to the AI or read by it: which skill (skills you imported are counted as \"custom\", never named)</string>
+    <string name="telemetry_event_permission">When a permission Gotcha can use is granted or taken away, such as the microphone or Accessibility: which one, and whether it is now on</string>
+    <string name="telemetry_event_tour">Your progress through the guided setup: which step, and whether it was reached, done or skipped</string>
+    <string name="telemetry_event_setup">When you save the AI setup or test the connection: Samosa AI or your own server (named only as a kind), whether a key is filled in, and whether the test worked, never the key, address or model</string>
+    <string name="telemetry_event_lens">When you use Screen Lens or a Screen Companion suggestion: which kind of action you tapped, such as copy, translate or call, never what was on screen</string>
     <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->

@@ -249,6 +249,7 @@ object TelemetryEvents {
             UPDATE,
             "phase" to Prop(words<UpdatePhase>())
         )
+        FeatureEvents.define(schema)
     }
 
     /** A voice call ended. [turns] counts what the user said, never what. */
@@ -409,7 +410,7 @@ object TelemetryEvents {
         SHELL -> R.string.telemetry_event_shell
         SCHEDULED_TASK -> R.string.telemetry_event_scheduled_task
         UPDATE -> R.string.telemetry_event_update
-        else -> null
+        else -> FeatureEvents.descriptionOf(name)
     }
 
     private const val MS_PER_SECOND = 1_000L

@@ -37,7 +37,14 @@ class TelemetrySchemaTest {
         TelemetryEvents.wakeWord(ledToCall = true),
         TelemetryEvents.shell(ShellKind.GOTCHA_SHELL, ok = false),
         TelemetryEvents.scheduledTask(TaskSource.PRESET, TaskTrigger.ALARM, TaskStart.BUSY),
-        TelemetryEvents.update(UpdatePhase.DOWNLOAD_OK)
+        TelemetryEvents.update(UpdatePhase.DOWNLOAD_OK),
+        FeatureEvents.connector("google", ConnectorAction.ERROR),
+        FeatureEvents.connector("mcp", ConnectorAction.DISCONNECT, mcpServers = 0),
+        FeatureEvents.skillUsed("anything_imported", SkillVia.OFFERED),
+        FeatureEvents.permission(PermissionName.NOTIFICATION_LISTENER, granted = true),
+        FeatureEvents.tour("grant_overlay", TourAction.DONE),
+        FeatureEvents.setup(SetupAction.SAVED, com.gotcha.data.LlmProvider.SAMOSA_AI, "", hasKey = false),
+        FeatureEvents.lens(LensKind.LENS, LensAction.TRANSLATE)
     )
 
     @Test

@@ -380,8 +380,12 @@ class SubAgentSession(
             communityIds = communityIds,
             history = history
         ) ?: return emptyList()
+        com.gotcha.telemetry.SkillTelemetry.trackOffered(message, skillsOffered)
         return listOf(message)
     }
+
+    /** Skills already counted as offered to this sub-agent; the summary is re-sent every round. */
+    private val skillsOffered = mutableSetOf<String>()
 
     private companion object {
         const val TAG = "SubAgentSession"

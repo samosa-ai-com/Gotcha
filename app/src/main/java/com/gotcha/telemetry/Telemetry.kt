@@ -287,11 +287,16 @@ object Telemetry {
     private var sessionStartedAt = 0L
     private var pendingSessionEnd: Runnable? = null
 
+    @Volatile
+    private var permissionWatch: PermissionWatch? = null
+
     fun install(context: Context) {
         val app = context.applicationContext
+        val prefs = app.getSharedPreferences(TelemetryClient.PREFS_NAME, Context.MODE_PRIVATE)
+        permissionWatch = PermissionWatch(prefs) { PermissionWatch.grantedOn(app) }
         client = TelemetryClient(
             config = TelemetryConfig(BuildConfig.TELEMETRY_URL.trim(), BuildConfig.TELEMETRY_KEY.trim()),
-            prefs = app.getSharedPreferences(TelemetryClient.PREFS_NAME, Context.MODE_PRIVATE),
+            prefs = prefs,
             queue = TelemetryQueue(File(File(app.filesDir, "telemetry"), "queue.ndjson")),
             sender = TelemetryConfig(BuildConfig.TELEMETRY_URL.trim(), BuildConfig.TELEMETRY_KEY.trim())
                 .takeIf { it.configured }
@@ -316,13 +321,34 @@ object Telemetry {
 
     fun setEnabled(on: Boolean) {
         client?.setEnabled(on)
+        if (on) checkPermissionsInBackground() else permissionWatch?.reset()
     }
 
     fun setMobileData(on: Boolean) {
         client?.setMobileData(on)
     }
 
-    suspend fun deleteMyData(): Boolean = client?.deleteMyData() ?: false
+    suspend fun deleteMyData(): Boolean {
+        val deleted = client?.deleteMyData() ?: false
+        if (deleted) permissionWatch?.reset()
+        return deleted
+    }
+
+    /**
+     * Compares the permissions granted now with the last look and records the
+     * changes. Only while collecting: a change made with usage data off is not
+     * recorded later, because turning it on starts from what is granted then.
+     */
+    private fun checkPermissions() {
+        val c = client ?: return
+        val watch = permissionWatch ?: return
+        if (!c.isActive) return
+        watch.changes().forEach { c.track(it) }
+    }
+
+    private fun checkPermissionsInBackground() {
+        scope.launch { runCatching { checkPermissions() } }
+    }
 
     suspend fun flush(force: Boolean = false): FlushOutcome =
         client?.flush(force) ?: FlushOutcome.NOT_CONFIGURED
@@ -347,6 +373,8 @@ object Telemetry {
      */
     fun onForeground() {
         val c = client ?: return
+        // Before anything else: back from Android Settings is where most grants happen.
+        checkPermissionsInBackground()
         pendingSessionEnd?.let {
             main.removeCallbacks(it)
             pendingSessionEnd = null
@@ -371,7 +399,12 @@ object Telemetry {
     fun onBackground() {
         val c = client ?: return
         val leftAt = SystemClock.elapsedRealtime()
-        flushInBackground()
+        scope.launch {
+            // A grant from a system dialog on the way out goes in this batch.
+            runCatching { checkPermissions() }
+            val outcome = runCatching { c.flush() }.getOrDefault(FlushOutcome.FAILED)
+            GotchaLog.d("Telemetry") { "flush: $outcome" }
+        }
         val end = Runnable {
             pendingSessionEnd = null
             c.track(TelemetryEvents.sessionEnd(leftAt - sessionStartedAt))

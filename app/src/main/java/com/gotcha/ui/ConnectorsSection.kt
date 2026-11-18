@@ -329,6 +329,7 @@ private fun HomeAssistantCard(
         isConnected = homeAssistant::isConnected,
         fields = listOf(url, token),
         headerTestTag = "connector_header_homeassistant",
+        connectorId = "homeassistant",
         blurb = stringResource(R.string.connectors_control_and_query_your_smart),
         steps = listOf(
             stringResource(R.string.connectors_1_in_home_assistant_add),
@@ -359,6 +360,7 @@ private fun NotionCard(
         isConnected = notion::isConnected,
         fields = listOf(token),
         headerTestTag = "connector_header_notion",
+        connectorId = "notion",
         blurb = stringResource(R.string.connectors_search_read_and_write_notion),
         steps = listOf(
             stringResource(R.string.connectors_1_go_to_notion_so),
@@ -414,6 +416,7 @@ private fun ImapCard(
         isConnected = imap::isConnected,
         fields = fields,
         headerTestTag = "connector_header_imap",
+        connectorId = "imap",
         steps = listOf(
             stringResource(R.string.connectors_needs_an_app_password_not),
             stringResource(R.string.connectors_generate_one_at_myaccount_google),
@@ -487,6 +490,7 @@ private fun GoogleCard(
         initialClientSecret = google.credentials()?.clientSecret ?: "",
         flow = flow,
         headerTestTag = "connector_header_google",
+        connectorId = "google",
         onDisconnect = google::disconnect,
         onRefresh = { google.refreshTools(strings) },
         enabled = enabled,
@@ -548,6 +552,7 @@ private fun MicrosoftCard(
         initialClientSecret = null,
         flow = flow,
         headerTestTag = "connector_header_microsoft",
+        connectorId = "microsoft",
         onDisconnect = microsoft::disconnect,
         onRefresh = { microsoft.refreshTools(strings) },
         enabled = enabled,

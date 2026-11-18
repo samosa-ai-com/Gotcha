@@ -26,6 +26,10 @@ import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.coalescedSettingsListener
 import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.stringLookup
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.LensAction
+import com.gotcha.telemetry.LensKind
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import com.gotcha.ui.nameRes
@@ -229,6 +233,7 @@ class AssistiveBallService : Service() {
             onEndCall = { callController.endCall() }
             onToggleChatWindow = { } // no-op during calls (ball is hidden)
             onSmartActionSelected = { prompt ->
+                Telemetry.track(FeatureEvents.lens(LensKind.COMPANION, LensAction.ofSuggestion(prompt)))
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             }
             onRequestClipboardCheck = {
@@ -432,6 +437,7 @@ class AssistiveBallService : Service() {
                 openCompanionWithImage(base64)
             },
             onContextualAction = { prompt ->
+                Telemetry.track(FeatureEvents.lens(LensKind.LENS, LensAction.ofSuggestion(prompt)))
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             },
             onImagePrompt = { base64, prompt ->
