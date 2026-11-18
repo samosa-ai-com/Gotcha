@@ -96,6 +96,37 @@ object ScheduledTaskRuns {
         now: Long,
         zone: ZoneId,
         userInitiated: Boolean
+    ): ScheduledStart = startUntracked(app, store, task, now, zone, userInitiated).also {
+        com.gotcha.telemetry.Telemetry.track(
+            com.gotcha.telemetry.TelemetryEvents.scheduledTask(
+                source = if (task.presetId == null) {
+                    com.gotcha.telemetry.TaskSource.CUSTOM
+                } else {
+                    com.gotcha.telemetry.TaskSource.PRESET
+                },
+                trigger = if (userInitiated) {
+                    com.gotcha.telemetry.TaskTrigger.MANUAL
+                } else {
+                    com.gotcha.telemetry.TaskTrigger.ALARM
+                },
+                start = when (it) {
+                    is ScheduledStart.Started -> com.gotcha.telemetry.TaskStart.STARTED
+                    ScheduledStart.Busy -> com.gotcha.telemetry.TaskStart.BUSY
+                    ScheduledStart.Queued -> com.gotcha.telemetry.TaskStart.QUEUED
+                    is ScheduledStart.Failed -> com.gotcha.telemetry.TaskStart.FAILED
+                }
+            )
+        )
+    }
+
+    @Suppress("ReturnCount")
+    private suspend fun startUntracked(
+        app: Application,
+        store: ScheduledTaskStore,
+        task: ScheduledTask,
+        now: Long,
+        zone: ZoneId,
+        userInitiated: Boolean
     ): ScheduledStart {
         val notifier = ScheduledTaskNotifier(app)
         val attachments = store.loadAttachments(task)

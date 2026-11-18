@@ -205,6 +205,11 @@
     <string name="telemetry_event_agent_run">For each request: where it came from (chat, call or scheduled task), Monitor or Operator, Samosa AI or your own server, whether it finished, roughly how long it took and how many actions it took</string>
     <string name="telemetry_event_ai_request">For each call to the AI model: what it was for, Samosa AI or your own server (named only as a kind, such as \"local\" or \"other\"), the Samosa AI model if you use one, whether it worked and the kind of error, roughly how long it took and how many tokens it used</string>
     <string name="telemetry_event_tool_call">For each action: which of Gotcha\'s built-in actions it was (actions from MCP servers or connected accounts are only counted, not named), whether it worked and roughly how long it took</string>
+    <string name="telemetry_event_voice_call">For each voice call: whether the ball or \"Hey Gotcha\" started it, roughly how long it lasted, how many times you spoke, and which kind of speech provider was used</string>
+    <string name="telemetry_event_wake_word">That \"Hey Gotcha\" was heard, and whether a call started</string>
+    <string name="telemetry_event_shell">For each Linux shell command: Gotcha Shell or Termux, and whether it worked, never the command or its output</string>
+    <string name="telemetry_event_scheduled_task">When a scheduled task is due or run by hand: whether it is one of the examples or your own, and whether it started, never its name or instructions</string>
+    <string name="telemetry_event_update">The steps of an app update: offered, downloaded, or installing</string>
     <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->

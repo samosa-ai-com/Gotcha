@@ -680,12 +680,23 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
-            "run_shell" -> shell.runCommand(
-                command = args.requireString("command") ?: return missing("command"),
-                workingDir = args.requireString("working_dir"),
-                timeoutSeconds = args.requireInt("timeout_seconds"),
-                stdin = args.requireString("stdin")
-            )
+            "run_shell" -> {
+                val backend = shell
+                backend.runCommand(
+                    command = args.requireString("command") ?: return missing("command"),
+                    workingDir = args.requireString("working_dir"),
+                    timeoutSeconds = args.requireInt("timeout_seconds"),
+                    stdin = args.requireString("stdin")
+                ).also {
+                    // Opt-in usage data: which backend and whether it worked, never the command.
+                    com.gotcha.telemetry.Telemetry.track(
+                        com.gotcha.telemetry.TelemetryEvents.shell(
+                            com.gotcha.telemetry.ShellKind.of(backend.id),
+                            it.success
+                        )
+                    )
+                }
+            }
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
                 key = args.requireString("key") ?: return missing("key"),
