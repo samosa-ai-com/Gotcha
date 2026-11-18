@@ -239,12 +239,15 @@ private fun TerminalPane(live: TerminalUiState.Live, viewModel: TerminalViewMode
         onDispose { viewModel.attachView(null) }
     }
     LaunchedEffect(view, live.ended) {
+        val keyboard = context.getSystemService(InputMethodManager::class.java)
         if (!live.ended) {
             view.requestFocus()
             // The window needs a moment to hand the keyboard to a newly focused view.
             delay(KEYBOARD_DELAY_MS)
-            context.getSystemService(Context.INPUT_METHOD_SERVICE).let { it as InputMethodManager }
-                .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+            keyboard?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            // Nothing takes typing once the shell ended; give the room back to its last screen.
+            keyboard?.hideSoftInputFromWindow(view.windowToken, 0)
         }
     }
 
