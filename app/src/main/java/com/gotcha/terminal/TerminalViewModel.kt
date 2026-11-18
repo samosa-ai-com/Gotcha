@@ -117,8 +117,13 @@ class TerminalViewModel internal constructor(
         opening?.cancel()
         opening = null
         val current = _state.value
-        if (current is TerminalUiState.Live && !current.ended) current.session.finishIfRunning()
-        releaseShell()
+        if (current is TerminalUiState.Live && !current.ended) {
+            // Hangs up on the session's writer thread, which closes the connection there.
+            shell = null
+            current.session.finishIfRunning()
+        } else {
+            releaseShell()
+        }
         relay?.view = null
         relay = null
         _state.value = TerminalUiState.Idle

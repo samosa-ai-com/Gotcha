@@ -206,6 +206,17 @@ class TerminalViewModelTest {
         assertEquals(TerminalUiState.Idle, waiting.state.value)
     }
 
+    @Test
+    fun `ending a running session asks the companion once`() {
+        next = { session("s1") }
+        viewModel.open()
+        live().session.updateSize(80, 24, 10, 20)
+        viewModel.close()
+        awaitMain { "s1" in link.closed }
+        Thread.sleep(100)
+        assertEquals(listOf("s1"), link.closed.toList())
+    }
+
     @Test(timeout = 5_000)
     fun `leaving for good does not wait for Gotcha Shell on the main thread`() {
         next = { session("s1") }

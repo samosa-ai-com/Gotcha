@@ -60,8 +60,15 @@ class CompanionTerminalTest {
         assertTrue(session.resize(40, 132))
         assertEquals(listOf(Triple(FakeService.ID, 40, 132)), service.resized)
         session.close()
+        assertEquals(listOf(FakeService.ID), service.closed)
+    }
+
+    @Test
+    fun `closing twice asks the companion once`() = runTest {
+        val session = (terminal.open(24, 80) as Opened.Session).session
         session.close()
-        assertEquals(listOf(FakeService.ID, FakeService.ID), service.closed)
+        session.close()
+        assertEquals(listOf(FakeService.ID), service.closed)
     }
 
     @Test

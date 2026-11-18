@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Opens interactive sessions (`bash -l` on a pty) in Gotcha Shell, for the terminal screen.
@@ -165,6 +166,7 @@ class ShellSession internal constructor(
 ) {
     val input: InputStream = ParcelFileDescriptor.AutoCloseInputStream(socket.dup())
     val output: OutputStream = ParcelFileDescriptor.AutoCloseOutputStream(socket)
+    private val closed = AtomicBoolean(false)
 
     /** Tells the pty its new size. False when the session already ended or the companion is gone. */
     suspend fun resize(rows: Int, cols: Int): Boolean = try {
@@ -175,8 +177,12 @@ class ShellSession internal constructor(
         false
     }
 
-    /** Hangs the session up. Safe to call more than once and after the shell exited. */
+    /**
+     * Hangs the session up. Safe to call more than once, from more than one thread, and after the
+     * shell exited: only the first call does anything.
+     */
     suspend fun close() {
+        if (!closed.compareAndSet(false, true)) return
         runCatching { output.close() }
         runCatching { input.close() }
         try {
