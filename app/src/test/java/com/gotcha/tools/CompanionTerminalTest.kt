@@ -148,6 +148,13 @@ class CompanionTerminalTest {
         assertEquals(listOf(FakeService.ID), service.closed)
     }
 
+    @Test
+    fun `a session with no id is a failure, not a crash`() = runTest {
+        service.sendNoId = true
+        assertTrue(refusal() is Refusal.Failed)
+        assertTrue(service.closed.isEmpty())
+    }
+
     @Test(timeout = 10_000)
     fun `a session the companion opens after the caller gave up is hung up`() = runBlocking {
         // Like the real link, the call runs on another dispatcher, so the answer has to come back.
@@ -193,6 +200,7 @@ class CompanionTerminalTest {
         var openFailure: Exception? = null
         var failCalls: Exception? = null
         var sendNoSocket = false
+        var sendNoId = false
 
         /** When set, openSessionHandle waits for it after counting [openEntered] down. */
         @Volatile var openGate: CountDownLatch? = null
@@ -206,7 +214,7 @@ class CompanionTerminalTest {
             openGate?.await()
             opened += rows to cols
             return SessionHandle().apply {
-                sessionId = ID
+                sessionId = if (sendNoId) null else ID
                 socket = if (sendNoSocket) null else ParcelFileDescriptor.createPipe()[0]
             }
         }

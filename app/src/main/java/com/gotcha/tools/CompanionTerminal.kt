@@ -122,12 +122,16 @@ class CompanionTerminal(
      */
     private suspend fun sessionFrom(handle: SessionHandle): ShellSession {
         val socket: ParcelFileDescriptor? = handle.socket
+        val sessionId: String? = handle.sessionId
         return try {
-            if (socket == null) throw IOException("Gotcha Shell sent no socket for the session")
-            ShellSession(handle.sessionId, socket, link)
+            if (sessionId == null || socket == null) {
+                throw IOException("Gotcha Shell sent no ${if (sessionId == null) "id" else "socket"} for the session")
+            }
+            ShellSession(sessionId, socket, link)
         } catch (e: IOException) {
             runCatching { socket?.close() }
-            hangUp(handle.sessionId)
+            // Without an id there is nothing to name; closing the socket ends it on its own.
+            sessionId?.let { hangUp(it) }
             throw e
         }
     }
