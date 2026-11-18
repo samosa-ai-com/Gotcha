@@ -64,7 +64,6 @@ public final class TerminalSession extends TerminalOutput {
     });
     private final AtomicBoolean mDrainPending = new AtomicBoolean(false);
     private final byte[] mDrainBuffer = new byte[READ_BYTES];
-    private final byte[] mUtf8InputBuffer = new byte[5];
 
     private TerminalSessionClient mClient;
     private TerminalEmulator mEmulator;
@@ -179,11 +178,15 @@ public final class TerminalSession extends TerminalOutput {
         if (codePoint > MAX_CODE_POINT || (codePoint >= SURROGATE_FIRST && codePoint <= SURROGATE_LAST)) {
             throw new IllegalArgumentException("Invalid code point: " + codePoint);
         }
-        int length = 0;
-        if (prependEscape) mUtf8InputBuffer[length++] = 27;
         byte[] encoded = new String(Character.toChars(codePoint)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        System.arraycopy(encoded, 0, mUtf8InputBuffer, length, encoded.length);
-        write(mUtf8InputBuffer, 0, length + encoded.length);
+        if (!prependEscape) {
+            write(encoded, 0, encoded.length);
+            return;
+        }
+        byte[] escaped = new byte[encoded.length + 1];
+        escaped[0] = 27;
+        System.arraycopy(encoded, 0, escaped, 1, encoded.length);
+        write(escaped, 0, escaped.length);
     }
 
     public TerminalEmulator getEmulator() {

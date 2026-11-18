@@ -1,6 +1,5 @@
 package com.gotcha.terminal
 
-import android.content.Context
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
@@ -57,8 +56,8 @@ internal class GotchaTerminalViewClient(
 
     override fun onSingleTapUp(e: MotionEvent?) {
         view.requestFocus()
-        view.context.getSystemService(Context.INPUT_METHOD_SERVICE).let { it as InputMethodManager }
-            .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+        view.context.getSystemService(InputMethodManager::class.java)
+            ?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
     }
 
     /** Back leaves the screen; Escape is a button of its own. */

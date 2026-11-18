@@ -34,7 +34,9 @@ fun refusalMessage(context: Context, refusal: Refusal): String = when (refusal) 
             context.getString(R.string.linux_terminal_refused_too_many_unknown)
         }
     is Refusal.Failed ->
-        refusal.detail?.takeIf { it.isNotBlank() }
-            ?.let { context.getString(R.string.linux_terminal_refused_failed, it) }
-            ?: context.getString(R.string.linux_terminal_refused_failed_unknown)
+        if (!refusal.detail.isNullOrBlank()) {
+            context.getString(R.string.linux_terminal_refused_failed, refusal.detail)
+        } else {
+            context.getString(R.string.linux_terminal_refused_failed_unknown)
+        }
 }
