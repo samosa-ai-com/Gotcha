@@ -669,6 +669,10 @@ class AgentEngine(
                 // Also spoken: on a voice call an unannounced return is silence.
                 val error = friendlyModelError(e, appContext.stringLookup())
                 events.onUi(MessageKind.ERROR, error)
+                // Out of credits or rate-limited: the host may say what would lift the limit.
+                if ((e as? retrofit2.HttpException)?.code() in LIMIT_HTTP_CODES) {
+                    events.onUpsell(com.gotcha.upsell.UpsellReason.LIMITS)
+                }
                 events.onAssistantReply(error)
                 emitRunSummary(error, succeeded = false)
                 return
@@ -759,6 +763,7 @@ class AgentEngine(
                         firstAttempt
                     }
                     recordTool(call, result)
+                    result.upsell?.let { events.onUpsell(it) }
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                         handleImageResult(call, result)
@@ -1487,7 +1492,15 @@ class AgentEngine(
         ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
             DeviceCapabilities.hiddenToolNames(appContext) +
             // A run a schedule started can't plant, re-enable or widen tasks (issue #132).
-            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet())
+            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet()) +
+            // Nobody is watching a scheduled run to be shown the offer.
+            (
+                if (!scheduledRun && com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)) {
+                    emptySet()
+                } else {
+                    setOf(com.gotcha.tools.ShellTools.OFFER)
+                }
+                )
 
     /**
      * A separate system message carrying the facts that differ per chat or per
@@ -2102,6 +2115,9 @@ class AgentEngine(
     companion object {
         /** Tools that run many steps of their own; see [resolveMissingPermission]. */
         private val REPLAYING_TOOLS = setOf("task", "navigate_app")
+
+        /** Payment required and too many requests: limits a plan change can lift. */
+        private val LIMIT_HTTP_CODES = setOf(402, 429)
 
         /**
          * Returns a copy of [messages] with old screen observations and old images

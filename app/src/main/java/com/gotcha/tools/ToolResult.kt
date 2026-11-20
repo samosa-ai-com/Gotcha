@@ -10,7 +10,9 @@ package com.gotcha.tools
 data class ToolResult(
     val success: Boolean,
     val message: String,
-    val needsPermission: String? = null
+    val needsPermission: String? = null,
+    /** Set when the host should show a Samosa AI / Pro nudge for this result. */
+    val upsell: com.gotcha.upsell.UpsellReason? = null
 ) {
     companion object {
         /** Marker for the WRITE_SETTINGS special app access (not a runtime permission). */

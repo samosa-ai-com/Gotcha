@@ -130,7 +130,8 @@ object ToolRegistry {
         "check_root", "search_skills",
         "get_health_summary", "get_health_records",
         "get_now_playing",
-        "about_samosa_ai", "about_gotcha"
+        "about_samosa_ai", "about_gotcha",
+        ShellTools.OFFER
     )
 
     /**
@@ -145,6 +146,8 @@ object ToolRegistry {
     /** Tools a sub-agent never gets; see [subAgentTools]. */
     private val subAgentExcluded = setOf(
         "task",
+        // An offer is made to the user in the main chat, not from inside delegated work.
+        ShellTools.OFFER,
         "navigate_app",
         "finish_task",
         "update_user_profile",

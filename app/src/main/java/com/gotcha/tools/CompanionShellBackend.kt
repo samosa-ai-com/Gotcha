@@ -307,9 +307,11 @@ class CompanionShellBackend(
         }
     }
 
-    private fun proRequired(access: ShellEntitlement.Access) = ToolResult.error(
-        "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
-            "Settings ▸ Linux shell. Do not retry, and do not suggest a workaround that needs the Linux shell."
+    private fun proRequired(access: ShellEntitlement.Access) = ToolResult(
+        success = false,
+        message = "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
+            "Settings ▸ Linux shell. Do not retry, and do not suggest a workaround that needs the Linux shell.",
+        upsell = com.gotcha.upsell.UpsellReason.SHELL.takeIf { access != ShellEntitlement.Access.NEEDS_CHECK }
     )
 
     /** Turns everything that can go wrong on the way to the companion into a message for the model. */

@@ -1542,6 +1542,7 @@ class MainActivity : ComponentActivity() {
                             state.activeSessionId?.let { chatViewModel.setProtectionsSkipped(it, on) }
                         },
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
+                        onDismissUpsell = chatViewModel::dismissUpsell,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = ::startListeningWithMic,

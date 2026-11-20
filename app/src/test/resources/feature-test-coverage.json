@@ -718,6 +718,14 @@
       "notes": "Termux: installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path. Gotcha Shell: the same guards against a fake service, job polling, timeout and cancellation kills, version and rootfs checks. Also the old run_termux_command name as an alias and the per-shell description notes. The live round-trip needs a real Termux or Gotcha Shell install on an arm64 phone and is verified by hand"
     },
     {
+      "tool": "offer_linux_shell",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.upsell.LinuxShellOfferTest"
+      ],
+      "notes": "returns the SHELL nudge flag the engine passes to the chat, is offered in Monitor, and is offered only when no shell can run and the account is signed out or not on Pro. The card under the chat is checked by hand"
+    },
+    {
       "tool": "write_secure_settings",
       "tier": "MANUAL_ONLY",
       "reason": "Requires WRITE_SECURE_SETTINGS, granted only via adb — and it mutates global device state.",
