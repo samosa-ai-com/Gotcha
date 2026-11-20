@@ -1495,12 +1495,25 @@ class AgentEngine(
             (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet()) +
             // Nobody is watching a scheduled run to be shown the offer.
             (
-                if (!scheduledRun && com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)) {
+                if (!scheduledRun && !offeredLinuxShell() &&
+                    com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)
+                ) {
                     emptySet()
                 } else {
                     setOf(com.gotcha.tools.ShellTools.OFFER)
                 }
                 )
+
+    /**
+     * True once [com.gotcha.tools.ShellTools.OFFER] has run in this chat: it is offered once per
+     * chat. Counts calls with a result only, so the call being executed is not refused as hidden.
+     */
+    private fun offeredLinuxShell(): Boolean {
+        val offerCalls = history.flatMap { message ->
+            message.toolCalls.orEmpty().filter { it.function.name == com.gotcha.tools.ShellTools.OFFER }.map { it.id }
+        }.toSet()
+        return offerCalls.isNotEmpty() && history.any { it.role == "tool" && it.toolCallId in offerCalls }
+    }
 
     /**
      * A separate system message carrying the facts that differ per chat or per
