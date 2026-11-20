@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
+import com.gotcha.data.SettingsRepository
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionConnection
 import com.gotcha.tools.CompanionIdentity
@@ -40,6 +41,9 @@ import com.gotcha.tools.CompanionShellManager
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ShellEntitlement
 import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.upsell.Upsell
+import com.gotcha.upsell.UpsellAudience
+import com.gotcha.upsell.UpsellReason
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -111,6 +115,18 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
             done = allowed,
             detail = planDetail(access, ShellEntitlement.allowedUntil(context))
         )
+        if (access == ShellEntitlement.Access.SIGNED_OUT || access == ShellEntitlement.Access.NOT_PRO) {
+            // Read with the access, which refresh() updates on every visit.
+            val audience = remember(access) { Upsell.audience(context, SettingsRepository(context).load()) }
+            if (audience != UpsellAudience.NONE) {
+                val openUpsell = LocalUpsell.current
+                UpsellCard(
+                    audience = audience,
+                    reason = UpsellReason.SHELL,
+                    onOpen = { openUpsell(UpsellReason.SHELL) }
+                )
+            }
+        }
 
         SetupCheck(
             title = stringResource(R.string.linux_shell_app_title),

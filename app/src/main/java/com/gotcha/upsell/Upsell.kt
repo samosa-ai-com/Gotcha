@@ -53,6 +53,9 @@ object Upsell {
     /** Successful tasks before the first interrupting nudge: Gotcha has shown what it does. */
     const val MIN_SUCCESSFUL_RUNS = 5
 
+    /** How long after leaving for the account website a return still checks for a new plan. */
+    const val UPGRADE_CHECK_WINDOW_MS = 60L * 60L * 1000L
+
     /** "Not now" this many times and the interrupting nudge stops for that audience. */
     const val MAX_DISMISSALS = 3
 
@@ -65,6 +68,15 @@ object Upsell {
 
     fun audience(context: Context, settings: Settings): UpsellAudience =
         audience(settings.samosaSessionToken.isNotBlank(), ShellEntitlement.knownTier(context))
+
+    /**
+     * Whether the model is given [com.gotcha.tools.ShellTools.OFFER]: no Linux shell can run here,
+     * and the account is one Pro would give a shell to. A Pro account whose shell is just not
+     * installed yet is told so by the shell's own status instead.
+     */
+    fun offersLinuxShell(context: Context, settings: Settings): Boolean =
+        audience(context, settings) != UpsellAudience.NONE &&
+            !com.gotcha.tools.ShellBackends.active(context).status().usable
 
     /**
      * The audience for a "you have hit a limit" nudge: only where the answer would lift the limit.
@@ -128,13 +140,13 @@ class UpsellStore(private val prefs: SharedPreferences) {
     }
 
     /**
-     * Set when the user left for the account website to get Pro, so the return to Gotcha checks
-     * the plan at once and welcomes them if it changed.
+     * When the user last left for the account website to get Pro, or zero. While that is
+     * recent, each return to Gotcha checks the plan at once, so a new Pro plan is welcomed.
      */
-    fun awaitingUpgrade(): Boolean = prefs.getBoolean(KEY_AWAITING_UPGRADE, false)
+    fun upgradeStartedAt(): Long = prefs.getLong(KEY_UPGRADE_STARTED, 0L)
 
-    fun setAwaitingUpgrade(awaiting: Boolean) {
-        prefs.edit().putBoolean(KEY_AWAITING_UPGRADE, awaiting).apply()
+    fun setUpgradeStartedAt(at: Long) {
+        prefs.edit().putLong(KEY_UPGRADE_STARTED, at).apply()
     }
 
     private fun dismissalsKey(audience: UpsellAudience) = "$KEY_DISMISSALS_PREFIX${audience.name.lowercase()}"
@@ -143,6 +155,6 @@ class UpsellStore(private val prefs: SharedPreferences) {
         const val KEY_LAST_SHOWN = "upsell_last_shown_at"
         const val KEY_DISMISSALS_PREFIX = "upsell_dismissals_"
         const val KEY_RUNS = "upsell_successful_runs"
-        const val KEY_AWAITING_UPGRADE = "upsell_awaiting_upgrade"
+        const val KEY_UPGRADE_STARTED = "upsell_upgrade_started_at"
     }
 }

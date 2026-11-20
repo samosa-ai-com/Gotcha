@@ -46,6 +46,7 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaAuthManager
+import com.gotcha.auth.SamosaDashboard
 import com.gotcha.auth.SamosaRedirectOutcome
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.FeedbackChannel
@@ -76,6 +77,7 @@ import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
+import com.gotcha.tools.ShellEntitlement
 import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
@@ -86,10 +88,12 @@ import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.GITHUB_REPO_URL
 import com.gotcha.ui.InboxScreen
+import com.gotcha.ui.LocalUpsell
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.PermissionAsk
 import com.gotcha.ui.PermissionBlockedDialog
 import com.gotcha.ui.PermissionRationaleDialog
+import com.gotcha.ui.ProWelcomeDialog
 import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.ScheduledTasksScreen
 import com.gotcha.ui.SecondBrainScreen
@@ -99,6 +103,7 @@ import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.SplashVideoOverlay
 import com.gotcha.ui.StarPromptDialog
+import com.gotcha.ui.UpsellDialog
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.starPromptDueAt
@@ -112,6 +117,10 @@ import com.gotcha.ui.tour.TourOverlay
 import com.gotcha.ui.tour.TourPlace
 import com.gotcha.ui.tour.rememberTourHost
 import com.gotcha.updater.runUpdateCheck
+import com.gotcha.upsell.Upsell
+import com.gotcha.upsell.UpsellAudience
+import com.gotcha.upsell.UpsellReason
+import com.gotcha.upsell.UpsellStore
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -157,6 +166,19 @@ class MainActivity : ComponentActivity() {
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
     private val starPrompt: StarPromptStore by lazy { StarPromptStore(settingsRepository.prefs) }
+    private val upsellStore: UpsellStore by lazy { UpsellStore(settingsRepository.prefs) }
+
+    /** The Samosa AI / Pro pitch on screen, with who it speaks to and why it came up. */
+    private var upsellRequest by mutableStateOf<Pair<UpsellAudience, UpsellReason>?>(null)
+
+    /** Set when a return from the account website finds the plan is now Pro. */
+    private var showProWelcome by mutableStateOf(false)
+
+    /** Opens the pitch, for whichever audience this account is; Pro accounts get nothing. */
+    private val openUpsell: (UpsellReason) -> Unit = { reason ->
+        val audience = Upsell.audience(this, settingsRepository.load())
+        if (audience != UpsellAudience.NONE) upsellRequest = audience to reason
+    }
     private lateinit var samosaAuthManager: SamosaAuthManager
 
     /** Active notification payload for display in scrollable dialog. */
@@ -483,7 +505,10 @@ class MainActivity : ComponentActivity() {
                     repository = settingsRepository,
                     ready = legalAcceptedVersion == LEGAL_VERSION
                 )
-                CompositionLocalProvider(LocalTourAnchors provides tour.anchors) {
+                CompositionLocalProvider(
+                    LocalTourAnchors provides tour.anchors,
+                    LocalUpsell provides openUpsell
+                ) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -822,6 +847,7 @@ class MainActivity : ComponentActivity() {
             kotlinx.coroutines.delay(SamosaAuthManager.RETURN_GRACE_MS)
             samosaAuthManager.onHostSettled()
         }
+        checkForNewProPlan()
         // What the inactivity reminder counts from, and the inbox badge (issue #100).
         lifecycleScope.launch(Dispatchers.IO) {
             localNotificationStore.setLastOpenedAt(System.currentTimeMillis())
@@ -853,6 +879,27 @@ class MainActivity : ComponentActivity() {
                 throw e
             } catch (_: Exception) {
                 // Server messages are best-effort; never surface errors.
+            }
+        }
+    }
+
+    /**
+     * Back from the account website after "Get Pro": asks for the plan at once rather than at
+     * the next daily check, and welcomes the user when it is Pro now.
+     */
+    private fun checkForNewProPlan() {
+        val startedAt = upsellStore.upgradeStartedAt()
+        if (startedAt == 0L) return
+        if (System.currentTimeMillis() - startedAt !in 0 until Upsell.UPGRADE_CHECK_WINDOW_MS) {
+            upsellStore.setUpgradeStartedAt(0L)
+            return
+        }
+        lifecycleScope.launch {
+            ShellEntitlement.refresh(this@MainActivity, force = true)
+            val audience = Upsell.audience(this@MainActivity, settingsRepository.load())
+            if (audience == UpsellAudience.NONE && ShellEntitlement.knownTier(this@MainActivity) != null) {
+                upsellStore.setUpgradeStartedAt(0L)
+                showProWelcome = true
             }
         }
     }
@@ -1058,9 +1105,12 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
-        // The "Enjoying Gotcha?" ask, only while the user is idle on Home with
-        // nothing else in front of them. Any of that changing cancels the wait.
-        val starPromptQuiet = !starPromptShownThisLaunch &&
+        // The "Enjoying Gotcha?" ask and the occasional Samosa AI / Pro one, only
+        // while the user is idle on Home with nothing else in front of them. Any
+        // of that changing cancels the wait. At most one of the two per launch.
+        var upsellShownThisLaunch by rememberSaveable { mutableStateOf(false) }
+        val homeQuiet = !starPromptShownThisLaunch && !upsellShownThisLaunch &&
+            upsellRequest == null && !showProWelcome &&
             legalAcceptedVersion == LEGAL_VERSION &&
             !tour.controller.isRunning &&
             currentRoute == Route.HOME &&
@@ -1079,6 +1129,7 @@ class MainActivity : ComponentActivity() {
             !showReferralInviteDialog &&
             notificationPayload == null &&
             sharePoster.runs == null
+        val starPromptQuiet = homeQuiet
         val starPromptStillQuiet by rememberUpdatedState(starPromptQuiet)
         LaunchedEffect(starPromptQuiet) {
             if (!starPromptQuiet) return@LaunchedEffect
@@ -1101,6 +1152,33 @@ class MainActivity : ComponentActivity() {
                 starPrompt.markShown(System.currentTimeMillis())
                 starPromptShownThisLaunch = true
                 showStarPrompt = true
+            }
+        }
+
+        // The occasional Samosa AI / Pro dialog, under the same quiet as the star
+        // ask and paced by [Upsell.dialogDueAt]: after a few good tasks, weekly at
+        // most, and never right after the star ask.
+        val upsellStillQuiet by rememberUpdatedState(homeQuiet && !showStarPrompt)
+        LaunchedEffect(homeQuiet && !showStarPrompt) {
+            if (!(homeQuiet && !showStarPrompt)) return@LaunchedEffect
+            val installedAt = runCatching {
+                packageManager.getPackageInfo(packageName, 0).firstInstallTime
+            }.getOrDefault(System.currentTimeMillis())
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val audience = Upsell.audience(this@MainActivity, settingsRepository.load())
+                val dueAt = Upsell.dialogDueAt(
+                    audience = audience,
+                    installedAt = installedAt,
+                    lastShownAt = upsellStore.lastShownAt(),
+                    dismissals = upsellStore.dismissals(audience),
+                    successfulRuns = upsellStore.successfulRuns(),
+                    starPromptShownAt = starPrompt.lastShownAt()
+                ) ?: return@repeatOnLifecycle
+                delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
+                if (!upsellStillQuiet) return@repeatOnLifecycle
+                upsellStore.markShown(System.currentTimeMillis())
+                upsellShownThisLaunch = true
+                upsellRequest = audience to UpsellReason.VALUE
             }
         }
 
@@ -1168,6 +1246,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Read on each opening, so a sign-in or a new plan shows the next time.
+        val drawerUpsellAudience = remember(drawerState.isOpen) {
+            Upsell.audience(this@MainActivity, settingsRepository.load())
+        }
         ModalNavigationDrawer(
             drawerState = drawerState,
             // Deep enough that the floating panel reads as above the app.
@@ -1204,6 +1286,11 @@ class MainActivity : ComponentActivity() {
                     onOpenSecondBrain = {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SECOND_BRAIN
+                    },
+                    upsellAudience = drawerUpsellAudience,
+                    onOpenUpsell = {
+                        scope.launch { drawerState.close() }
+                        openUpsell(UpsellReason.GENERAL)
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1583,6 +1670,50 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        upsellRequest?.let { (audience, reason) ->
+            UpsellDialog(
+                audience = audience,
+                reason = reason,
+                onAction = {
+                    upsellRequest = null
+                    if (audience == UpsellAudience.PRO) {
+                        upsellStore.setUpgradeStartedAt(System.currentTimeMillis())
+                        if (!SamosaDashboard.open(this@MainActivity, SamosaDashboard.Section.BILLING)) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(R.string.samosa_auth_no_browser),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        // AI Configuration, where Samosa AI is chosen and signed in to.
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.SETTINGS
+                        settingsPage = SettingsPage.AI_CONFIG
+                        settingsHighlight = SAMOSA_PROVIDER_FIELD
+                    }
+                },
+                onDismiss = {
+                    upsellRequest = null
+                    // Only the interrupting dialog counts towards its limit; one the
+                    // user opened themselves was their own choice to look.
+                    if (reason == UpsellReason.VALUE) upsellStore.markDismissed(audience)
+                }
+            )
+        }
+
+        if (showProWelcome) {
+            ProWelcomeDialog(
+                onSetUpShell = {
+                    showProWelcome = false
+                    currentRoute = Route.SETTINGS
+                    settingsPage = SettingsPage.LINUX_SHELL
+                    settingsHighlight = null
+                },
+                onDismiss = { showProWelcome = false }
+            )
+        }
+
         if (showReferralInviteDialog) {
             ReferralInviteDialog(
                 initialCode = referralPrefillCode,
@@ -1769,6 +1900,9 @@ class MainActivity : ComponentActivity() {
 
         /** How long Home must stay quiet before the "Enjoying Gotcha?" ask appears. */
         private const val STAR_PROMPT_DELAY_MS = 1_500L
+
+        /** The AI Configuration field a Samosa AI nudge points at: the provider picker. */
+        private const val SAMOSA_PROVIDER_FIELD = "settings_llm_provider"
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
         @Volatile

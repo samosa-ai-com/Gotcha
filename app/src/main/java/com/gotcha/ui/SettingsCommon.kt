@@ -792,6 +792,31 @@ fun SamosaAuthSection(
                 }
             }
         }
+        // A plan without Pro's features: what Pro adds, one tap from the pitch.
+        val tier = user?.tier
+        if (signedIn && tier != null && tier.id.lowercase() !in com.gotcha.tools.ShellEntitlement.SHELL_TIERS) {
+            val openUpsell = LocalUpsell.current
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.fillMaxWidth().testTag("settings_upsell_pro")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.upsell_settings_plan, tier.displayName.ifBlank { tier.id }),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { openUpsell(com.gotcha.upsell.UpsellReason.GENERAL) }) {
+                        Text(stringResource(R.string.upsell_pro_see), fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
         if (!signedIn) {
             Text(
                 text = stringResource(
