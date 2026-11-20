@@ -78,6 +78,7 @@ object ShellEntitlement {
     private const val KEY_CONFIRMED_AT = "access_confirmed_at"
     private const val KEY_CHECKED_AT = "access_checked_at"
     private const val KEY_ATTEMPTED_AT = "access_attempted_at"
+    private const val KEY_TIER = "account_tier"
     private const val STATE_PRO = "pro"
     private const val STATE_NOT_PRO = "not_pro"
     private const val STATE_SIGNED_OUT = "signed_out"
@@ -141,8 +142,10 @@ object ShellEntitlement {
         if (force || isDue(read(app), now())) {
             val asked = now()
             when (val answer = source.fetch()) {
-                is TierAnswer.Tier ->
+                is TierAnswer.Tier -> {
                     write(app, if (answer.id in SHELL_TIERS) STATE_PRO else STATE_NOT_PRO, now())
+                    prefs(app).edit().putString(KEY_TIER, answer.id).apply()
+                }
                 TierAnswer.SignedOut -> write(app, STATE_SIGNED_OUT, now())
                 TierAnswer.Unavailable -> prefs(app).edit().putLong(KEY_ATTEMPTED_AT, asked).apply()
             }
@@ -150,10 +153,18 @@ object ShellEntitlement {
         access(app, now())
     }
 
+    /**
+     * The signed-in account's tier id as the backend last gave it ("free", "pro", …), or null
+     * when it was never learnt or the account signed out since. Unlike [access] it has no
+     * offline window: it says which plan to talk about, not what may run.
+     */
+    fun knownTier(context: Context): String? =
+        if (read(context).state == STATE_SIGNED_OUT) null else prefs(context).getString(KEY_TIER, null)
+
     /** A new sign-in: whatever was remembered belonged to another session. */
     fun onSignedIn(context: Context) {
         prefs(context).edit().remove(KEY_STATE).remove(KEY_CONFIRMED_AT).remove(KEY_CHECKED_AT)
-            .remove(KEY_ATTEMPTED_AT).apply()
+            .remove(KEY_ATTEMPTED_AT).remove(KEY_TIER).apply()
     }
 
     /** Signing out turns the shell off without waiting for the next check. */

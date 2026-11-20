@@ -162,4 +162,23 @@ class ShellEntitlementTest {
         settings.saveSamosaSession("token", "user@example.com")
         assertEquals(Access.NEEDS_CHECK, remembered())
     }
+
+    @Test
+    fun `the tier is remembered and forgotten with the session`() {
+        FakeAndroidKeyStore.setUp()
+        val settings = SettingsRepository(context)
+        assertNull(ShellEntitlement.knownTier(context))
+        kotlinx.coroutines.runBlocking { refresh(Source(TierAnswer.Tier("free"))) }
+        assertEquals("free", ShellEntitlement.knownTier(context))
+
+        // An unanswered check keeps what was learnt.
+        kotlinx.coroutines.runBlocking { refresh(Source(TierAnswer.Unavailable), force = true) }
+        assertEquals("free", ShellEntitlement.knownTier(context))
+
+        settings.clearSamosaSession()
+        assertNull(ShellEntitlement.knownTier(context))
+
+        settings.saveSamosaSession("token", "user@example.com")
+        assertNull(ShellEntitlement.knownTier(context))
+    }
 }
