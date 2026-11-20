@@ -1974,7 +1974,7 @@
     <string name="upsell_samosa_feature_credits">Free credits to start</string>
     <string name="upsell_samosa_feature_tuned">Models chosen and set up for Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro when you want more: the Linux shell, more capable models and higher limits</string>
-    <string name="upsell_samosa_footnote">You can switch back to your own key at any time in AI Configuration.</string>
+    <string name="upsell_samosa_footnote">You can change your AI provider at any time in AI Configuration.</string>
     <string name="upsell_samosa_action">Try Samosa AI</string>
     <string name="upsell_samosa_see">Discover Samosa AI</string>
     <string name="upsell_not_now">Not now</string>
