@@ -1994,6 +1994,8 @@
     <string name="linux_terminal_refused_too_old">This Gotcha Shell is too old for the terminal (it speaks version %1$d, the terminal needs %2$d). Update Gotcha Shell.</string>
     <string name="linux_terminal_refused_no_system">The Linux system is not installed yet. Install it from Settings › Linux shell.</string>
     <string name="linux_terminal_refused_installing">The Linux system is still being installed. Try again when it is done.</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell is still downloading its Linux runtime. Try again when it is done.</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell needs to download its Linux runtime first, and Gotcha could not get it. Check the connection and that your account includes the Linux shell, then try again.</string>
     <string name="linux_terminal_refused_too_many">Too many terminal sessions are open (at most %1$d). End one first.</string>
     <string name="linux_terminal_refused_too_many_unknown">Too many terminal sessions are open. End one first.</string>
     <string name="linux_terminal_refused_failed">The terminal could not start: %1$s</string>

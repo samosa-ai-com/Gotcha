@@ -62,6 +62,8 @@ class TerminalViewModelTest {
                 override fun openSessionHandle(rows: Int, cols: Int) = error("not used")
                 override fun resizeSession(sessionId: String, rows: Int, cols: Int) = true
                 override fun install(callback: com.gotcha.shell.IInstallCallback?) = error("not used")
+                override fun installRuntime(callback: com.gotcha.shell.IInstallCallback?) = error("not used")
+                override fun offerRuntime(version: String, url: String, sha256: String) = error("not used")
                 override fun repair() = error("not used")
                 override fun reset() = error("not used")
                 override fun startJob(request: com.gotcha.shell.RunRequest) = error("not used")
