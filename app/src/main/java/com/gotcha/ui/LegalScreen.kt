@@ -55,11 +55,13 @@ fun LegalScreen(
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
+    var noticesText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         termsText = readAsset(context, "legal/terms.md")
         disclaimerText = readAsset(context, "legal/disclaimer.md")
         privacyText = readAsset(context, "legal/privacy-data-retention.md")
+        noticesText = readAsset(context, "legal/third-party-notices.md")
     }
 
     SettingsScaffold(title = stringResource(SettingsPage.LEGAL.title), onBack = onBack, overlay = overlay) {
@@ -72,6 +74,9 @@ fun LegalScreen(
         LegalSection(label = stringResource(R.string.legal_consent_section_terms), markdown = termsText)
         LegalSection(label = stringResource(R.string.legal_consent_section_disclaimer), markdown = disclaimerText)
         LegalSection(label = stringResource(R.string.legal_consent_section_privacy), markdown = privacyText)
+        // Apache-2.0 requires Apache Commons Compress's notice to be reproduced, and the
+        // companion's APK is where that library is bundled, so its notice travels with it.
+        LegalSection(label = stringResource(R.string.legal_consent_section_third_party), markdown = noticesText)
 
         HorizontalDivider(thickness = 1.dp)
 

@@ -27,12 +27,19 @@ import kotlin.concurrent.thread
  * The interface is one-way: Gotcha calls the companion, and nothing here lets the companion call
  * back or write Gotcha's data. What comes back — output and files — is untrusted input.
  */
-class CompanionShellBackend(
+internal class CompanionShellBackend(
     private val context: Context,
     private val link: CompanionLink = CompanionConnection.get(context),
     private val defaultTimeoutSeconds: Int = 120,
     private val maxOutputBytes: Int = 32 * 1024,
-    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) }
+    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) },
+    /**
+     * Asks the backend where the runtime bundle is. The companion cannot: the route is tier-gated
+     * and the companion holds no session, so Gotcha fetches the answer and hands it over.
+     * Injected so tests do not need the network.
+     */
+    private val runtimeSource: suspend () -> CompanionRuntimeSource.ResolvedSource? =
+        { CompanionRuntimeSource.fetchResolved(context) }
 ) : ShellBackend {
 
     data class CompanionStatus(
@@ -303,7 +310,47 @@ class CompanionShellBackend(
             info.interfaceVersion < INTERFACE_VERSION ->
                 CompanionMessages.versionMismatch(info.interfaceVersion, INTERFACE_VERSION)
             !info.rootfsReady -> CompanionMessages.rootfsMissing(info.installing)
+            // The runtime is downloaded, not shipped, and its route is tier-gated, so the companion
+            // cannot fetch it itself: push a source, then let the call through. startJob is what
+            // makes the companion install it, so refusing here would mean it never gets installed.
+            // Only a failed push is fatal, because then the companion has nothing to install from.
+            // A download already underway needs no new push: the companion holds the answer.
+            info.runtimeInstalling -> runtimeMissing(installing = true)
+            !info.runtimeReady -> if (offerRuntime()) null else runtimeMissing(installing = false)
             else -> null
+        }
+    }
+
+    /**
+     * Fetches the runtime source from the backend and hands it to the companion.
+     *
+     * Returns whether the companion now has a source it can install from. Silence would be wrong
+     * here: without a source the companion has nothing to fetch, so the caller must say so.
+     * The answer is held by the companion for ten minutes, so calling this on every command costs
+     * one request only when it has expired.
+     */
+    private suspend fun offerRuntime(): Boolean {
+        // CancellationException is not a failure to swallow: stopping a turn must stay a stop,
+        // which is why the rest of this class rethrows it explicitly.
+        val ticket = try {
+            runtimeSource()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        val source = ticket?.source
+        if (source == null || !source.isUsable()) return false
+        return try {
+            link.call { it.offerRuntime(source.version, source.url, source.sha256) }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // The companion refused the offer: record it against the account that fetched it, so
+            // the next command waits out the cooldown instead of spending another request.
+            ticket.noteRejected()
+            false
         }
     }
 
@@ -312,7 +359,28 @@ class CompanionShellBackend(
             "Settings ▸ Linux shell. Do not retry, and do not suggest a workaround that needs the Linux shell."
     )
 
-    /** Turns everything that can go wrong on the way to the companion into a message for the model. */
+    /**
+     * The runtime is part of the companion but is downloaded on first use rather than shipped, and
+     * Gotcha could not obtain a source for it. That needs a connection and an account that
+     * includes the shell. There is no runtime row to act on in Settings: the download runs in
+     * the companion the next time a command goes through, so the fix is to be online and
+     * entitled, then retry the command.
+     */
+    private fun runtimeMissing(installing: Boolean) = ToolResult.error(
+        if (installing) {
+            "Gotcha Shell is still downloading its Linux runtime. Wait for it to finish (progress is " +
+                "shown in Settings ▸ Linux shell), then try again. Do not retry in a loop."
+        } else {
+            "Gotcha Shell has its Linux system but not the runtime it runs on, which is downloaded " +
+                "on first use. Check the connection and that the account includes the shell, then " +
+                "run the command again: Gotcha fetches the source automatically and the companion " +
+                "installs it before running."
+        }
+    )
+
+    /**
+     * Turns everything that can go wrong on the way to the companion into a message for the model.
+     */
     private suspend fun guarded(block: suspend () -> ToolResult): ToolResult = try {
         // Checked on every call, not only when the backend is chosen: an executor built while
         // the account was Pro must stop when it no longer is.
@@ -355,8 +423,12 @@ class CompanionShellBackend(
     companion object {
         const val ID = "companion"
 
-        /** The Binder interface version this build was compiled against, and the oldest it accepts; see `shell-interface.lock`. */
-        const val INTERFACE_VERSION = 2
+        /**
+         * The Binder interface version this build was compiled against, and the oldest it accepts;
+         * see `shell-interface.lock`. Changes are additive, so a newer companion still answers
+         * every call made here; this only has to be raised when Gotcha starts using a new call.
+         */
+        const val INTERFACE_VERSION = 6
 
         private const val GUEST_HOME = "/root"
 
@@ -401,16 +473,25 @@ object ShellResultFormat {
  * synchronous paths read it back. A stale "ready" corrects itself on the next command.
  */
 internal object CompanionShellState {
-    private const val PREFS = "companion_shell"
+    /**
+     * Its own file, deliberately. This used to share `companion_shell` with
+     * [ShellEntitlement]'s tier record, so a write here could race one there and lose the
+     * other's keys: the entitlement tests showed exactly that, and a phone would show it as a
+     * Pro account suddenly signed out. The two have nothing in common.
+     */
+    private const val PREFS = "companion_shell_state"
+
+    /** The application context, so a short-lived Activity context cannot give a second store. */
+    private fun prefs(context: Context) =
+        (context.applicationContext ?: context).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private const val KEY_ROOTFS_READY = "rootfs_ready"
 
     fun rootfsReady(context: Context): Boolean? {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = prefs(context)
         return if (prefs.contains(KEY_ROOTFS_READY)) prefs.getBoolean(KEY_ROOTFS_READY, false) else null
     }
 
     fun setRootfsReady(context: Context, ready: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_ROOTFS_READY, ready).apply()
+        prefs(context).edit().putBoolean(KEY_ROOTFS_READY, ready).apply()
     }
 }

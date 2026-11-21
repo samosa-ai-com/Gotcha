@@ -1,9 +1,14 @@
 package com.gotcha.auth
 
 import com.gotcha.ui.formatScaledCredits
+import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 /**
  * Parsing and formatting rules for the Samosa `/me` profile and the ×1000
@@ -222,5 +227,28 @@ class SamosaAuthApiTest {
         val decoded = json.decodeFromString(MeResponse.serializer(), payload)
         assertEquals("AIR-K9X2P7", decoded.user.referral.referredBy?.referralCode)
         assertEquals("AIR-K9X2P7", decoded.user.referral.referredBy?.displayCode)
+    }
+
+    @Test
+    fun `shell runtime source sends the bearer token and parses the answer`() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setBody(
+                    """{"version":"5.1.107.91-1","url":"https://example.com/b.tar.gz","sha256":"${"a".repeat(64)}"}"""
+                )
+                .addHeader("Content-Type", "application/json")
+        )
+        server.start()
+        try {
+            val source = SamosaAuthApi.create(server.url("/").toString()).shellRuntime("Bearer test-token")
+            assertTrue(source.isUsable())
+            assertEquals("5.1.107.91-1", source.version)
+            val request = server.takeRequest(5, TimeUnit.SECONDS)
+            assertEquals("/gotcha/shell/runtime/latest", request!!.path)
+            assertEquals("Bearer test-token", request.getHeader("Authorization"))
+        } finally {
+            server.shutdown()
+        }
     }
 }

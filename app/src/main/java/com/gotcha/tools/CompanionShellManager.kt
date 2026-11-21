@@ -20,6 +20,34 @@ class CompanionShellManager(
 
     fun identity(): CompanionIdentity = link.identity()
 
+    /**
+     * Hands the companion a runtime source, best effort.
+     *
+     * `install` and `repair` both end up in the companion's `ensureRuntime()`, and its own route
+     * is tier-gated, so without this that step fails with 401. A failure here is not fatal: the
+     * call it preceded still runs and reports its own error.
+     */
+    private suspend fun offerRuntime() {
+        val ticket = try {
+            CompanionRuntimeSource.fetchResolved(context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        val source = ticket?.source
+        if (source == null || !source.isUsable()) return
+        try {
+            link.call { it.offerRuntime(source.version, source.url, source.sha256) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Best effort; the install reports its own failure. Record the refusal against the
+            // account that fetched it, so the next install does not spend another request on it.
+            ticket.noteRejected()
+        }
+    }
+
     /** The companion's own report, or null when it cannot be reached. */
     suspend fun info(): ShellInfo? = try {
         link.call { it.info }.also { CompanionShellState.setRootfsReady(context, it.rootfsReady) }
@@ -33,6 +61,9 @@ class CompanionShellManager(
 
     /** Downloads and unpacks the Linux system, replacing any existing one. */
     suspend fun install(onProgress: (phase: String, done: Long, total: Long) -> Unit): String? = managing {
+        // The companion installs the runtime it needs as part of this call, and its own route is
+        // tier-gated, so push a source first or that part fails with 401.
+        offerRuntime()
         val callback = object : IInstallCallback.Stub() {
             override fun onProgress(phase: String, done: Long, total: Long) = onProgress(phase, done, total)
         }
@@ -43,6 +74,7 @@ class CompanionShellManager(
 
     /** Finishes package installs that were interrupted, for example when Android killed the companion. */
     suspend fun repair(): String? = managing {
+        offerRuntime()
         val result = link.call { it.repair() }
         if (result.exitCode == 0) {
             null

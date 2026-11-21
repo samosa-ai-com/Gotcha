@@ -4,6 +4,18 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Linux runtime row in Settings ▸ Linux shell.** The shell's runtime is
+  downloaded on first use rather than shipped in its APK, so it has its own
+  setup check next to "Gotcha Shell" and "Linux system": downloaded and
+  verified, downloading, or not yet fetched.
+- **Gotcha fetches the runtime source.** That route needs the account's session
+  and tier, which the companion does not have, so Gotcha asks the backend
+  (`GET /gotcha/shell/runtime/latest`) and hands the answer to the shell before
+  a command needs it. The companion still checks the bundle against a SHA-256
+  compiled into its own APK: this chooses where the bytes come from, never which
+  bytes they are.
+- **Third-party notices** in the Legal screen, including the Apache Commons
+  Compress licence and notice it had been missing.
 - **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
   about you, the people in your life, your plans and preferences in plain
   Markdown files in `Gotcha/memory/` on your phone, which you can read any
@@ -65,8 +77,20 @@ All notable changes to Gotcha are documented here.
   `/mcp` with or without a trailing slash, now connect. Plain http is
   allowed, with a warning when a token would travel unencrypted outside your
   home network.
+- **Gotcha Shell interface 6.** The AIDL copy now includes `SessionHandle`
+  (interface 3, which had never been taken), `installRuntime` with progress,
+  `offerRuntime`, and the runtime fields on `ShellInfo`. Interface changes are
+  additive, so as before a newer companion is accepted.
+- When the shell's runtime is missing, Gotcha fetches the download source and the
+  command proceeds so the companion installs it; only a failed fetch reports the
+  miss, saying it needs a connection and an account that includes the shell,
+  rather than failing with a version or rootfs error.
 
 ### Fixed
+- **Companion state no longer shares a settings file with the Pro tier.** Both
+  wrote to `companion_shell`, so a state write could race the entitlement record
+  and lose it, which would look like a Pro account signing itself out. Companion
+  state now has its own file.
 - **Signing in on the account website no longer gets stuck when your default
   browser is not Chrome.** Gotcha now opens the sign-in page in Chrome when it
   is installed. Some browsers (seen with Aloha) left Google's account chooser

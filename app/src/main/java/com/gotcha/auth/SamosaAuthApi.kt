@@ -155,6 +155,25 @@ data class ClaimReferralResponse(
     @SerialName("credits_remaining") val creditsRemaining: Double? = null
 )
 
+/** Response from GET /gotcha/shell/runtime/latest. */
+@Serializable
+data class ShellRuntimeSource(
+    /** For example "5.1.107.91-1". The companion compares it with its own pinned version. */
+    val version: String = "",
+    /** Absolute https URL to the bundle. Expires; ask again rather than reusing it. */
+    val url: String = "",
+    /** SHA-256 of the bundle, 64 lowercase hex characters. Must equal the companion's pin. */
+    val sha256: String = ""
+) {
+    /**
+     * Whether this answer is worth passing on. A partial one would only fail in the companion,
+     * whose own check also requires 64 lowercase hex characters.
+     */
+    fun isUsable(): Boolean =
+        version.isNotBlank() && url.startsWith("https://") &&
+            sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' }
+}
+
 /**
  * Samosa AI auth endpoints (base URL [AUTH_BASE_URL], from BuildConfig).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
@@ -181,6 +200,18 @@ interface SamosaAuthApi {
     @POST("oauth/token")
     suspend fun exchangeCode(@Body body: OAuthTokenRequest): RegisterResponse
 
+    /**
+     * Where the companion should fetch its Linux runtime from. The route is tier-gated, so the
+     * call needs the account session: pass it explicitly like [me] does, because the interceptor
+     * leaves a request with no bearer token alone instead of attaching one.
+     *
+     * The companion pins the SHA-256 of the runtime in its own APK, so this answer can choose
+     * where the bytes come from but never which bytes they are. A checksum that disagrees is a
+     * build-skew bug, not something to retry.
+     */
+    @GET("gotcha/shell/runtime/latest")
+    suspend fun shellRuntime(@Header("Authorization") bearer: String): ShellRuntimeSource
+
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */
         val AUTH_BASE_URL: String = "${BuildConfig.SAMOSA_API_URL}/"
@@ -198,7 +229,7 @@ interface SamosaAuthApi {
             coerceInputValues = true
         }
 
-        fun create(): SamosaAuthApi {
+        fun create(baseUrl: String = AUTH_BASE_URL): SamosaAuthApi {
             val json = samosaJson
             val logging = HttpLoggingInterceptor().apply {
                 // The request URL is the configured endpoint — not for release logcat.
@@ -219,7 +250,7 @@ interface SamosaAuthApi {
                 .addInterceptor(logging)
                 .build()
             return Retrofit.Builder()
-                .baseUrl(AUTH_BASE_URL)
+                .baseUrl(baseUrl)
                 .client(client)
                 .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
                 .build()

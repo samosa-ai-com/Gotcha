@@ -58,6 +58,8 @@ class SamosaWebsiteSignInTest {
             user = SamosaUser(email = "user@example.com")
         )
 
+        override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
         override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse {
             exchanges += body
             exchangeError?.let { throw it }

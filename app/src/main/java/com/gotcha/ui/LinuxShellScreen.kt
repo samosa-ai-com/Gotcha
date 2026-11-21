@@ -120,6 +120,21 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
 
         val current = info
         if (identity.installed && identity.trusted) {
+            // The runtime is part of the companion but is downloaded on first use rather than
+            // shipped, so it has its own row: a user can have the Linux system and not the
+            // runtime, and the fix for each is different. There is no button: Gotcha pushes the
+            // source when a command needs it, and the download runs in the companion.
+            SetupCheck(
+                title = stringResource(R.string.linux_shell_runtime_title),
+                done = current?.runtimeReady == true,
+                // A companion older than the runtime fields cannot say, and its row above already
+                // says to update it; claiming "not checked yet" here would be misleading.
+                detail = if (current != null && current.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION) {
+                    stringResource(R.string.linux_shell_runtime_unavailable)
+                } else {
+                    runtimeDetail(current)
+                }
+            )
             SetupCheck(
                 title = stringResource(R.string.linux_shell_system_title),
                 done = current?.rootfsReady == true,
@@ -269,6 +284,14 @@ private fun appDetail(identity: CompanionIdentity, info: ShellInfo?): String = w
 }
 
 @Composable
+private fun runtimeDetail(info: ShellInfo?): String = when {
+    info == null -> stringResource(R.string.linux_shell_runtime_unknown)
+    info.runtimeInstalling -> stringResource(R.string.linux_shell_runtime_downloading)
+    info.runtimeReady -> stringResource(R.string.linux_shell_runtime_ready)
+    else -> stringResource(R.string.linux_shell_runtime_missing)
+}
+
+@Composable
 private fun systemDetail(info: ShellInfo?, installing: Boolean): String = when {
     installing || info?.installing == true -> stringResource(R.string.linux_shell_system_installing)
     info == null -> stringResource(R.string.linux_shell_system_unknown)
@@ -288,6 +311,9 @@ private fun InstallProgressBar(progress: InstallProgress) {
             "download" -> R.string.linux_shell_phase_download
             "verify" -> R.string.linux_shell_phase_verify
             "extract" -> R.string.linux_shell_phase_extract
+            "download-runtime" -> R.string.linux_shell_phase_download_runtime
+            "verify-runtime" -> R.string.linux_shell_phase_verify_runtime
+            "install-runtime" -> R.string.linux_shell_phase_install_runtime
             else -> R.string.linux_shell_phase_configure
         }
     )
