@@ -1596,4 +1596,37 @@
     <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>
     <string name="samosa_session_deactivated">この Samosa AI アカウントは無効化されました。</string>
     <string name="error_out_of_credits_http_402">クレジットがありません (HTTP 402)。続けるにはクレジットを追加してください。Samosa AI の場合: 設定 → AI 設定 → クレジットを追加。</string>
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa AI Pro</string>
+    <string name="upsell_pro_lead_shell">Linux コマンドの実行には Gotcha の内蔵 Linux シェルが必要です。これは Samosa AI Pro に含まれています。</string>
+    <string name="upsell_pro_lead_limits">現在のプランの上限に達しました。Pro なら上限が高いので、このまま続けられます。</string>
+    <string name="upsell_pro_lead_value">Gotcha でたくさんの作業をこなしていますね。Pro ならさらに力を発揮できます。</string>
+    <string name="upsell_pro_lead_general">Samosa AI Pro で Gotcha をもっと活用しましょう。</string>
+    <string name="upsell_pro_feature_shell">内蔵 Linux シェル: チャットやターミナルから本物の Linux コマンドを実行</string>
+    <string name="upsell_pro_feature_models">より高性能なモデル</string>
+    <string name="upsell_pro_feature_limits">より高い上限</string>
+    <string name="upsell_pro_feature_early">新機能への早期アクセス</string>
+    <string name="upsell_pro_footnote">プランは Samosa AI のアカウントページにあります。手続きが終わったら Gotcha に戻ると、Pro がすぐに使えます。</string>
+    <string name="upsell_pro_action">Pro にする</string>
+    <string name="upsell_pro_see">Pro を見る</string>
+    <string name="upsell_samosa_title">Samosa AI を見てみる</string>
+    <string name="upsell_samosa_lead_shell">Gotcha の内蔵 Linux シェルは Samosa AI Pro に含まれています。まずは Samosa AI アカウントから始めましょう。</string>
+    <string name="upsell_samosa_lead_limits">AI プロバイダーが現在応答していません。Samosa AI なら自分の API キーは不要です。</string>
+    <string name="upsell_samosa_lead_general">Samosa AI は、Gotcha の開発チームが Gotcha のために作った AI サービスです。</string>
+    <string name="upsell_samosa_feature_no_key">API キーの管理は不要: サインインするだけ</string>
+    <string name="upsell_samosa_feature_credits">はじめに使える無料クレジット</string>
+    <string name="upsell_samosa_feature_tuned">Gotcha 向けに選んで設定したモデル</string>
+    <string name="upsell_samosa_feature_pro">もっと必要なら Pro: Linux シェル、より高性能なモデル、より高い上限</string>
+    <string name="upsell_samosa_footnote">AI プロバイダーは AI 設定からいつでも変更できます。</string>
+    <string name="upsell_samosa_action">Samosa AI を試す</string>
+    <string name="upsell_samosa_see">Samosa AI を見てみる</string>
+    <string name="upsell_not_now">今はしない</string>
+    <string name="upsell_settings_plan">現在のプランは %1$s です。Pro では Linux シェル、より高性能なモデル、より高い上限が使えます。</string>
+    <string name="upsell_settings_switch">Samosa AI に切り替える</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_samosa">Samosa AI を見てみる</string>
+    <string name="upsell_welcome_title">Pro へようこそ</string>
+    <string name="upsell_welcome_text">Samosa AI Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
+    <string name="upsell_welcome_shell">Linux シェルを設定</string>
+    <string name="upsell_welcome_later">後で</string>
 </resources>
