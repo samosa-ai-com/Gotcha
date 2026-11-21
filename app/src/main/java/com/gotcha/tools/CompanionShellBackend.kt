@@ -346,7 +346,9 @@ class CompanionShellBackend(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // The companion refused the offer; report it rather than letting the command hang.
+            // The companion refused the offer: record it so the next command does not fetch
+            // a fresh source only to be refused the same way.
+            CompanionRuntimeSource.noteOfferRejected()
             false
         }
     }

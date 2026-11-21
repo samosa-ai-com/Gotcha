@@ -229,7 +229,7 @@ interface SamosaAuthApi {
             coerceInputValues = true
         }
 
-        fun create(): SamosaAuthApi {
+        fun create(baseUrl: String = AUTH_BASE_URL): SamosaAuthApi {
             val json = samosaJson
             val logging = HttpLoggingInterceptor().apply {
                 // The request URL is the configured endpoint — not for release logcat.
@@ -250,7 +250,7 @@ interface SamosaAuthApi {
                 .addInterceptor(logging)
                 .build()
             return Retrofit.Builder()
-                .baseUrl(AUTH_BASE_URL)
+                .baseUrl(baseUrl)
                 .client(client)
                 .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
                 .build()

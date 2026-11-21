@@ -41,7 +41,9 @@ class CompanionShellManager(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Best effort; the install reports its own failure.
+            // Best effort; the install reports its own failure. Record the refusal so the next
+            // install or repair does not spend another hourly-allowance request on the same fate.
+            CompanionRuntimeSource.noteOfferRejected()
         }
     }
 
