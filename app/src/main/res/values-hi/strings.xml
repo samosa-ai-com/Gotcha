@@ -1619,4 +1619,37 @@
     <string name="samosa_session_ended">आप Samosa AI से साइन आउट हो गए हैं। इसे इस्तेमाल करते रहने के लिए फिर से साइन इन करें।</string>
     <string name="samosa_session_deactivated">यह Samosa AI खाता निष्क्रिय कर दिया गया है।</string>
     <string name="error_out_of_credits_http_402">क्रेडिट खत्म (HTTP 402)। जारी रखने के लिए क्रेडिट जोड़ें। Samosa AI के लिए: सेटिंग्स → AI कॉन्फ़िगरेशन → क्रेडिट जोड़ें।</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">टर्मिनल</string>
+    <string name="settings_page_linux_terminal_summary">Linux सिस्टम में ख़ुद कमांड टाइप करें</string>
+    <string name="linux_shell_action_open_terminal">टर्मिनल खोलें</string>
+    <string name="linux_shell_terminal_needs_update">टर्मिनल के लिए Gotcha Shell का नया वर्शन चाहिए। इसे इस्तेमाल करने के लिए Gotcha Shell अपडेट करें।</string>
+    <string name="linux_terminal_opening">टर्मिनल शुरू हो रहा है…</string>
+    <string name="linux_terminal_ended">सेशन ख़त्म हो गया।</string>
+    <string name="linux_terminal_restart">नया सेशन शुरू करें</string>
+    <string name="linux_terminal_retry">फिर से कोशिश करें</string>
+    <string name="linux_terminal_more">और</string>
+    <string name="linux_terminal_paste">पेस्ट करें</string>
+    <string name="linux_terminal_reset">स्क्रीन रीसेट करें</string>
+    <string name="linux_terminal_end_session">सेशन ख़त्म करें</string>
+    <string name="linux_terminal_key_up">ऊपर तीर</string>
+    <string name="linux_terminal_key_down">नीचे तीर</string>
+    <string name="linux_terminal_key_left">बायाँ तीर</string>
+    <string name="linux_terminal_key_right">दायाँ तीर</string>
+    <string name="linux_terminal_refused_signed_out">Linux शेल Samosa AI Pro का हिस्सा है। इसे इस्तेमाल करने के लिए Samosa AI में साइन इन करें।</string>
+    <string name="linux_terminal_refused_not_pro">Linux शेल Samosa AI Pro का हिस्सा है, और यह अकाउंट किसी दूसरे प्लान पर है।</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha हाल में आपके Samosa AI Pro प्लान की पुष्टि नहीं कर सका। इंटरनेट से जुड़ें और फिर से कोशिश करें।</string>
+    <string name="linux_terminal_refused_not_installed">इस फ़ोन पर Gotcha Shell इंस्टॉल नहीं है।</string>
+    <string name="linux_terminal_refused_untrusted">इस फ़ोन का Gotcha Shell, Gotcha वाली कुंजी से साइन नहीं है, इसलिए Gotcha इसका इस्तेमाल नहीं करेगा।</string>
+    <string name="linux_terminal_refused_no_answer">Gotcha Shell ने जवाब नहीं दिया। थोड़ी देर में फिर से कोशिश करें।</string>
+    <string name="linux_terminal_refused_too_old">यह Gotcha Shell टर्मिनल के लिए बहुत पुराना है (यह वर्शन %1$d इस्तेमाल करता है, टर्मिनल को %2$d चाहिए)। Gotcha Shell अपडेट करें।</string>
+    <string name="linux_terminal_refused_no_system">Linux सिस्टम अभी इंस्टॉल नहीं है। इसे सेटिंग › Linux shell से इंस्टॉल करें।</string>
+    <string name="linux_terminal_refused_installing">Linux सिस्टम अभी इंस्टॉल हो रहा है। पूरा होने पर फिर से कोशिश करें।</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell अभी अपना Linux रनटाइम डाउनलोड कर रहा है। पूरा होने पर फिर से कोशिश करें।</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell को पहले अपना Linux रनटाइम डाउनलोड करना है, और Gotcha उसे नहीं ला सका। कनेक्शन जाँचें और देखें कि आपके अकाउंट में Linux शेल शामिल है, फिर से कोशिश करें।</string>
+    <string name="linux_terminal_refused_too_many">बहुत सारे टर्मिनल सेशन खुले हैं (ज़्यादा से ज़्यादा %1$d)। पहले एक ख़त्म करें।</string>
+    <string name="linux_terminal_refused_too_many_unknown">बहुत सारे टर्मिनल सेशन खुले हैं। पहले एक ख़त्म करें।</string>
+    <string name="linux_terminal_refused_failed">टर्मिनल शुरू नहीं हो सका: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">टर्मिनल शुरू नहीं हो सका।</string>
 </resources>
