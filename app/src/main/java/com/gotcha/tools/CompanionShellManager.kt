@@ -28,22 +28,23 @@ class CompanionShellManager(
      * call it preceded still runs and reports its own error.
      */
     private suspend fun offerRuntime() {
-        val source = try {
-            CompanionRuntimeSource.fetch(context)
+        val ticket = try {
+            CompanionRuntimeSource.fetchResolved(context)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             null
         }
+        val source = ticket?.source
         if (source == null || !source.isUsable()) return
         try {
             link.call { it.offerRuntime(source.version, source.url, source.sha256) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Best effort; the install reports its own failure. Record the refusal so the next
-            // install or repair does not spend another hourly-allowance request on the same fate.
-            CompanionRuntimeSource.noteOfferRejected()
+            // Best effort; the install reports its own failure. Record the refusal against the
+            // account that fetched it, so the next install does not spend another request on it.
+            ticket.noteRejected()
         }
     }
 

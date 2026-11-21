@@ -3,7 +3,6 @@ package com.gotcha.tools
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
-import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.shell.JobStatus
 import com.gotcha.shell.RunRequest
 import com.gotcha.shell.RunResult
@@ -28,7 +27,7 @@ import kotlin.concurrent.thread
  * The interface is one-way: Gotcha calls the companion, and nothing here lets the companion call
  * back or write Gotcha's data. What comes back — output and files — is untrusted input.
  */
-class CompanionShellBackend(
+internal class CompanionShellBackend(
     private val context: Context,
     private val link: CompanionLink = CompanionConnection.get(context),
     private val defaultTimeoutSeconds: Int = 120,
@@ -39,7 +38,8 @@ class CompanionShellBackend(
      * and the companion holds no session, so Gotcha fetches the answer and hands it over.
      * Injected so tests do not need the network.
      */
-    private val runtimeSource: suspend () -> ShellRuntimeSource? = { CompanionRuntimeSource.fetch(context) }
+    private val runtimeSource: suspend () -> CompanionRuntimeSource.ResolvedSource? =
+        { CompanionRuntimeSource.fetchResolved(context) }
 ) : ShellBackend {
 
     data class CompanionStatus(
@@ -332,13 +332,14 @@ class CompanionShellBackend(
     private suspend fun offerRuntime(): Boolean {
         // CancellationException is not a failure to swallow: stopping a turn must stay a stop,
         // which is why the rest of this class rethrows it explicitly.
-        val source = try {
+        val ticket = try {
             runtimeSource()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             null
         }
+        val source = ticket?.source
         if (source == null || !source.isUsable()) return false
         return try {
             link.call { it.offerRuntime(source.version, source.url, source.sha256) }
@@ -346,9 +347,9 @@ class CompanionShellBackend(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // The companion refused the offer: record it so the next command does not fetch
-            // a fresh source only to be refused the same way.
-            CompanionRuntimeSource.noteOfferRejected()
+            // The companion refused the offer: record it against the account that fetched it, so
+            // the next command waits out the cooldown instead of spending another request.
+            ticket.noteRejected()
             false
         }
     }

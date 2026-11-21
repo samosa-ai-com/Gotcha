@@ -194,7 +194,12 @@ class CompanionShellBackendTest {
             url = "https://api.samosa-ai.com/gotcha/shell/runtime/tok",
             sha256 = "d68b054711b30eda10fa232de4597838a8a790a3274e1008b9af21bba6da459e",
         )
-    ) = CompanionShellBackend(context, link, access = { access }, runtimeSource = { source })
+    ) = CompanionShellBackend(
+        context,
+        link,
+        access = { access },
+        runtimeSource = { source?.let { CompanionRuntimeSource.ResolvedSource(it, 1) } },
+    )
 
     @Test
     fun `a caller the companion refuses is reported, not retried`() = runTest {

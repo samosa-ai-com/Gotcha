@@ -22,7 +22,7 @@ internal object CompanionRuntimeSource {
 
     /**
      * How long a failed attempt suppresses the next fetch. The route allows a handful of
-     * requests an hour, so a user retrying a failing command must not burn it in a minute.
+     * requests an hour, so a retrying user must not burn it in a minute.
      */
     private const val FAILURE_COOLDOWN_MS = 60_000L
 
@@ -37,29 +37,38 @@ internal object CompanionRuntimeSource {
     @Volatile
     private var lastFailureKey: Int? = null
 
-    /** Whose fetch is currently in flight or most recently attempted; the offer sites report back against it. */
-    @Volatile
-    private var lastAttemptKey: Int? = null
+    /**
+     * A fetched source bound to the account it was fetched for. The key travels with the source
+     * so a later Binder refusal is recorded against the right account even if another fetch has
+     * happened since: a shared "most recent attempt" slot could not promise that.
+     */
+    internal class ResolvedSource(val source: ShellRuntimeSource, private val key: Int) {
+        /** Records that the companion refused this source. See [noteFailure]. */
+        fun noteRejected() = noteFailure(key)
+    }
+
+    /** The source for this account, or null when signed out, cooling down, offline, refused or unusable. */
+    suspend fun fetch(context: Context, baseUrl: String? = null): ShellRuntimeSource? =
+        fetchResolved(context, baseUrl)?.source
 
     /**
-     * The source for this account, or null when signed out, cooling down after a failure, offline,
-     * the route refused, or the answer was unusable. Every one of those is final for this call:
-     * retrying at once would repeat the same answer, so failures are recorded here and the next
-     * command asks again only after the cooldown.
+     * Like [fetch], but keeps the account binding so the caller can report a refused offer.
+     * A failure anywhere in the attempt — network, unusable answer, refused offer — is recorded
+     * under the fetching account's key, and the next fetch for that account waits out the
+     * cooldown instead of spending another hourly request on the same answer.
      *
      * Retrofit's suspend functions dispatch on OkHttp's pool and resume on the caller, so this
      * does not block. It deliberately does not wrap itself in `withContext(Dispatchers.IO)`:
      * that moves the call to a dispatcher a `runTest` cannot control, which advanced another
      * test class's virtual clock.
      */
-    suspend fun fetch(context: Context, baseUrl: String? = null): ShellRuntimeSource? {
+    suspend fun fetchResolved(context: Context, baseUrl: String? = null): ResolvedSource? {
         val token = SettingsRepository(context).load().samosaSessionToken
         if (token.isBlank()) return null
         val key = token.hashCode()
         if (lastFailureKey == key && System.currentTimeMillis() - lastFailureAt < FAILURE_COOLDOWN_MS) {
             return null
         }
-        lastAttemptKey = key
         val api = if (baseUrl == null) SamosaAuthApi.create() else SamosaAuthApi.create(baseUrl)
         return try {
             val source = api.shellRuntime("Bearer $token")
@@ -67,7 +76,7 @@ internal object CompanionRuntimeSource {
                 noteFailure(key)
                 null
             } else {
-                source
+                ResolvedSource(source, key)
             }
         } catch (e: CancellationException) {
             // Stopping a turn must stay a stop, not become a missing-runtime error.
@@ -78,26 +87,14 @@ internal object CompanionRuntimeSource {
         }
     }
 
-    /**
-     * Records that a source the companion was offered did not take — it was refused over Binder.
-     * Without this, every command would fetch a fresh source only to have the same refusal, and
-     * the hourly allowance would go on responses that can never be used. Scoped to the account
-     * whose fetch produced the source, like every other failure here.
-     */
-    fun noteOfferRejected() {
-        lastAttemptKey?.let { lastFailureKey = it }
-        lastFailureAt = System.currentTimeMillis()
-    }
-
-    private fun noteFailure(key: Int) {
+    internal fun noteFailure(key: Int) {
         lastFailureKey = key
         lastFailureAt = System.currentTimeMillis()
     }
 
-    /** Forgets failures, attempts and cooldowns, so tests do not depend on wall-clock timing. */
+    /** Forgets failures and cooldowns, so tests do not depend on wall-clock timing. */
     internal fun resetForTest() {
         lastFailureAt = 0L
         lastFailureKey = null
-        lastAttemptKey = null
     }
 }
