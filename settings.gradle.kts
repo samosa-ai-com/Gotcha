@@ -20,3 +20,5 @@ dependencyResolutionManagement {
 rootProject.name = "gotcha"
 include(":app")
 include(":detekt-rules")
+include(":termux-terminal")
+project(":termux-terminal").projectDir = file("third_party/termux-terminal")
