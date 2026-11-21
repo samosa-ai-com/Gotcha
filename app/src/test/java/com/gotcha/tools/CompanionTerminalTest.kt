@@ -12,6 +12,7 @@ import com.gotcha.shell.SessionHandle
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionTerminal.Opened
 import com.gotcha.tools.CompanionTerminal.Refusal
+import com.gotcha.auth.ShellRuntimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -37,12 +38,24 @@ class CompanionTerminalTest {
     private val service = FakeService()
     private val link = FakeLink(service)
     private var access = ShellEntitlement.Access.ALLOWED
+    private var runtimeSource: ShellRuntimeSource? = ShellRuntimeSource(
+        version = "5.1.107.91-1",
+        url = "https://api.samosa-ai.com/gotcha/shell/runtime/tok",
+        sha256 = "d68b054711b30eda10fa232de4597838a8a790a3274e1008b9af21bba6da459e",
+    )
     private lateinit var terminal: CompanionTerminal
 
     @Before
     fun setUp() {
-        terminal = CompanionTerminal(context, link) { access }
+        terminal = terminalOn(link)
     }
+
+    private fun terminalOn(link: CompanionLink) = CompanionTerminal(
+        context,
+        link,
+        access = { access },
+        runtimeSource = { runtimeSource?.let { CompanionRuntimeSource.ResolvedSource(it, 1) } },
+    )
 
     private suspend fun refusal(): Refusal = (terminal.open(24, 80) as Opened.Refused).refusal
 
@@ -101,6 +114,36 @@ class CompanionTerminalTest {
     fun `a newer companion is fine`() = runTest {
         service.shellInfo.interfaceVersion = CompanionShellBackend.INTERFACE_VERSION + 1
         assertTrue(terminal.open(24, 80) is Opened.Session)
+    }
+
+    @Test
+    fun `a missing runtime is offered the backend source and the session opens`() = runTest {
+        service.shellInfo.runtimeReady = false
+        assertTrue(terminal.open(24, 80) is Opened.Session)
+        assertEquals(listOf("5.1.107.91-1"), service.offered)
+    }
+
+    @Test
+    fun `a missing runtime without a source is refused before opening`() = runTest {
+        service.shellInfo.runtimeReady = false
+        runtimeSource = null
+        assertEquals(Refusal.NoRuntime(installing = false), refusal())
+        assertTrue(service.opened.isEmpty())
+    }
+
+    @Test
+    fun `a runtime being downloaded is reported without a new offer`() = runTest {
+        service.shellInfo.runtimeReady = false
+        service.shellInfo.runtimeInstalling = true
+        assertEquals(Refusal.NoRuntime(installing = true), refusal())
+        assertTrue(service.offered.isEmpty())
+        assertTrue(service.opened.isEmpty())
+    }
+
+    @Test
+    fun `an installed runtime is not offered again`() = runTest {
+        assertTrue(terminal.open(24, 80) is Opened.Session)
+        assertTrue(service.offered.isEmpty())
     }
 
     @Test
@@ -163,7 +206,7 @@ class CompanionTerminalTest {
             override suspend fun <T> call(block: (IShellService) -> T): T =
                 withContext(Dispatchers.IO) { link.call(block) }
         }
-        val opening = CompanionTerminal(context, ioLink) { access }
+        val opening = terminalOn(ioLink)
         val gate = CountDownLatch(1)
         service.openGate = gate
         val job = launch(Dispatchers.Default) { opening.open(24, 80) }
@@ -192,8 +235,10 @@ class CompanionTerminalTest {
         val shellInfo = ShellInfo().apply {
             interfaceVersion = CompanionShellBackend.INTERFACE_VERSION
             rootfsReady = true
+            runtimeReady = true
             maxSessions = 4
         }
+        val offered = mutableListOf<String>()
         val opened = mutableListOf<Pair<Int, Int>>()
         val resized = mutableListOf<Triple<String, Int, Int>>()
         val closed: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
@@ -234,6 +279,10 @@ class CompanionTerminalTest {
         override fun run(request: RunRequest): RunResult = error("not used")
         override fun openSession(rows: Int, cols: Int): ParcelFileDescriptor = error("not used")
         override fun install(callback: IInstallCallback?): String? = error("not used")
+        override fun installRuntime(callback: IInstallCallback?): String? = error("not used")
+        override fun offerRuntime(version: String, url: String, sha256: String) {
+            offered += version
+        }
         override fun repair(): RunResult = error("not used")
         override fun reset() = error("not used")
         override fun startJob(request: RunRequest): String = error("not used")

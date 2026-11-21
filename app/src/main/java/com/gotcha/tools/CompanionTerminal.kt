@@ -25,10 +25,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * `run_shell`, nothing here is shown to the model; if that ever changes, [ShellOutputGuard] has to
  * come with it.
  */
-class CompanionTerminal(
+class CompanionTerminal internal constructor(
     private val context: Context,
     private val link: CompanionLink = CompanionConnection.get(context),
-    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) }
+    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) },
+    /** Where the runtime comes from; see [offerRuntimeSource]. Injected so tests need no network. */
+    private val runtimeSource: suspend () -> CompanionRuntimeSource.ResolvedSource? =
+        { CompanionRuntimeSource.fetchResolved(context) }
 ) {
 
     /** Why a session could not be opened; the screen turns each into a message of its own. */
@@ -44,6 +47,12 @@ class CompanionTerminal(
 
         /** The Linux system is not installed, or is being installed right now. */
         data class NoLinuxSystem(val installing: Boolean) : Refusal
+
+        /**
+         * The runtime (downloaded on first use, not shipped) is being downloaded, or is missing and
+         * Gotcha could not get a source for it: offline, or the account does not include the shell.
+         */
+        data class NoRuntime(val installing: Boolean) : Refusal
 
         /** The companion's session cap is reached. [limit] is 0 when it did not say. */
         data class TooManySessions(val limit: Int) : Refusal
@@ -68,6 +77,11 @@ class CompanionTerminal(
                 info.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION ->
                     refused(Refusal.TooOld(info.interfaceVersion, CompanionShellBackend.INTERFACE_VERSION))
                 !info.rootfsReady -> refused(Refusal.NoLinuxSystem(info.installing))
+                info.runtimeInstalling -> refused(Refusal.NoRuntime(installing = true))
+                // As for commands: push a source, then open; the companion installs the runtime
+                // before it starts the session. Only a failed push is a refusal.
+                !info.runtimeReady && !offerRuntimeSource(link, runtimeSource) ->
+                    refused(Refusal.NoRuntime(installing = false))
                 else -> Opened.Session(openSession(rows, cols))
             }
         } catch (e: CancellationException) {
