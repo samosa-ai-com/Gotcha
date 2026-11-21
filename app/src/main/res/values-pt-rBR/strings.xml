@@ -1641,4 +1641,37 @@
     <string name="samosa_session_ended">Você saiu do Samosa AI. Entre novamente para continuar usando.</string>
     <string name="samosa_session_deactivated">Esta conta do Samosa AI foi desativada.</string>
     <string name="error_out_of_credits_http_402">Sem créditos (HTTP 402). Adicione créditos para continuar. No Samosa AI: Configurações → Configuração de IA → Adicionar créditos.</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">Terminal</string>
+    <string name="settings_page_linux_terminal_summary">Digite você mesmo comandos no sistema Linux</string>
+    <string name="linux_shell_action_open_terminal">Abrir terminal</string>
+    <string name="linux_shell_terminal_needs_update">O terminal precisa de uma versão mais recente do Gotcha Shell. Atualize o Gotcha Shell para usá-lo.</string>
+    <string name="linux_terminal_opening">Iniciando o terminal…</string>
+    <string name="linux_terminal_ended">A sessão terminou.</string>
+    <string name="linux_terminal_restart">Iniciar uma nova sessão</string>
+    <string name="linux_terminal_retry">Tentar novamente</string>
+    <string name="linux_terminal_more">Mais</string>
+    <string name="linux_terminal_paste">Colar</string>
+    <string name="linux_terminal_reset">Redefinir a tela</string>
+    <string name="linux_terminal_end_session">Encerrar a sessão</string>
+    <string name="linux_terminal_key_up">Seta para cima</string>
+    <string name="linux_terminal_key_down">Seta para baixo</string>
+    <string name="linux_terminal_key_left">Seta para a esquerda</string>
+    <string name="linux_terminal_key_right">Seta para a direita</string>
+    <string name="linux_terminal_refused_signed_out">O shell Linux faz parte do Samosa AI Pro. Entre no Samosa AI para usá-lo.</string>
+    <string name="linux_terminal_refused_not_pro">O shell Linux faz parte do Samosa AI Pro, e esta conta está em outro plano.</string>
+    <string name="linux_terminal_refused_needs_check">O Gotcha não conseguiu confirmar seu plano Samosa AI Pro recentemente. Conecte-se à internet e tente novamente.</string>
+    <string name="linux_terminal_refused_not_installed">O Gotcha Shell não está instalado neste celular.</string>
+    <string name="linux_terminal_refused_untrusted">O Gotcha Shell deste celular não está assinado com a mesma chave do Gotcha, então o Gotcha não vai usá-lo.</string>
+    <string name="linux_terminal_refused_no_answer">O Gotcha Shell não respondeu. Tente novamente em instantes.</string>
+    <string name="linux_terminal_refused_too_old">Este Gotcha Shell é antigo demais para o terminal (ele usa a versão %1$d, o terminal precisa da %2$d). Atualize o Gotcha Shell.</string>
+    <string name="linux_terminal_refused_no_system">O sistema Linux ainda não está instalado. Instale-o em Configurações › Linux shell.</string>
+    <string name="linux_terminal_refused_installing">O sistema Linux ainda está sendo instalado. Tente novamente quando terminar.</string>
+    <string name="linux_terminal_refused_runtime_installing">O Gotcha Shell ainda está baixando seu ambiente de execução Linux. Tente novamente quando terminar.</string>
+    <string name="linux_terminal_refused_runtime_missing">O Gotcha Shell precisa baixar primeiro seu ambiente de execução Linux, e o Gotcha não conseguiu obtê-lo. Verifique a conexão e se sua conta inclui o shell Linux, depois tente novamente.</string>
+    <string name="linux_terminal_refused_too_many">Há sessões de terminal demais abertas (no máximo %1$d). Encerre uma primeiro.</string>
+    <string name="linux_terminal_refused_too_many_unknown">Há sessões de terminal demais abertas. Encerre uma primeiro.</string>
+    <string name="linux_terminal_refused_failed">Não foi possível iniciar o terminal: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">Não foi possível iniciar o terminal.</string>
 </resources>

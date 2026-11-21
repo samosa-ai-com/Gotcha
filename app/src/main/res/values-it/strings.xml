@@ -1641,4 +1641,37 @@
     <string name="samosa_session_ended">Sei stato disconnesso da Samosa AI. Accedi di nuovo per continuare a usarlo.</string>
     <string name="samosa_session_deactivated">Questo account Samosa AI è stato disattivato.</string>
     <string name="error_out_of_credits_http_402">Crediti esauriti (HTTP 402). Aggiungi crediti per continuare. Per Samosa AI: Impostazioni → Configurazione IA → Aggiungi crediti.</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">Terminale</string>
+    <string name="settings_page_linux_terminal_summary">Digita tu stesso i comandi nel sistema Linux</string>
+    <string name="linux_shell_action_open_terminal">Apri terminale</string>
+    <string name="linux_shell_terminal_needs_update">Il terminale richiede una versione più recente di Gotcha Shell. Aggiorna Gotcha Shell per usarlo.</string>
+    <string name="linux_terminal_opening">Avvio del terminale…</string>
+    <string name="linux_terminal_ended">La sessione è terminata.</string>
+    <string name="linux_terminal_restart">Avvia una nuova sessione</string>
+    <string name="linux_terminal_retry">Riprova</string>
+    <string name="linux_terminal_more">Altro</string>
+    <string name="linux_terminal_paste">Incolla</string>
+    <string name="linux_terminal_reset">Reimposta lo schermo</string>
+    <string name="linux_terminal_end_session">Termina la sessione</string>
+    <string name="linux_terminal_key_up">Freccia su</string>
+    <string name="linux_terminal_key_down">Freccia giù</string>
+    <string name="linux_terminal_key_left">Freccia sinistra</string>
+    <string name="linux_terminal_key_right">Freccia destra</string>
+    <string name="linux_terminal_refused_signed_out">La shell Linux fa parte di Samosa AI Pro. Accedi a Samosa AI per usarla.</string>
+    <string name="linux_terminal_refused_not_pro">La shell Linux fa parte di Samosa AI Pro, e questo account ha un altro piano.</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha non è riuscito a confermare di recente il tuo piano Samosa AI Pro. Connettiti a internet e riprova.</string>
+    <string name="linux_terminal_refused_not_installed">Gotcha Shell non è installato su questo telefono.</string>
+    <string name="linux_terminal_refused_untrusted">Il Gotcha Shell su questo telefono non è firmato con la stessa chiave di Gotcha, quindi Gotcha non lo userà.</string>
+    <string name="linux_terminal_refused_no_answer">Gotcha Shell non ha risposto. Riprova tra un momento.</string>
+    <string name="linux_terminal_refused_too_old">Questo Gotcha Shell è troppo vecchio per il terminale (usa la versione %1$d, il terminale richiede la %2$d). Aggiorna Gotcha Shell.</string>
+    <string name="linux_terminal_refused_no_system">Il sistema Linux non è ancora installato. Installalo da Impostazioni › Linux shell.</string>
+    <string name="linux_terminal_refused_installing">Il sistema Linux è ancora in fase di installazione. Riprova quando ha finito.</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell sta ancora scaricando il suo ambiente di esecuzione Linux. Riprova quando ha finito.</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell deve prima scaricare il suo ambiente di esecuzione Linux, e Gotcha non è riuscito a ottenerlo. Controlla la connessione e che il tuo account includa la shell Linux, poi riprova.</string>
+    <string name="linux_terminal_refused_too_many">Ci sono troppe sessioni di terminale aperte (al massimo %1$d). Chiudine prima una.</string>
+    <string name="linux_terminal_refused_too_many_unknown">Ci sono troppe sessioni di terminale aperte. Chiudine prima una.</string>
+    <string name="linux_terminal_refused_failed">Impossibile avviare il terminale: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">Impossibile avviare il terminale.</string>
 </resources>
