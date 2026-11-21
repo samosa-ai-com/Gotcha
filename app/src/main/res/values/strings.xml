@@ -1915,6 +1915,7 @@
     <string name="linux_shell_runtime_downloading">Downloading and verifying. This needs a connection.</string>
     <string name="linux_shell_runtime_missing">Not downloaded yet. It is fetched on first use, then verified before it runs.</string>
     <string name="linux_shell_runtime_unknown">Not checked yet.</string>
+    <string name="linux_shell_runtime_unavailable">Update Gotcha Shell to see this.</string>
     <string name="linux_shell_system_title">Linux system</string>
     <string name="linux_shell_system_unknown">Not checked yet.</string>
     <string name="linux_shell_system_missing">Not installed. Installing downloads about 30 MB.</string>

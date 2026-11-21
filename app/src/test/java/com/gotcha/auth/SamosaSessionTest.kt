@@ -220,6 +220,8 @@ class SamosaSessionTest {
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
+
+            override suspend fun shellRuntime() = ShellRuntimeSource()
         }
 
         val result = SamosaAuthManager(context, store, api).register("google-id-token")
@@ -239,6 +241,7 @@ class SamosaSessionTest {
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
+            override suspend fun shellRuntime() = ShellRuntimeSource()
         }
 
         SamosaAuthManager(context, store, api).register("google-id-token")

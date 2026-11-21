@@ -127,7 +127,13 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
             SetupCheck(
                 title = stringResource(R.string.linux_shell_runtime_title),
                 done = current?.runtimeReady == true,
-                detail = runtimeDetail(current)
+                // A companion older than the runtime fields cannot say, and its row above already
+                // says to update it; claiming "not checked yet" here would be misleading.
+                detail = if (current != null && current.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION) {
+                    stringResource(R.string.linux_shell_runtime_unavailable)
+                } else {
+                    runtimeDetail(current)
+                }
             )
             SetupCheck(
                 title = stringResource(R.string.linux_shell_system_title),

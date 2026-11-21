@@ -143,18 +143,32 @@ class CompanionShellBackendTest {
     // ---- the downloaded runtime ----
 
     @Test
-    fun `a missing runtime is offered the backend source before being reported`() = runTest {
+    fun `a missing runtime is offered the backend source and the call proceeds`() = runTest {
         // The companion cannot fetch the bundle itself: the route is tier-gated and it holds no
-        // session, so Gotcha has to push a source every time the runtime is missing.
+        // session. Refusing the command here would be wrong: startJob is what makes the companion
+        // install the runtime, so the call has to go through for an install ever to happen.
         service.shellInfo.runtimeReady = false
+        service.script(exited(0, stdout = "hi\n"))
 
         val result = runtimeBackend().runCommand("echo hi")
 
-        assertFalse(result.success)
-        assertTrue(result.message, "runtime" in result.message.lowercase())
+        assertTrue(result.message, result.success)
         assertEquals(1, service.offered.size)
         assertEquals("5.1.107.91-1", service.offered.first().version)
-        assertTrue(service.started.isEmpty())
+        assertTrue("the command must reach the companion", service.started.isNotEmpty())
+    }
+
+    @Test
+    fun `a source that cannot be obtained is reported instead of running`() = runTest {
+        // Without a source the companion has nothing to install from, so the command must fail
+        // with an explanation rather than starting and hitting a 401 deep inside the companion.
+        service.shellInfo.runtimeReady = false
+
+        val result = runtimeBackend(source = null).runCommand("echo hi")
+
+        assertFalse(result.success)
+        assertTrue(result.message, "runtime" in result.message.lowercase())
+        assertTrue("nothing to install from, so nothing runs", service.started.isEmpty())
     }
 
     @Test
