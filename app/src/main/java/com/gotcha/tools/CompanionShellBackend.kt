@@ -3,6 +3,8 @@ package com.gotcha.tools
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
+import com.gotcha.auth.SamosaAuthApi
+import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.shell.JobStatus
 import com.gotcha.shell.RunRequest
 import com.gotcha.shell.RunResult
@@ -32,7 +34,13 @@ class CompanionShellBackend(
     private val link: CompanionLink = CompanionConnection.get(context),
     private val defaultTimeoutSeconds: Int = 120,
     private val maxOutputBytes: Int = 32 * 1024,
-    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) }
+    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) },
+    /**
+     * Asks the backend where the runtime bundle is. The companion cannot: the route is tier-gated
+     * and the companion holds no session, so Gotcha fetches the answer and hands it over.
+     * Injected so tests do not need the network.
+     */
+    private val runtimeSource: suspend () -> ShellRuntimeSource? = CompanionShellBackend::fetchRuntimeSource
 ) : ShellBackend {
 
     data class CompanionStatus(
@@ -297,15 +305,36 @@ class CompanionShellBackend(
     private suspend fun ready(): ToolResult? {
         val info = link.call { it.info }
         CompanionShellState.setRootfsReady(context, info.rootfsReady)
+        CompanionShellState.setRuntimeState(context, info.runtimeReady, info.runtimeInstalling)
         return when {
             // Interface changes are additive, so a newer companion still answers every call this
             // build makes. Only an older one can lack a call Gotcha relies on.
             info.interfaceVersion < INTERFACE_VERSION ->
                 CompanionMessages.versionMismatch(info.interfaceVersion, INTERFACE_VERSION)
             !info.rootfsReady -> CompanionMessages.rootfsMissing(info.installing)
+            // The runtime is downloaded, not shipped, and its route is tier-gated: the companion's
+            // own fallback is refused, so it can only install from a source Gotcha pushes.
+            !info.runtimeReady -> {
+                offerRuntime()
+                CompanionMessages.runtimeMissing(info.runtimeInstalling)
+            }
             else -> null
         }
     }
+
+    /**
+     * Fetches the runtime source from the backend and hands it to the companion.
+     *
+     * Best effort and silent on failure: the caller follows with a message that says what is
+     * wrong, and retrying the command asks again. The answer is held by the companion for ten
+     * minutes, so calling this on every command costs one request only when it has expired.
+     */
+    private suspend fun offerRuntime() {
+        val source = runCatching { runtimeSource() }.getOrNull()
+        if (source == null || !source.isUsable()) return
+        runCatching { link.call { it.offerRuntime(source.version, source.url, source.sha256) } }
+    }
+
 
     private fun proRequired(access: ShellEntitlement.Access) = ToolResult.error(
         "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
@@ -355,8 +384,21 @@ class CompanionShellBackend(
     companion object {
         const val ID = "companion"
 
-        /** The Binder interface version this build was compiled against, and the oldest it accepts; see `shell-interface.lock`. */
-        const val INTERFACE_VERSION = 2
+        /**
+         * Asks the backend where the runtime bundle is: one authenticated call, using the session
+         * the interceptor attaches. Null when signed out, offline, or the route refused, and the
+         * caller then reports the runtime as missing rather than retrying.
+         */
+        private suspend fun fetchRuntimeSource(): ShellRuntimeSource? = runCatching {
+            SamosaAuthApi.create().shellRuntime()
+        }.getOrNull()
+
+        /**
+         * The Binder interface version this build was compiled against, and the oldest it accepts;
+         * see `shell-interface.lock`. Changes are additive, so a newer companion still answers
+         * every call made here; this only has to be raised when Gotcha starts using a new call.
+         */
+        const val INTERFACE_VERSION = 6
 
         private const val GUEST_HOME = "/root"
 
@@ -401,8 +443,16 @@ object ShellResultFormat {
  * synchronous paths read it back. A stale "ready" corrects itself on the next command.
  */
 internal object CompanionShellState {
-    private const val PREFS = "companion_shell"
+    /**
+     * Its own file, deliberately. This used to share `companion_shell` with
+     * [ShellEntitlement]'s tier record, so a write here could race one there and lose the
+     * other's keys: the entitlement tests showed exactly that, and a phone would show it as a
+     * Pro account suddenly signed out. The two have nothing in common.
+     */
+    private const val PREFS = "companion_shell_state"
     private const val KEY_ROOTFS_READY = "rootfs_ready"
+    private const val KEY_RUNTIME_READY = "runtime_ready"
+    private const val KEY_RUNTIME_INSTALLING = "runtime_installing"
 
     fun rootfsReady(context: Context): Boolean? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -412,5 +462,23 @@ internal object CompanionShellState {
     fun setRootfsReady(context: Context, ready: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_ROOTFS_READY, ready).apply()
+    }
+
+    /** Whether the downloaded Linux runtime (not the rootfs) is installed. */
+    fun runtimeReady(context: Context): Boolean? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return if (prefs.contains(KEY_RUNTIME_READY)) prefs.getBoolean(KEY_RUNTIME_READY, false) else null
+    }
+
+    /** Whether the runtime is being downloaded right now, so Settings can show progress. */
+    fun runtimeInstalling(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_RUNTIME_INSTALLING, false)
+
+    fun setRuntimeState(context: Context, ready: Boolean, installing: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_RUNTIME_READY, ready)
+            .putBoolean(KEY_RUNTIME_INSTALLING, installing)
+            .apply()
     }
 }

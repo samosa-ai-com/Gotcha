@@ -120,6 +120,15 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
 
         val current = info
         if (identity.installed && identity.trusted) {
+            // The runtime is part of the companion but is downloaded on first use rather than
+            // shipped, so it has its own row: a user can have the Linux system and not the
+            // runtime, and the fix for each is different. There is no button: Gotcha pushes the
+            // source when a command needs it, and the download runs in the companion.
+            SetupCheck(
+                title = stringResource(R.string.linux_shell_runtime_title),
+                done = current?.runtimeReady == true,
+                detail = runtimeDetail(current)
+            )
             SetupCheck(
                 title = stringResource(R.string.linux_shell_system_title),
                 done = current?.rootfsReady == true,
@@ -266,6 +275,14 @@ private fun appDetail(identity: CompanionIdentity, info: ShellInfo?): String = w
         identity.versionName.orEmpty(),
         FileResolver.formatSizeStatic(info.dataBytes)
     )
+}
+
+@Composable
+private fun runtimeDetail(info: ShellInfo?): String = when {
+    info == null -> stringResource(R.string.linux_shell_runtime_unknown)
+    info.runtimeInstalling -> stringResource(R.string.linux_shell_runtime_downloading)
+    info.runtimeReady -> stringResource(R.string.linux_shell_runtime_ready)
+    else -> stringResource(R.string.linux_shell_runtime_missing)
 }
 
 @Composable

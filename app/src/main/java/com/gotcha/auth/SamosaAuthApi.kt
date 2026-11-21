@@ -155,6 +155,21 @@ data class ClaimReferralResponse(
     @SerialName("credits_remaining") val creditsRemaining: Double? = null
 )
 
+/** Response from GET /gotcha/shell/runtime/latest. */
+@Serializable
+data class ShellRuntimeSource(
+    /** For example "5.1.107.91-1". The companion compares it with its own pinned version. */
+    val version: String = "",
+    /** Absolute https URL to the bundle. Expires; ask again rather than reusing it. */
+    val url: String = "",
+    /** SHA-256 of the bundle, 64 lowercase hex characters. Must equal the companion's pin. */
+    val sha256: String = ""
+) {
+    /** Whether this answer is worth passing on. A partial one would only fail in the companion. */
+    fun isUsable(): Boolean =
+        version.isNotBlank() && url.startsWith("https://") && sha256.length == 64
+}
+
 /**
  * Samosa AI auth endpoints (base URL [AUTH_BASE_URL], from BuildConfig).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
@@ -180,6 +195,18 @@ interface SamosaAuthApi {
     /** Same answer as [register]: the session pair and the user. */
     @POST("oauth/token")
     suspend fun exchangeCode(@Body body: OAuthTokenRequest): RegisterResponse
+
+    /**
+     * Where the companion should fetch its Linux runtime from. The route is tier-gated and the
+     * interceptor attaches the session, so an anonymous call would be refused: Gotcha is the only
+     * issuer and passes the answer on with `offerRuntime`.
+     *
+     * The companion pins the SHA-256 of the runtime in its own APK, so this answer can choose
+     * where the bytes come from but never which bytes they are. A checksum that disagrees is a
+     * build-skew bug, not something to retry.
+     */
+    @GET("gotcha/shell/runtime/latest")
+    suspend fun shellRuntime(): ShellRuntimeSource
 
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */

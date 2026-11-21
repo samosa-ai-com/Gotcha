@@ -4,11 +4,13 @@ import android.content.Context
 import android.os.DeadObjectException
 import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.shell.IInstallCallback
 import com.gotcha.shell.IShellService
 import com.gotcha.shell.JobStatus
 import com.gotcha.shell.RunRequest
 import com.gotcha.shell.RunResult
+import com.gotcha.shell.SessionHandle
 import com.gotcha.shell.ShellInfo
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import kotlinx.coroutines.CancellationException
@@ -137,6 +139,48 @@ class CompanionShellBackendTest {
         assertEquals(false, backend.status().rootfsReady)
         assertTrue(service.started.isEmpty())
     }
+
+    // ---- the downloaded runtime ----
+
+    @Test
+    fun `a missing runtime is offered the backend source before being reported`() = runTest {
+        // The companion cannot fetch the bundle itself: the route is tier-gated and it holds no
+        // session, so Gotcha has to push a source every time the runtime is missing.
+        service.shellInfo.runtimeReady = false
+
+        val result = runtimeBackend().runCommand("echo hi")
+
+        assertFalse(result.success)
+        assertTrue(result.message, "runtime" in result.message.lowercase())
+        assertEquals(1, service.offered.size)
+        assertEquals("5.1.107.91-1", service.offered.first().version)
+        assertTrue(service.started.isEmpty())
+    }
+
+    @Test
+    fun `a partial runtime answer is not pushed`() = runTest {
+        service.shellInfo.runtimeReady = false
+        val result = runtimeBackend(ShellRuntimeSource(version = "1", url = "http://x", sha256 = "short"))
+            .runCommand("echo hi")
+        assertFalse(result.success)
+        assertTrue("a partial answer would only fail in the companion", service.offered.isEmpty())
+    }
+
+    @Test
+    fun `an installed runtime is not offered again`() = runTest {
+        service.script(exited(0, stdout = "hi\n"))
+        val result = runtimeBackend().runCommand("echo hi")
+        assertTrue(result.message, result.success)
+        assertTrue("no source is fetched when it is already installed", service.offered.isEmpty())
+    }
+
+    private fun runtimeBackend(
+        source: ShellRuntimeSource? = ShellRuntimeSource(
+            version = "5.1.107.91-1",
+            url = "https://api.samosa-ai.com/gotcha/shell/runtime/tok",
+            sha256 = "d68b054711b30eda10fa232de4597838a8a790a3274e1008b9af21bba6da459e",
+        )
+    ) = CompanionShellBackend(context, link, access = { access }, runtimeSource = { source })
 
     @Test
     fun `a caller the companion refuses is reported, not retried`() = runTest {
@@ -377,6 +421,8 @@ class CompanionShellBackendTest {
         val shellInfo = ShellInfo().apply {
             interfaceVersion = CompanionShellBackend.INTERFACE_VERSION
             rootfsReady = true
+            // The runtime is downloaded on first use; these tests are about everything after it.
+            runtimeReady = true
         }
         var infoFailure: RuntimeException? = null
         var startFailure: RuntimeException? = null
@@ -466,5 +512,34 @@ class CompanionShellBackendTest {
         override fun install(callback: IInstallCallback?): String? = null
         override fun repair(): RunResult = result(0)
         override fun reset() = Unit
+
+        /** Version 3, taken with the interface copy: pty sessions with an explicit id. */
+        val resized = mutableListOf<String>()
+        val closed = mutableListOf<String>()
+
+        override fun openSessionHandle(rows: Int, cols: Int): SessionHandle = error("not used")
+
+        override fun resizeSession(sessionId: String, rows: Int, cols: Int): Boolean {
+            resized += sessionId
+            return true
+        }
+
+        override fun closeSession(sessionId: String): Boolean {
+            closed += sessionId
+            return true
+        }
+
+        /** What Gotcha offered, so a test can assert the push instead of only stubbing it. */
+        data class Offered(val version: String, val url: String, val sha256: String)
+
+        val offered = mutableListOf<Offered>()
+        var offerFailure: RuntimeException? = null
+
+        override fun installRuntime(callback: IInstallCallback?): String? = null
+
+        override fun offerRuntime(version: String, url: String, sha256: String) {
+            offerFailure?.let { throw it }
+            offered += Offered(version, url, sha256)
+        }
     }
 }

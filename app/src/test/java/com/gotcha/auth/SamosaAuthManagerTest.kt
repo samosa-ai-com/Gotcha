@@ -48,6 +48,8 @@ class SamosaAuthManagerTest {
         var lastClaimRequest: ClaimReferralRequest? = null
         var lastMeBearer: String? = null
 
+        override suspend fun shellRuntime(): ShellRuntimeSource = ShellRuntimeSource()
+
         override suspend fun register(body: RegisterRequest): RegisterResponse {
             lastRegisterRequest = body
             return registerResponse

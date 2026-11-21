@@ -77,8 +77,23 @@ internal object CompanionMessages {
         }
     )
 
-    fun tooManyJobs() = ToolResult.error(
-        "Gotcha Shell is already running its maximum number of commands. Wait for one to finish before " +
+    /**
+     * The runtime is part of the companion but is downloaded on first use rather than shipped, so
+     * this can be missing on a companion whose Linux system is not. It needs the network and a
+     * signed-in Pro account, which is why the wording points at Settings rather than retrying.
+     */
+    fun runtimeMissing(installing: Boolean) = ToolResult.error(
+        if (installing) {
+            "Gotcha Shell is still downloading its Linux runtime. Wait for it to finish (progress is " +
+                "shown in $SETTINGS_PAGE), then try again. Do not retry in a loop."
+        } else {
+            "Gotcha Shell has its Linux system but not the runtime it runs on, which is downloaded " +
+                "on first use. Tell the user to open $SETTINGS_PAGE and tap Install. It needs a " +
+                "connection, and the account must include the shell."
+        }
+    )
+
+    fun tooManyJobs() = ToolResult.error(        "Gotcha Shell is already running its maximum number of commands. Wait for one to finish before " +
             "starting another; do not retry in a loop."
     )
 

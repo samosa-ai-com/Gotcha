@@ -13,6 +13,7 @@
     <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
     <string name="legal_consent_section_privacy" translatable="false">Data Retention and Privacy Policy</string>
+    <string name="legal_consent_section_third_party" translatable="false">Third-party notices</string>
     <string name="legal_consent_loading" translatable="false">(loading…)</string>
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
@@ -1909,6 +1910,11 @@
     <string name="linux_shell_app_unreachable">Gotcha Shell %1$s is installed, but it did not answer. If your phone has an Autostart setting, allow it for Gotcha Shell, then come back to this page.</string>
     <string name="linux_shell_app_too_old">Gotcha Shell %1$s is too old for this version of Gotcha. Update Gotcha Shell.</string>
     <string name="linux_shell_app_installed">Gotcha Shell %1$s is installed and uses %2$s of storage.</string>
+    <string name="linux_shell_runtime_title">Linux runtime</string>
+    <string name="linux_shell_runtime_ready">Installed and verified.</string>
+    <string name="linux_shell_runtime_downloading">Downloading and verifying. This needs a connection.</string>
+    <string name="linux_shell_runtime_missing">Not downloaded yet. It is fetched on first use, then verified before it runs.</string>
+    <string name="linux_shell_runtime_unknown">Not checked yet.</string>
     <string name="linux_shell_system_title">Linux system</string>
     <string name="linux_shell_system_unknown">Not checked yet.</string>
     <string name="linux_shell_system_missing">Not installed. Installing downloads about 30 MB.</string>
