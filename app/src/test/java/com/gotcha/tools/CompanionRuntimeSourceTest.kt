@@ -128,9 +128,12 @@ class CompanionRuntimeSourceTest {
 
                 // B, which never failed, may still fetch even though A's rejection came later.
                 assertNotNull(CompanionRuntimeSource.fetch(context, base))
-                // A, whose offer failed, is the one cooling down.
+                // A, whose offer failed, is the one cooling down. Assert the request count too:
+                // a 404 from an empty MockWebServer queue also yields null, so null alone would
+                // not prove the fetch was suppressed rather than merely failing.
                 signIn("token-a")
                 assertNull(CompanionRuntimeSource.fetch(context, base))
+                assertEquals("A's cooled-down fetch must not reach the route", 3, server.requestCount)
             } finally {
                 server.shutdown()
             }
