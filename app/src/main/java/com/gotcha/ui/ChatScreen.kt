@@ -142,7 +142,8 @@ fun ChatScreen(
     chatKeptOutOfNotifications: Boolean = false,
     onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {},
     protectionsSkipped: Boolean = false,
-    onSetProtectionsSkipped: (Boolean) -> Unit = {}
+    onSetProtectionsSkipped: (Boolean) -> Unit = {},
+    onDismissUpsell: () -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -556,6 +557,19 @@ fun ChatScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
+
+            // What the last run ran into that Samosa AI or Pro would answer.
+            val upsell = state.upsell?.takeIf { it.sessionId == state.activeSessionId && !state.isBusy }
+            if (upsell != null) {
+                val openUpsell = LocalUpsell.current
+                UpsellCard(
+                    audience = upsell.audience,
+                    reason = upsell.reason,
+                    onOpen = { openUpsell(upsell.reason) },
+                    onDismiss = onDismissUpsell,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
             }
 
             // Once per run: the user may leave Gotcha while it works (issue #96).

@@ -2462,6 +2462,12 @@ object ToolDefinitions {
         }
     )
 
+    val offerLinuxShell = tool(
+        ShellTools.OFFER,
+        ShellTools.OFFER_DESCRIPTION,
+        schema { putJsonObject("properties") {} }
+    )
+
     val runShell = tool(
         ShellTools.RUN,
         ShellTools.RUN_DESCRIPTION,
@@ -3139,7 +3145,7 @@ object ToolDefinitions {
         lockScreen, disableCamera, setPasswordPolicy,
 
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, runShell, writeSecureSettings,
+        checkRoot, runRootCommand, runShell, offerLinuxShell, writeSecureSettings,
 
         searchSkills,
 

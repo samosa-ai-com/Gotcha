@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DividerDefaults
@@ -78,6 +80,9 @@ fun AppDrawerContent(
     onOpenConnectors: () -> Unit,
     onOpenScheduledTasks: () -> Unit = {},
     onOpenSecondBrain: () -> Unit = {},
+    /** Who the Samosa AI / Pro door speaks to; [com.gotcha.upsell.UpsellAudience.NONE] hides it. */
+    upsellAudience: com.gotcha.upsell.UpsellAudience = com.gotcha.upsell.UpsellAudience.NONE,
+    onOpenUpsell: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -265,6 +270,21 @@ fun AppDrawerContent(
                 onClick = onOpenSettings,
                 modifier = Modifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
+            if (upsellAudience != com.gotcha.upsell.UpsellAudience.NONE) {
+                val pro = upsellAudience == com.gotcha.upsell.UpsellAudience.PRO
+                FeatureRow(
+                    label = stringResource(if (pro) R.string.upsell_drawer_pro else R.string.upsell_drawer_samosa),
+                    icon = {
+                        Icon(
+                            if (pro) Icons.Outlined.WorkspacePremium else Icons.Outlined.Bolt,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    onClick = onOpenUpsell,
+                    modifier = Modifier.testTag("drawer_upsell")
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
         }
     }

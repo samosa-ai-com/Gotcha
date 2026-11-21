@@ -13,6 +13,9 @@ object ShellTools {
     const val RUN = "run_shell"
     const val PULL = "pull_from_shell"
 
+    /** Offered instead of [RUN] when this account has no Linux shell; see [OFFER_DESCRIPTION]. */
+    const val OFFER = "offer_linux_shell"
+
     /** The guest path argument of [PULL], and the name it had when the tool was Termux-only. */
     const val PULL_PATH = "path"
     const val PULL_PATH_LEGACY = "termux_path"
@@ -47,6 +50,14 @@ object ShellTools {
             "input (an install without -y, ssh password, read, mysql>) blocks until the timeout. " +
             "Always pass -y / --yes / -q where the tool supports them. Output is capped at 32KB; for " +
             "larger output, redirect to a file and read the part you need."
+
+    /** What [OFFER] is for. The app shows the user how to get the shell; the model explains why. */
+    const val OFFER_DESCRIPTION =
+        "Show the user how to get Gotcha's built-in Linux shell, which this phone does not have " +
+            "yet (it comes with Samosa AI Pro). Call it once when the user asks for something that " +
+            "needs a real Linux shell and run_shell is not offered: running a Python or other " +
+            "script, installing packages, git, ssh, compiling, or Linux tools like ffmpeg or " +
+            "yt-dlp. Do not call it for things other tools can do, and not more than once in a chat."
 
     /** What [PULL] does on every backend. */
     const val PULL_DESCRIPTION =

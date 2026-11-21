@@ -1596,4 +1596,37 @@
     <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>
     <string name="samosa_session_deactivated">此 Samosa AI 账号已停用。</string>
     <string name="error_out_of_credits_http_402">额度已用完 (HTTP 402)。请添加额度后继续。Samosa AI：设置 → AI 配置 → 添加额度。</string>
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa AI Pro</string>
+    <string name="upsell_pro_lead_shell">运行 Linux 命令需要 Gotcha 内置的 Linux shell，它包含在 Samosa AI Pro 中。</string>
+    <string name="upsell_pro_lead_limits">你目前已达到当前套餐的上限。Pro 提供更高的上限，让你继续使用。</string>
+    <string name="upsell_pro_lead_value">你正在用 Gotcha 完成很多事情。Pro 能让它发挥更大作用。</string>
+    <string name="upsell_pro_lead_general">使用 Samosa AI Pro，让 Gotcha 发挥更多作用。</string>
+    <string name="upsell_pro_feature_shell">内置 Linux shell：在聊天或终端中运行真正的 Linux 命令</string>
+    <string name="upsell_pro_feature_models">更强大的模型</string>
+    <string name="upsell_pro_feature_limits">更高的上限</string>
+    <string name="upsell_pro_feature_early">抢先体验新功能</string>
+    <string name="upsell_pro_footnote">套餐位于你的 Samosa AI 账号页面。完成后回到 Gotcha，即可使用 Pro。</string>
+    <string name="upsell_pro_action">获取 Pro</string>
+    <string name="upsell_pro_see">了解 Pro</string>
+    <string name="upsell_samosa_title">了解 Samosa AI</string>
+    <string name="upsell_samosa_lead_shell">Gotcha 内置的 Linux shell 包含在 Samosa AI Pro 中。先从一个 Samosa AI 账号开始。</string>
+    <string name="upsell_samosa_lead_limits">你的 AI 服务商暂时没有响应。Samosa AI 无需你自己的 API 密钥即可使用。</string>
+    <string name="upsell_samosa_lead_general">Samosa AI 是开发 Gotcha 的团队专为 Gotcha 打造的 AI 服务。</string>
+    <string name="upsell_samosa_feature_no_key">无需管理 API 密钥：登录即可使用</string>
+    <string name="upsell_samosa_feature_credits">免费额度助你起步</string>
+    <string name="upsell_samosa_feature_tuned">为 Gotcha 精选并配置的模型</string>
+    <string name="upsell_samosa_feature_pro">需要更多时选择 Pro：Linux shell、更强大的模型和更高的上限</string>
+    <string name="upsell_samosa_footnote">你可以随时在 AI 配置中更换 AI 服务商。</string>
+    <string name="upsell_samosa_action">试用 Samosa AI</string>
+    <string name="upsell_samosa_see">了解 Samosa AI</string>
+    <string name="upsell_not_now">以后再说</string>
+    <string name="upsell_settings_plan">你当前使用的是 %1$s 套餐。Pro 增加了 Linux shell、更强大的模型和更高的上限。</string>
+    <string name="upsell_settings_switch">切换到 Samosa AI</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_samosa">了解 Samosa AI</string>
+    <string name="upsell_welcome_title">欢迎使用 Pro</string>
+    <string name="upsell_welcome_text">你的 Samosa AI Pro 套餐已生效：Linux shell、更强大的模型和更高的上限已为你准备就绪。</string>
+    <string name="upsell_welcome_shell">设置 Linux shell</string>
+    <string name="upsell_welcome_later">稍后</string>
 </resources>

@@ -256,6 +256,16 @@ fun AiConfigScreen(
             }
         }
 
+        if (provider == LlmProvider.OPENAI_COMPATIBLE && samosaToken.isBlank()) {
+            // Someone on their own key: Samosa AI, one tap from the picker above.
+            UpsellCard(
+                audience = com.gotcha.upsell.UpsellAudience.DISCOVER_SAMOSA,
+                reason = com.gotcha.upsell.UpsellReason.GENERAL,
+                onOpen = { provider = LlmProvider.SAMOSA_AI },
+                actionLabel = R.string.upsell_settings_switch
+            )
+        }
+
         if (provider == LlmProvider.SAMOSA_AI) {
             // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
             SamosaAuthSection(

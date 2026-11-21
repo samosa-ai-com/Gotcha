@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 34 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 35 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **122** | |
+| **Total** | **123** | |
 
-**58 of 122** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**59 of 123** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -144,6 +144,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |
 | `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting, including database titles and title-column definitions with an object title |
 | `notion_update_page` | `UNIT` | `NotionToolsMutationTest` — property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping |
+| `offer_linux_shell` | `ROBOLECTRIC` | `LinuxShellOfferTest` — returns the SHELL nudge flag the engine passes to the chat, is offered in Monitor, and is offered only when no shell can run and the account is signed out or not on Pro. The card under the chat is checked by hand |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |

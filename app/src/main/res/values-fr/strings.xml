@@ -1641,4 +1641,37 @@
     <string name="samosa_session_ended">Vous avez été déconnecté de Samosa AI. Reconnectez-vous pour continuer à l\'utiliser.</string>
     <string name="samosa_session_deactivated">Ce compte Samosa AI a été désactivé.</string>
     <string name="error_out_of_credits_http_402">Plus de crédits (HTTP 402). Ajoutez des crédits pour continuer. Pour Samosa AI : Paramètres → Configuration de l\'IA → Ajouter des crédits.</string>
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa AI Pro</string>
+    <string name="upsell_pro_lead_shell">Exécuter des commandes Linux nécessite le shell Linux intégré de Gotcha, inclus avec Samosa AI Pro.</string>
+    <string name="upsell_pro_lead_limits">Vous avez atteint la limite de votre forfait pour le moment. Pro offre des limites plus élevées pour continuer.</string>
+    <string name="upsell_pro_lead_value">Vous accomplissez beaucoup avec Gotcha. Pro lui donne encore plus de moyens.</string>
+    <string name="upsell_pro_lead_general">Tirez davantage de Gotcha avec Samosa AI Pro.</string>
+    <string name="upsell_pro_feature_shell">Un shell Linux intégré : de vraies commandes Linux, depuis le chat ou le terminal</string>
+    <string name="upsell_pro_feature_models">Des modèles plus performants</string>
+    <string name="upsell_pro_feature_limits">Des limites plus élevées</string>
+    <string name="upsell_pro_feature_early">Un accès anticipé aux nouvelles fonctionnalités</string>
+    <string name="upsell_pro_footnote">Les forfaits se trouvent sur la page de votre compte Samosa AI. Revenez ensuite dans Gotcha : Pro sera prêt.</string>
+    <string name="upsell_pro_action">Passer à Pro</string>
+    <string name="upsell_pro_see">Voir Pro</string>
+    <string name="upsell_samosa_title">Découvrir Samosa AI</string>
+    <string name="upsell_samosa_lead_shell">Le shell Linux intégré de Gotcha est inclus avec Samosa AI Pro. Tout commence par un compte Samosa AI.</string>
+    <string name="upsell_samosa_lead_limits">Votre fournisseur d\'IA ne répond plus pour le moment. Samosa AI fonctionne sans clé d\'API personnelle.</string>
+    <string name="upsell_samosa_lead_general">Samosa AI est le service d\'IA conçu pour Gotcha, par l\'équipe qui le développe.</string>
+    <string name="upsell_samosa_feature_no_key">Aucune clé d\'API à gérer : connectez-vous et c\'est parti</string>
+    <string name="upsell_samosa_feature_credits">Des crédits gratuits pour commencer</string>
+    <string name="upsell_samosa_feature_tuned">Des modèles choisis et configurés pour Gotcha</string>
+    <string name="upsell_samosa_feature_pro">Pro quand vous voulez plus : le shell Linux, des modèles plus performants et des limites plus élevées</string>
+    <string name="upsell_samosa_footnote">Vous pouvez changer de fournisseur d\'IA à tout moment dans Configuration de l\'IA.</string>
+    <string name="upsell_samosa_action">Essayer Samosa AI</string>
+    <string name="upsell_samosa_see">Découvrir Samosa AI</string>
+    <string name="upsell_not_now">Pas maintenant</string>
+    <string name="upsell_settings_plan">Vous avez le forfait %1$s. Pro ajoute le shell Linux, des modèles plus performants et des limites plus élevées.</string>
+    <string name="upsell_settings_switch">Passer à Samosa AI</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_samosa">Découvrir Samosa AI</string>
+    <string name="upsell_welcome_title">Bienvenue dans Pro</string>
+    <string name="upsell_welcome_text">Votre forfait Samosa AI Pro est actif : le shell Linux, des modèles plus performants et des limites plus élevées sont à vous.</string>
+    <string name="upsell_welcome_shell">Configurer le shell Linux</string>
+    <string name="upsell_welcome_later">Plus tard</string>
 </resources>
