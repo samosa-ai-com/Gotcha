@@ -1939,6 +1939,9 @@
     <string name="linux_shell_phase_verify">Checking the download…</string>
     <string name="linux_shell_phase_extract">Unpacking…</string>
     <string name="linux_shell_phase_configure">Setting up…</string>
+    <string name="linux_shell_phase_download_runtime">Downloading the runtime…</string>
+    <string name="linux_shell_phase_verify_runtime">Checking the runtime…</string>
+    <string name="linux_shell_phase_install_runtime">Installing the runtime…</string>
     <plurals name="scheduled_retries">
         <item quantity="one">Retry %1$d time</item>
         <item quantity="other">Retry %1$d times</item>

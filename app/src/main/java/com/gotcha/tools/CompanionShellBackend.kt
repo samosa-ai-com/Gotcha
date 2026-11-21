@@ -39,7 +39,7 @@ class CompanionShellBackend(
      * and the companion holds no session, so Gotcha fetches the answer and hands it over.
      * Injected so tests do not need the network.
      */
-    private val runtimeSource: suspend () -> ShellRuntimeSource? = { CompanionRuntimeSource.fetch() }
+    private val runtimeSource: suspend () -> ShellRuntimeSource? = { CompanionRuntimeSource.fetch(context) }
 ) : ShellBackend {
 
     data class CompanionStatus(
@@ -304,7 +304,6 @@ class CompanionShellBackend(
     private suspend fun ready(): ToolResult? {
         val info = link.call { it.info }
         CompanionShellState.setRootfsReady(context, info.rootfsReady)
-        CompanionShellState.setRuntimeState(context, info.runtimeReady, info.runtimeInstalling)
         return when {
             // Interface changes are additive, so a newer companion still answers every call this
             // build makes. Only an older one can lack a call Gotcha relies on.
@@ -315,7 +314,9 @@ class CompanionShellBackend(
             // cannot fetch it itself: push a source, then let the call through. startJob is what
             // makes the companion install it, so refusing here would mean it never gets installed.
             // Only a failed push is fatal, because then the companion has nothing to install from.
-            !info.runtimeReady -> if (offerRuntime()) null else runtimeMissing(info.runtimeInstalling)
+            // A download already underway needs no new push: the companion holds the answer.
+            info.runtimeInstalling -> runtimeMissing(installing = true)
+            !info.runtimeReady -> if (offerRuntime()) null else runtimeMissing(installing = false)
             else -> null
         }
     }
@@ -329,11 +330,6 @@ class CompanionShellBackend(
      * one request only when it has expired.
      */
     private suspend fun offerRuntime(): Boolean {
-        // The backend allows 12 of these an hour. A user retrying a failing command would burn
-        // through that in a minute, so a recent failure is not retried for a while: the answer
-        // would be the same, and the cached profile is worth more than an extra request.
-        val now = System.currentTimeMillis()
-        if (now - lastOfferFailureAt < OFFER_RETRY_DELAY_MS) return false
         // CancellationException is not a failure to swallow: stopping a turn must stay a stop,
         // which is why the rest of this class rethrows it explicitly.
         val source = try {
@@ -343,10 +339,7 @@ class CompanionShellBackend(
         } catch (_: Exception) {
             null
         }
-        if (source == null || !source.isUsable()) {
-            lastOfferFailureAt = now
-            return false
-        }
+        if (source == null || !source.isUsable()) return false
         return try {
             link.call { it.offerRuntime(source.version, source.url, source.sha256) }
             true
@@ -354,7 +347,6 @@ class CompanionShellBackend(
             throw e
         } catch (_: Exception) {
             // The companion refused the offer; report it rather than letting the command hang.
-            lastOfferFailureAt = now
             false
         }
     }
@@ -367,7 +359,9 @@ class CompanionShellBackend(
     /**
      * The runtime is part of the companion but is downloaded on first use rather than shipped, and
      * Gotcha could not obtain a source for it. That needs a connection and an account that
-     * includes the shell, which is why this points at Settings rather than asking for a retry.
+     * includes the shell. There is no runtime row to act on in Settings: the download runs in
+     * the companion the next time a command goes through, so the fix is to be online and
+     * entitled, then retry the command.
      */
     private fun runtimeMissing(installing: Boolean) = ToolResult.error(
         if (installing) {
@@ -375,8 +369,9 @@ class CompanionShellBackend(
                 "shown in Settings ▸ Linux shell), then try again. Do not retry in a loop."
         } else {
             "Gotcha Shell has its Linux system but not the runtime it runs on, which is downloaded " +
-                "on first use. Tell the user to open Settings ▸ Linux shell and tap Install. It needs " +
-                "a connection, and the account must include the shell."
+                "on first use. Check the connection and that the account includes the shell, then " +
+                "run the command again: Gotcha fetches the source automatically and the companion " +
+                "installs it before running."
         }
     )
 
@@ -422,10 +417,6 @@ class CompanionShellBackend(
         else -> path
     }
 
-    /** Milliseconds at which a source fetch last failed; see [OFFER_RETRY_DELAY_MS]. */
-    @Volatile
-    private var lastOfferFailureAt = 0L
-
     companion object {
         const val ID = "companion"
 
@@ -435,9 +426,6 @@ class CompanionShellBackend(
          * every call made here; this only has to be raised when Gotcha starts using a new call.
          */
         const val INTERFACE_VERSION = 6
-
-        /** How long a failed source fetch is remembered, to stay inside the backend's rate limit. */
-        private const val OFFER_RETRY_DELAY_MS = 60_000L
 
         private const val GUEST_HOME = "/root"
 
@@ -494,8 +482,6 @@ internal object CompanionShellState {
     private fun prefs(context: Context) =
         (context.applicationContext ?: context).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private const val KEY_ROOTFS_READY = "rootfs_ready"
-    private const val KEY_RUNTIME_READY = "runtime_ready"
-    private const val KEY_RUNTIME_INSTALLING = "runtime_installing"
 
     fun rootfsReady(context: Context): Boolean? {
         val prefs = prefs(context)
@@ -504,22 +490,5 @@ internal object CompanionShellState {
 
     fun setRootfsReady(context: Context, ready: Boolean) {
         prefs(context).edit().putBoolean(KEY_ROOTFS_READY, ready).apply()
-    }
-
-    /** Whether the downloaded Linux runtime (not the rootfs) is installed. */
-    fun runtimeReady(context: Context): Boolean? {
-        val prefs = prefs(context)
-        return if (prefs.contains(KEY_RUNTIME_READY)) prefs.getBoolean(KEY_RUNTIME_READY, false) else null
-    }
-
-    /** Whether the runtime is being downloaded right now, so Settings can show progress. */
-    fun runtimeInstalling(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_RUNTIME_INSTALLING, false)
-
-    fun setRuntimeState(context: Context, ready: Boolean, installing: Boolean) {
-        prefs(context).edit()
-            .putBoolean(KEY_RUNTIME_READY, ready)
-            .putBoolean(KEY_RUNTIME_INSTALLING, installing)
-            .apply()
     }
 }

@@ -311,6 +311,9 @@ private fun InstallProgressBar(progress: InstallProgress) {
             "download" -> R.string.linux_shell_phase_download
             "verify" -> R.string.linux_shell_phase_verify
             "extract" -> R.string.linux_shell_phase_extract
+            "download-runtime" -> R.string.linux_shell_phase_download_runtime
+            "verify-runtime" -> R.string.linux_shell_phase_verify_runtime
+            "install-runtime" -> R.string.linux_shell_phase_install_runtime
             else -> R.string.linux_shell_phase_configure
         }
     )

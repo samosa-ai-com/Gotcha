@@ -81,8 +81,9 @@ All notable changes to Gotcha are documented here.
   (interface 3, which had never been taken), `installRuntime` with progress,
   `offerRuntime`, and the runtime fields on `ShellInfo`. Interface changes are
   additive, so as before a newer companion is accepted.
-- When the shell's runtime is missing, the message says it is downloaded on
-  first use and needs a connection and an account that includes the shell,
+- When the shell's runtime is missing, Gotcha fetches the download source and the
+  command proceeds so the companion installs it; only a failed fetch reports the
+  miss, saying it needs a connection and an account that includes the shell,
   rather than failing with a version or rootfs error.
 
 ### Fixed

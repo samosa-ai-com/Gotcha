@@ -208,6 +208,6 @@ class FeedbackChannelTest {
         ): ClaimReferralResponse = ClaimReferralResponse()
         override suspend fun logout(bearer: String) = Unit
 
-        override suspend fun shellRuntime(): ShellRuntimeSource = ShellRuntimeSource()
+        override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
     }
 }

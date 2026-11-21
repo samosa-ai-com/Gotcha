@@ -165,9 +165,13 @@ data class ShellRuntimeSource(
     /** SHA-256 of the bundle, 64 lowercase hex characters. Must equal the companion's pin. */
     val sha256: String = ""
 ) {
-    /** Whether this answer is worth passing on. A partial one would only fail in the companion. */
+    /**
+     * Whether this answer is worth passing on. A partial one would only fail in the companion,
+     * whose own check also requires 64 lowercase hex characters.
+     */
     fun isUsable(): Boolean =
-        version.isNotBlank() && url.startsWith("https://") && sha256.length == 64
+        version.isNotBlank() && url.startsWith("https://") &&
+            sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' }
 }
 
 /**
@@ -197,16 +201,16 @@ interface SamosaAuthApi {
     suspend fun exchangeCode(@Body body: OAuthTokenRequest): RegisterResponse
 
     /**
-     * Where the companion should fetch its Linux runtime from. The route is tier-gated and the
-     * interceptor attaches the session, so an anonymous call would be refused: Gotcha is the only
-     * issuer and passes the answer on with `offerRuntime`.
+     * Where the companion should fetch its Linux runtime from. The route is tier-gated, so the
+     * call needs the account session: pass it explicitly like [me] does, because the interceptor
+     * leaves a request with no bearer token alone instead of attaching one.
      *
      * The companion pins the SHA-256 of the runtime in its own APK, so this answer can choose
      * where the bytes come from but never which bytes they are. A checksum that disagrees is a
      * build-skew bug, not something to retry.
      */
     @GET("gotcha/shell/runtime/latest")
-    suspend fun shellRuntime(): ShellRuntimeSource
+    suspend fun shellRuntime(@Header("Authorization") bearer: String): ShellRuntimeSource
 
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */

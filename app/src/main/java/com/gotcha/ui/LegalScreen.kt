@@ -74,8 +74,8 @@ fun LegalScreen(
         LegalSection(label = stringResource(R.string.legal_consent_section_terms), markdown = termsText)
         LegalSection(label = stringResource(R.string.legal_consent_section_disclaimer), markdown = disclaimerText)
         LegalSection(label = stringResource(R.string.legal_consent_section_privacy), markdown = privacyText)
-        // Apache-2.0 requires Apache Commons Compress's notice to be reproduced, and it is
-        // bundled in the APK. Gotcha Shell's runtime is not bundled, so its notices live there.
+        // Apache-2.0 requires Apache Commons Compress's notice to be reproduced, and the
+        // companion's APK is where that library is bundled, so its notice travels with it.
         LegalSection(label = stringResource(R.string.legal_consent_section_third_party), markdown = noticesText)
 
         HorizontalDivider(thickness = 1.dp)

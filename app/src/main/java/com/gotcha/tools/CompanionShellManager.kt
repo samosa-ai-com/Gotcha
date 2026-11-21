@@ -29,7 +29,7 @@ class CompanionShellManager(
      */
     private suspend fun offerRuntime() {
         val source = try {
-            CompanionRuntimeSource.fetch()
+            CompanionRuntimeSource.fetch(context)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
