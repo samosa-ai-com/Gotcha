@@ -84,7 +84,9 @@ import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatAssetsScreen
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ChatTransferDialogs
+import com.gotcha.ui.AccountScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.accountDisplayName
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.GITHUB_REPO_URL
 import com.gotcha.ui.InboxScreen
@@ -129,7 +131,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
+enum class Route { HOME, SETTINGS, CONNECTORS, ACCOUNT, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -1250,6 +1252,21 @@ class MainActivity : ComponentActivity() {
         val drawerUpsellAudience = remember(drawerState.isOpen) {
             Upsell.audience(this@MainActivity, settingsRepository.load())
         }
+
+        // The drawer's account row: re-read whenever the session changes
+        // (sign-in, log out, an expired token, or the profile name arriving).
+        var accountSession by remember { mutableStateOf(settingsRepository.load()) }
+        LaunchedEffect(Unit) {
+            samosaAuthManager.sessionChanges.collect { accountSession = settingsRepository.load() }
+        }
+        LaunchedEffect(currentRoute) { accountSession = settingsRepository.load() }
+        val drawerAccountName = if (accountSession.samosaSessionToken.isBlank()) {
+            null
+        } else {
+            accountDisplayName(accountSession.samosaDisplayName, accountSession.samosaEmail)
+                ?: androidx.compose.ui.res.stringResource(R.string.account_fallback_name)
+        }
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             // Deep enough that the floating panel reads as above the app.
@@ -1291,6 +1308,11 @@ class MainActivity : ComponentActivity() {
                     onOpenUpsell = {
                         scope.launch { drawerState.close() }
                         openUpsell(UpsellReason.GENERAL)
+                    },
+                    accountName = drawerAccountName,
+                    onOpenAccount = {
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.ACCOUNT
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1375,6 +1397,7 @@ class MainActivity : ComponentActivity() {
                                 client.listModels()
                             }
                         },
+                        onFetchAllowedModels = { samosaAuthManager.fetchAllowedModels() },
                         onSamosaSignIn = {
                             toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity))
                         },
@@ -1384,14 +1407,6 @@ class MainActivity : ComponentActivity() {
                             null
                         },
                         samosaSessionChanges = samosaAuthManager.sessionChanges,
-                        onSamosaSignOut = {
-                            samosaAuthManager.signOut()
-                            chatViewModel.refreshSettings()
-                        },
-                        onFetchSamosaProfile = { samosaAuthManager.fetchUserProfile() },
-                        onClaimReferral = { code ->
-                            samosaAuthManager.claimReferralCode(code).map { }
-                        },
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null
@@ -1452,6 +1467,30 @@ class MainActivity : ComponentActivity() {
                         onClear = { localNotificationStore.clearHistory() },
                         onOpenEntry = { entry -> openInboxEntry(entry) { currentRoute = it } },
                         onBack = { currentRoute = Route.HOME }
+                    )
+                }
+                Route.ACCOUNT -> {
+                    val leaveAccount = {
+                        chatViewModel.refreshSettings()
+                        currentRoute = Route.HOME
+                    }
+                    BackHandler { leaveAccount() }
+                    AccountScreen(
+                        load = { settingsRepository.load() },
+                        onBack = leaveAccount,
+                        onSignIn = { toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity)) },
+                        onSignInWithGoogle = if (samosaAuthManager.websiteSignIn) {
+                            { toSamosaSignInResult(samosaAuthManager.signInWithGoogle(this@MainActivity)) }
+                        } else {
+                            null
+                        },
+                        sessionChanges = samosaAuthManager.sessionChanges,
+                        onSignOut = {
+                            samosaAuthManager.signOut()
+                            chatViewModel.refreshSettings()
+                        },
+                        onFetchProfile = { samosaAuthManager.fetchUserProfile() },
+                        onClaimReferral = { code -> samosaAuthManager.claimReferralCode(code).map { } }
                     )
                 }
                 Route.CONNECTORS -> {

@@ -299,6 +299,8 @@
     <string name="ai_config_select_model">(اختر نموذجًا)</string>
     <string name="ai_config_no_models_found">لم يتم العثور على نماذج</string>
     <string name="ai_config_custom_model">✏️ نموذج مخصص…</string>
+    <string name="ai_config_model_locked">غير مشمول في خطتك</string>
+    <string name="ai_config_model_not_in_plan">‏%1$s غير مشمول في خطتك، لذا تم اختيار %2$s بدلًا منه. احفظ للإبقاء عليه.</string>
     <string name="ai_config_sub_agent_model">نموذج الوكيل الفرعي</string>
     <string name="ai_config_same_as_main_agent">نفس الوكيل الرئيسي</string>
     <string name="ai_config_navigator_model">نموذج المتصفح</string>
@@ -2002,6 +2004,9 @@
     <string name="samosa_sign_in_hint_website">سجّل الدخول على موقع Samosa AI لاستخدام Samosa AI. تُحفظ إعداداتك المتوافقة مع OpenAI بشكل منفصل ولا تتأثر.</string>
     <string name="samosa_opening_sign_in">جارٍ فتح تسجيل الدخول إلى Samosa…</string>
     <string name="samosa_manage_account">إدارة الحساب</string>
+    <string name="samosa_manage_models">إدارة نماذجك</string>
+    <string name="account_title">حساب Samosa AI</string>
+    <string name="account_fallback_name">حساب Samosa</string>
     <string name="samosa_add_credits">إضافة رصيد</string>
     <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
@@ -2182,8 +2187,7 @@
     <string name="upsell_not_now">ليس الآن</string>
     <string name="upsell_settings_plan">أنت على خطة %1$s. يضيف Pro صدفة Linux ونماذج أكثر قدرة وحدودًا أعلى.</string>
     <string name="upsell_settings_switch">التبديل إلى Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">اكتشف Samosa AI</string>
+    <string name="upsell_drawer_pro">احصل على Samosa AI Pro</string>
     <string name="upsell_welcome_title">مرحبًا بك في Pro</string>
     <string name="upsell_welcome_text">خطة Samosa AI Pro مفعّلة: صدفة Linux والنماذج الأكثر قدرة والحدود الأعلى جاهزة لك.</string>
     <string name="upsell_welcome_shell">إعداد صدفة Linux</string>

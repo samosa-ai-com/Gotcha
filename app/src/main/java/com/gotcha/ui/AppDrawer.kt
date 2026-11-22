@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,9 +80,15 @@ fun AppDrawerContent(
     onOpenConnectors: () -> Unit,
     onOpenScheduledTasks: () -> Unit = {},
     onOpenSecondBrain: () -> Unit = {},
-    /** Who the Samosa AI / Pro door speaks to; [com.gotcha.upsell.UpsellAudience.NONE] hides it. */
+    /** Who the Pro door speaks to; it shows only for [com.gotcha.upsell.UpsellAudience.PRO]. */
     upsellAudience: com.gotcha.upsell.UpsellAudience = com.gotcha.upsell.UpsellAudience.NONE,
     onOpenUpsell: () -> Unit = {},
+    /**
+     * The Samosa account row under Settings: the signed-in user's name, or null
+     * when signed out (the row then offers to sign in).
+     */
+    accountName: String? = null,
+    onOpenAccount: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -270,13 +276,26 @@ fun AppDrawerContent(
                 onClick = onOpenSettings,
                 modifier = Modifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
-            if (upsellAudience != com.gotcha.upsell.UpsellAudience.NONE) {
-                val pro = upsellAudience == com.gotcha.upsell.UpsellAudience.PRO
+            FeatureRow(
+                label = accountName ?: stringResource(R.string.samosa_sign_in_website),
+                icon = {
+                    if (accountName != null) {
+                        AccountAvatar(accountName, size = 24)
+                    } else {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null)
+                    }
+                },
+                onClick = onOpenAccount,
+                modifier = Modifier.testTag("drawer_account")
+            )
+            // Only the Pro offer gets a row: a signed-out user is already invited
+            // in by the account row above, so "Discover Samosa AI" would repeat it.
+            if (upsellAudience == com.gotcha.upsell.UpsellAudience.PRO) {
                 FeatureRow(
-                    label = stringResource(if (pro) R.string.upsell_drawer_pro else R.string.upsell_drawer_samosa),
+                    label = stringResource(R.string.upsell_drawer_pro),
                     icon = {
                         Icon(
-                            if (pro) Icons.Outlined.WorkspacePremium else Icons.Outlined.Bolt,
+                            Icons.Outlined.WorkspacePremium,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )

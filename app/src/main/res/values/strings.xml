@@ -346,6 +346,8 @@
     <string name="ai_config_select_model">(select model)</string>
     <string name="ai_config_no_models_found">No models found</string>
     <string name="ai_config_custom_model">✏️ Custom model…</string>
+    <string name="ai_config_model_locked">Not in your plan</string>
+    <string name="ai_config_model_not_in_plan">%1$s is not in your plan, so %2$s is selected instead. Save to keep it.</string>
     <string name="ai_config_sub_agent_model">Sub-agent model</string>
     <string name="ai_config_same_as_main_agent">Same as main agent</string>
     <string name="ai_config_navigator_model">Navigator model</string>
@@ -2025,6 +2027,9 @@
     <string name="samosa_sign_in_hint_website">Sign in on the Samosa AI website to use Samosa AI. Your OpenAI-compatible settings are kept separately and are unaffected.</string>
     <string name="samosa_opening_sign_in">Opening Samosa sign-in…</string>
     <string name="samosa_manage_account">Manage account</string>
+    <string name="samosa_manage_models">Manage your Models</string>
+    <string name="account_title">Samosa AI account</string>
+    <string name="account_fallback_name">Samosa account</string>
     <string name="samosa_add_credits">Add credits</string>
     <string name="samosa_sign_in_cancelled">Sign-in cancelled.</string>
     <string name="samosa_session_ended">You were signed out of Samosa AI. Sign in again to keep using it.</string>
@@ -2095,8 +2100,7 @@
     <string name="upsell_not_now">Not now</string>
     <string name="upsell_settings_plan">You\'re on the %1$s plan. Pro adds the Linux shell, more capable models and higher limits.</string>
     <string name="upsell_settings_switch">Switch to Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Discover Samosa AI</string>
+    <string name="upsell_drawer_pro">Get Samosa AI Pro</string>
     <string name="upsell_welcome_title">Welcome to Pro</string>
     <string name="upsell_welcome_text">Your Samosa AI Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
     <string name="upsell_welcome_shell">Set up the Linux shell</string>

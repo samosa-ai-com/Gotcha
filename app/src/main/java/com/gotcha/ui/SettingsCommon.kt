@@ -721,14 +721,20 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
     }
 }
 
-/** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
+/**
+ * Samosa AI sign-in block. The Account screen shows all of it; AI Configuration
+ * and Speech pass [modelsOnly] and show just the sign-in, or once signed in,
+ * a link to manage models: the account itself is reached from the drawer.
+ */
 @Composable
 fun SamosaAuthSection(
     email: String,
     signedIn: Boolean,
     busy: Boolean,
     onSignIn: () -> Unit,
-    onSignOut: () -> Unit,
+    onSignOut: () -> Unit = {},
+    /** Signed in, show only "Manage your Models": no credits, log out or referral cards. */
+    modelsOnly: Boolean = false,
     /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
     creditsRemaining: Double? = null,
     /** Full user profile containing tier, tags, and referral metadata. */
@@ -787,6 +793,13 @@ fun SamosaAuthSection(
                 text = email,
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+        if (signedIn && modelsOnly) {
+            OutlinedButton(
+                onClick = { openDashboard(SamosaDashboard.Section.OVERVIEW) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.samosa_manage_models)) }
+            return@Column
         }
         if (signedIn && creditsRemaining != null) {
             Row(

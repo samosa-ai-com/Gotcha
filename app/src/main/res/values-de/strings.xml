@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">(Modell wählen)</string>
     <string name="ai_config_no_models_found">Keine Modelle gefunden</string>
     <string name="ai_config_custom_model">✏️ Eigenes Modell…</string>
+    <string name="ai_config_model_locked">Nicht in deinem Tarif</string>
+    <string name="ai_config_model_not_in_plan">%1$s ist nicht in deinem Tarif, daher ist stattdessen %2$s ausgewählt. Speichere, um es zu behalten.</string>
     <string name="ai_config_sub_agent_model">Modell für Subagenten</string>
     <string name="ai_config_same_as_main_agent">Wie der Hauptagent</string>
     <string name="ai_config_navigator_model">Modell für Navigation</string>
@@ -1614,6 +1616,9 @@
     <string name="samosa_sign_in_hint_website">Melde dich auf der Samosa-AI-Website an, um Samosa AI zu nutzen. Deine OpenAI-kompatiblen Einstellungen werden getrennt gespeichert und bleiben unverändert.</string>
     <string name="samosa_opening_sign_in">Samosa-Anmeldung wird geöffnet…</string>
     <string name="samosa_manage_account">Konto verwalten</string>
+    <string name="samosa_manage_models">Deine Modelle verwalten</string>
+    <string name="account_title">Samosa AI-Konto</string>
+    <string name="account_fallback_name">Samosa-Konto</string>
     <string name="samosa_add_credits">Guthaben aufladen</string>
     <string name="samosa_sign_in_cancelled">Anmeldung abgebrochen.</string>
     <string name="samosa_session_ended">Du wurdest von Samosa AI abgemeldet. Melde dich erneut an, um es weiter zu nutzen.</string>
@@ -1794,8 +1799,7 @@
     <string name="upsell_not_now">Nicht jetzt</string>
     <string name="upsell_settings_plan">Du nutzt den Tarif %1$s. Pro bietet die Linux-Shell, leistungsfähigere Modelle und höhere Limits.</string>
     <string name="upsell_settings_switch">Zu Samosa AI wechseln</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Samosa AI entdecken</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro holen</string>
     <string name="upsell_welcome_title">Willkommen bei Pro</string>
     <string name="upsell_welcome_text">Dein Samosa-AI-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
     <string name="upsell_welcome_shell">Linux-Shell einrichten</string>

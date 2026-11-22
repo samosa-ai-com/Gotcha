@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">（选择模型）</string>
     <string name="ai_config_no_models_found">未找到模型</string>
     <string name="ai_config_custom_model">✏️ 自定义模型…</string>
+    <string name="ai_config_model_locked">不在你的套餐内</string>
+    <string name="ai_config_model_not_in_plan">%1$s 不在你的套餐内，因此已改选 %2$s。保存后生效。</string>
     <string name="ai_config_sub_agent_model">子代理模型</string>
     <string name="ai_config_same_as_main_agent">与主代理相同</string>
     <string name="ai_config_navigator_model">导航模型</string>
@@ -1591,6 +1593,9 @@
     <string name="samosa_sign_in_hint_website">请在 Samosa AI 网站上登录以使用 Samosa AI。你的 OpenAI 兼容设置单独保存，不受影响。</string>
     <string name="samosa_opening_sign_in">正在打开 Samosa 登录…</string>
     <string name="samosa_manage_account">管理账号</string>
+    <string name="samosa_manage_models">管理你的模型</string>
+    <string name="account_title">Samosa AI 账户</string>
+    <string name="account_fallback_name">Samosa 账户</string>
     <string name="samosa_add_credits">添加额度</string>
     <string name="samosa_sign_in_cancelled">已取消登录。</string>
     <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>
@@ -1771,8 +1776,7 @@
     <string name="upsell_not_now">以后再说</string>
     <string name="upsell_settings_plan">你当前使用的是 %1$s 套餐。Pro 增加了 Linux shell、更强大的模型和更高的上限。</string>
     <string name="upsell_settings_switch">切换到 Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">了解 Samosa AI</string>
+    <string name="upsell_drawer_pro">获取 Samosa AI Pro</string>
     <string name="upsell_welcome_title">欢迎使用 Pro</string>
     <string name="upsell_welcome_text">你的 Samosa AI Pro 套餐已生效：Linux shell、更强大的模型和更高的上限已为你准备就绪。</string>
     <string name="upsell_welcome_shell">设置 Linux shell</string>

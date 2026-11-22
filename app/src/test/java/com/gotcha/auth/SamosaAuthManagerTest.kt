@@ -63,6 +63,7 @@ class SamosaAuthManagerTest {
             return meResponse
         }
 
+        override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
         override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest): ClaimReferralResponse {
             lastClaimBearer = bearer
             lastClaimRequest = body

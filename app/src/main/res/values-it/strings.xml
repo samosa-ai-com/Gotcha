@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">(scegli un modello)</string>
     <string name="ai_config_no_models_found">Nessun modello trovato</string>
     <string name="ai_config_custom_model">✏️ Modello personalizzato…</string>
+    <string name="ai_config_model_locked">Non incluso nel tuo piano</string>
+    <string name="ai_config_model_not_in_plan">%1$s non è incluso nel tuo piano, quindi è stato selezionato %2$s. Salva per mantenerlo.</string>
     <string name="ai_config_sub_agent_model">Modello del sotto-agente</string>
     <string name="ai_config_same_as_main_agent">Uguale all\'agente principale</string>
     <string name="ai_config_navigator_model">Modello di navigazione</string>
@@ -1636,6 +1638,9 @@
     <string name="samosa_sign_in_hint_website">Accedi sul sito web di Samosa AI per usare Samosa AI. Le impostazioni compatibili con OpenAI sono conservate a parte e non cambiano.</string>
     <string name="samosa_opening_sign_in">Apertura dell\'accesso a Samosa…</string>
     <string name="samosa_manage_account">Gestisci account</string>
+    <string name="samosa_manage_models">Gestisci i tuoi modelli</string>
+    <string name="account_title">Account Samosa AI</string>
+    <string name="account_fallback_name">Account Samosa</string>
     <string name="samosa_add_credits">Aggiungi crediti</string>
     <string name="samosa_sign_in_cancelled">Accesso annullato.</string>
     <string name="samosa_session_ended">Sei stato disconnesso da Samosa AI. Accedi di nuovo per continuare a usarlo.</string>
@@ -1816,8 +1821,7 @@
     <string name="upsell_not_now">Non ora</string>
     <string name="upsell_settings_plan">Hai il piano %1$s. Pro aggiunge la shell Linux, modelli più capaci e limiti più alti.</string>
     <string name="upsell_settings_switch">Passa a Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Scopri Samosa AI</string>
+    <string name="upsell_drawer_pro">Passa a Samosa AI Pro</string>
     <string name="upsell_welcome_title">Benvenuto in Pro</string>
     <string name="upsell_welcome_text">Il tuo piano Samosa AI Pro è attivo: la shell Linux, modelli più capaci e limiti più alti sono pronti.</string>
     <string name="upsell_welcome_shell">Configura la shell Linux</string>

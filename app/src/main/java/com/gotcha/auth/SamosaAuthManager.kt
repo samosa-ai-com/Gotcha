@@ -345,6 +345,7 @@ class SamosaAuthManager(
         settingsRepository.saveSamosaSession(resp.token, resp.user.email, resp.refreshToken.orEmpty())
         // Fetch fresh /me to obtain full tier, tags, and referral metadata
         val profile = runCatching { api.me("Bearer ${resp.token}").user }.getOrNull() ?: resp.user
+        rememberDisplayName(profile)
         val isNew = profile.referral.canClaim
         return SamosaSignInResult.Success(resp.user.email.ifBlank { profile.email }, user = profile, isNewUser = isNew)
     }
@@ -380,6 +381,17 @@ class SamosaAuthManager(
         }
     }
 
+    /**
+     * Caches the name the drawer shows. Announces a session change when it
+     * differs, so an open drawer swaps the email for the name without a restart.
+     */
+    private fun rememberDisplayName(user: SamosaUser) {
+        val name = user.displayName.trim()
+        if (name.isEmpty() || name == settingsRepository.load().samosaDisplayName) return
+        settingsRepository.saveSamosaDisplayName(name)
+        sessionChangeEvents.tryEmit(Unit)
+    }
+
     /** Called on a 401 from a Samosa API call: drop the stale token. */
     fun invalidateSession() {
         settingsRepository.clearSamosaSession()
@@ -393,11 +405,29 @@ class SamosaAuthManager(
         val token = settingsRepository.load().samosaSessionToken
         if (token.isBlank()) return null
         return try {
-            api.me("Bearer $token").user
+            api.me("Bearer $token").user.also { rememberDisplayName(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             GotchaLog.d(TAG, e) { "Could not fetch user profile (ignored)" }
+            null
+        }
+    }
+
+    /**
+     * The models the signed-in plan may call, or null when every model is allowed
+     * or the answer is unknown (signed out, offline, an older server). Callers treat
+     * null as "do not lock anything": the server still enforces the list.
+     */
+    suspend fun fetchAllowedModels(): Set<String>? {
+        val token = settingsRepository.load().samosaSessionToken
+        if (token.isBlank()) return null
+        return try {
+            ModelAccess.allowList(api.limits("Bearer $token").allowedModels)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GotchaLog.d(TAG, e) { "Could not fetch the plan's models (ignored)" }
             null
         }
     }

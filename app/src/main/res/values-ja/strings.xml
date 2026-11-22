@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">(モデルを選択)</string>
     <string name="ai_config_no_models_found">モデルが見つかりません</string>
     <string name="ai_config_custom_model">✏️ カスタムモデル…</string>
+    <string name="ai_config_model_locked">ご利用のプランには含まれていません</string>
+    <string name="ai_config_model_not_in_plan">%1$s はご利用のプランに含まれていないため、代わりに %2$s を選択しました。保存すると反映されます。</string>
     <string name="ai_config_sub_agent_model">サブエージェントのモデル</string>
     <string name="ai_config_same_as_main_agent">メインエージェントと同じ</string>
     <string name="ai_config_navigator_model">ナビゲーターのモデル</string>
@@ -1591,6 +1593,9 @@
     <string name="samosa_sign_in_hint_website">Samosa AI を使うには Samosa AI のウェブサイトでサインインしてください。OpenAI 互換の設定は別に保存され、影響を受けません。</string>
     <string name="samosa_opening_sign_in">Samosa のサインインを開いています…</string>
     <string name="samosa_manage_account">アカウントを管理</string>
+    <string name="samosa_manage_models">モデルを管理</string>
+    <string name="account_title">Samosa AI アカウント</string>
+    <string name="account_fallback_name">Samosa アカウント</string>
     <string name="samosa_add_credits">クレジットを追加</string>
     <string name="samosa_sign_in_cancelled">サインインをキャンセルしました。</string>
     <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>
@@ -1771,8 +1776,7 @@
     <string name="upsell_not_now">今はしない</string>
     <string name="upsell_settings_plan">現在のプランは %1$s です。Pro では Linux シェル、より高性能なモデル、より高い上限が使えます。</string>
     <string name="upsell_settings_switch">Samosa AI に切り替える</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Samosa AI を見てみる</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro を入手</string>
     <string name="upsell_welcome_title">Pro へようこそ</string>
     <string name="upsell_welcome_text">Samosa AI Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
     <string name="upsell_welcome_shell">Linux シェルを設定</string>
