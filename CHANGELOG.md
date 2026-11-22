@@ -4,6 +4,33 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Gotcha installs Gotcha Shell for you.** A Pro or influencer account gets a
+  *Get Gotcha Shell* action on the Linux-shell page; the app downloads the
+  companion APK from the hub, verifies it, and hands it to the system installer.
+  Until now the companion had to be sideloaded, and the page said so.
+- **The download is verified before anything is installed.** Size, digest,
+  package name and version are checked against what the server advertised, and
+  the APK's signing certificate must match Gotcha's own — that last check is
+  what stops a substituted build, and it needs no pin because the key cannot
+  change without a new Gotcha release.
+- **The user is warned before the install prompt.** Android will ask to allow
+  installs from Gotcha, and Play Protect may warn; neither can be suppressed, so
+  the page explains both first instead of leaving an unexplained blocker.
+- **The Linux system installs itself** once the companion is available. It is
+  not optional — without it the shell cannot start — so it is no longer a
+  separate button that invites an installed-but-unusable state.
+- Real download progress for the APK, with byte counts, so a multi-megabyte
+  fetch no longer looks frozen.
+
+### Changed
+- The Linux-shell plan row no longer shows the date the offline grace expires.
+  The grace still applies; advertising it read as a subscription countdown.
+- `BuildConfig.SKIP_TIER_CHECK` replaces the hardcoded `BuildConfig.DEBUG` bypass
+  in `ShellEntitlement`. It derives from `SAMOSA_API_URL` and lives in
+  `defaultConfig`, so a debug build against a real backend now exercises the
+  same tier gate a release does. Previously every account looked like Pro on a
+  debug build, which made a tier test meaningless.
+### Added
 - **Linux runtime row in Settings ▸ Linux shell.** The shell's runtime is
   downloaded on first use rather than shipped in its APK, so it has its own
   setup check next to "Gotcha Shell" and "Linux system": downloaded and

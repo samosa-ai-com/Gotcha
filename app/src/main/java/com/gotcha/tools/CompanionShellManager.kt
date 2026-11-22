@@ -21,6 +21,48 @@ class CompanionShellManager(
     fun identity(): CompanionIdentity = link.identity()
 
     /**
+     * Fetches and installs the companion APK from the backend.
+     *
+     * Gotcha installs the companion so a user only ever installs one app. The route is
+     * tier-gated and session-authenticated, so this is only reachable from a screen that has
+     * already been told the plan includes the shell.
+     *
+     * Returns a user-facing message on failure, or null when the install has started — the
+     * outcome itself arrives through [InstallReceiver].
+     */
+    suspend fun installFromBackend(
+        onProgress: (phase: String, done: Long, total: Long) -> Unit = { _, _, _ -> }
+    ): String? {
+        val resolved = CompanionApkSource.fetchResolved(context) ?: return unavailableMessage()
+        val installer = CompanionApkInstaller(context)
+        val token = com.gotcha.data.SettingsRepository(context).load().samosaSessionToken
+        val bearer = "Bearer $token"
+        return when (val result = installer.install(resolved.release, apiBase(), bearer, onProgress)) {
+            CompanionApkInstaller.Result.Started -> null
+            CompanionApkInstaller.Result.NeedInstallPermission -> {
+                installer.openInstallPermissionSettings(context)
+                context.getString(com.gotcha.R.string.linux_shell_get_app_permission)
+            }
+            CompanionApkInstaller.Result.NotInPlan ->
+                context.getString(com.gotcha.R.string.linux_shell_plan_not_pro)
+            CompanionApkInstaller.Result.Expired ->
+                context.getString(com.gotcha.R.string.linux_shell_get_app_expired)
+            CompanionApkInstaller.Result.Corrupt ->
+                context.getString(com.gotcha.R.string.linux_shell_get_app_corrupt)
+            CompanionApkInstaller.Result.UntrustedSigner ->
+                context.getString(com.gotcha.R.string.linux_shell_app_untrusted)
+            CompanionApkInstaller.Result.WrongPackage ->
+                context.getString(com.gotcha.R.string.linux_shell_get_app_wrong_build)
+            is CompanionApkInstaller.Result.Failed -> result.message
+        }
+    }
+
+    private fun apiBase(): String = com.gotcha.auth.SamosaAuthApi.AUTH_BASE_URL
+
+    private fun unavailableMessage(): String =
+        context.getString(com.gotcha.R.string.linux_shell_get_app_unavailable)
+
+    /**
      * Hands the companion a runtime source, best effort.
      *
      * `install` and `repair` both end up in the companion's `ensureRuntime()`, and its own route
