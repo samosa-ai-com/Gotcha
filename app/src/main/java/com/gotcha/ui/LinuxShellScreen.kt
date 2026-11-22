@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -34,6 +35,7 @@ import com.gotcha.R
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionConnection
 import com.gotcha.tools.CompanionIdentity
+import com.gotcha.tools.CompanionInstalls
 import com.gotcha.tools.CompanionShellBackend
 import com.gotcha.tools.CompanionShellManager
 import com.gotcha.tools.FileResolver
@@ -86,6 +88,22 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         access = ShellEntitlement.refresh(context, force = true)
         identity = manager.identity()
         info = if (identity.installed && identity.trusted) manager.info() else null
+        // The system installer answers by broadcast, which may arrive while this screen is
+        // gone. Without this the user who declined the prompt, or was blocked by Play Protect,
+        // returned to a page that simply still said "not installed" and no explanation.
+        CompanionInstalls.last?.let { outcome ->
+            val reason = CompanionInstalls.lastReason
+            CompanionInstalls.clear()
+            if (outcome == CompanionInstalls.Outcome.FAILED) {
+                overlay.show(
+                    if (reason.isNullOrBlank()) {
+                        context.getString(R.string.linux_shell_get_app_install_failed)
+                    } else {
+                        reason
+                    }
+                )
+            }
+        }
     }
     LaunchedEffect(resumeSignal) { refresh() }
 
@@ -112,10 +130,15 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         if (autoChainedRuntime) return@LaunchedEffect
         if (access != ShellEntitlement.Access.ALLOWED) return@LaunchedEffect
         if (!identity.installed || !identity.trusted) return@LaunchedEffect
-        if (info?.rootfsReady == true) return@LaunchedEffect
+        // `info` is null until the first refresh returns. Treating "not known yet" as "not
+        // installed" would start an install every time this screen opens, on a device that
+        // already has one — and installing replaces the Linux system, so that would destroy
+        // the user's files, packages and scripts on every visit.
+        val current = info ?: return@LaunchedEffect
+        if (current.rootfsReady) return@LaunchedEffect
         // The companion may already be installing (a previous attempt, or a command started
         // one). Do not stack a second install on top of it.
-        if (info?.installing == true) return@LaunchedEffect
+        if (current.installing) return@LaunchedEffect
         autoChainedRuntime = true
         perform(ShellAction.INSTALL, R.string.linux_shell_install_done) {
             manager.install { phase, done, total -> progress = InstallProgress(phase, done, total) }
@@ -280,7 +303,11 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
                         showInstallPrep = false
                         perform(ShellAction.GET_APP, R.string.linux_shell_get_app_started) {
                             manager.installFromBackend { phase, done, total ->
-                                progress = InstallProgress(phase, done, total)
+                                // The download reports from Dispatchers.IO; a snapshot write
+                                // from there can miss a recomposition.
+                                Snapshot.withMutableSnapshot {
+                                    progress = InstallProgress(phase, done, total)
+                                }
                             }
                         }
                     }

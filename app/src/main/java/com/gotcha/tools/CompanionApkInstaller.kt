@@ -47,8 +47,11 @@ internal class CompanionApkInstaller(private val context: Context) {
         /** The APK is not signed by the same key as this app. */
         data object UntrustedSigner : Result
 
-        /** The APK's package is not the companion, or it would be a downgrade. */
+        /** The APK's package is not the companion. */
         data object WrongPackage : Result
+
+        /** The APK is older than what is installed; Android would refuse it. */
+        data object Downgrade : Result
 
         /** Anything else: network, disk, installer refusal. */
         data class Failed(val message: String) : Result
@@ -113,6 +116,7 @@ internal class CompanionApkInstaller(private val context: Context) {
                 if (response.code == 403) return Download.Outcome.Failed(Result.NotInPlan)
                 if (response.code == 404) return Download.Outcome.Failed(Result.Expired)
                 if (!response.isSuccessful) {
+                    target.delete()
                     return Download.Outcome.Failed(Result.Failed("Download failed (${response.code})"))
                 }
                 val body = response.body ?: return Download.Outcome.Failed(Result.Failed("Empty response"))
@@ -122,6 +126,9 @@ internal class CompanionApkInstaller(private val context: Context) {
             }
             Download.Outcome.Done(target)
         } catch (e: Exception) {
+            // A half-written file must not survive: the next attempt would verify against a
+            // stale size and report corruption for the wrong reason.
+            target.delete()
             Download.Outcome.Failed(Result.Failed(e.message ?: "Download failed"))
         }
     }
@@ -172,16 +179,21 @@ internal class CompanionApkInstaller(private val context: Context) {
         // legible message instead of a generic installer failure.
         val installed = runCatching { pm.getPackageInfo(CompanionConnection.PACKAGE, 0) }.getOrNull()
         if (installed != null && archive.longVersionCode < installed.longVersionCode) {
-            return Result.WrongPackage
+            return Result.Downgrade
         }
 
         // The decisive check: the archive must be signed by the same key as this app. This is
         // what stops a substituted APK, and it is why no digest pin is needed here.
+        //
+        // Equality, not intersection: a set that merely *overlaps* is not the same identity.
+        // An APK co-signed with our key and somebody else's would pass an intersection test,
+        // and so would one carrying a retired key in its rotation history. Require the exact
+        // same signer set and nothing else.
         val archiveSigners = signerDigests(archive)
         val selfSigners = runCatching {
             pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
         }.getOrNull()?.let { signerDigests(it) } ?: emptySet()
-        if (archiveSigners.isEmpty() || archiveSigners.intersect(selfSigners).isEmpty()) {
+        if (archiveSigners.isEmpty() || archiveSigners != selfSigners) {
             return Result.UntrustedSigner
         }
         return null
@@ -190,12 +202,11 @@ internal class CompanionApkInstaller(private val context: Context) {
     @Suppress("DEPRECATION")
     private fun signerDigests(info: android.content.pm.PackageInfo): Set<String> {
         val digest = MessageDigest.getInstance("SHA-256")
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val signing = info.signingInfo ?: return emptySet()
-            if (signing.hasMultipleSigners()) signing.apkContentsSigners else signing.signingCertificateHistory
-        } else {
-            info.signatures
-        }
+        // apkContentsSigners is what actually signed this APK. signingCertificateHistory also
+        // contains *retired* keys, so using it would let a build signed by a superseded key
+        // pass as the current identity.
+        val signing = info.signingInfo ?: return emptySet()
+        val signatures = signing.apkContentsSigners
         return signatures.orEmpty().map { sig ->
             digest.reset()
             digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) }

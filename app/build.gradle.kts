@@ -172,6 +172,10 @@ android {
 
     buildTypes {
         release {
+            // Pin the tier gate ON for release, overriding defaultConfig. Without this a
+            // release built without SAMOSA_API_URL resolves to the placeholder backend, where
+            // SKIP_TIER_CHECK defaults true — which would hand the shell to every free account.
+            buildConfigField("boolean", "SKIP_TIER_CHECK", "false")
             isMinifyEnabled = false
             // Use the release signing config when one was configured above. A keyless
             // checkout may only fall back to the debug key when explicitly opted in via

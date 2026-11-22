@@ -75,6 +75,33 @@ class ShellApkReleaseTest {
     }
 
     @Test
+    fun `path traversal is rejected`() {
+        // The path is concatenated onto the base URL and fetched with the session token, so a
+        // prefix-only check would let a hostile answer steer an authenticated request to
+        // another endpoint on the same host.
+        assertFalse(release(path = "/gotcha/shell/download/../../admin/keys").isUsable())
+        assertFalse(release(path = "/gotcha/shell/download/${"T".repeat(43)}/../../../v1/me").isUsable())
+    }
+
+    @Test
+    fun `query strings are rejected`() {
+        assertFalse(release(path = "/gotcha/shell/download/${"T".repeat(43)}?redirect=https://evil.example").isUsable())
+        assertFalse(release(path = "/gotcha/shell/download/${"T".repeat(43)}#frag").isUsable())
+    }
+
+    @Test
+    fun `wrong token length is rejected`() {
+        assertFalse(release(path = "/gotcha/shell/download/short").isUsable())
+        assertFalse(release(path = "/gotcha/shell/download/${"T".repeat(44)}").isUsable())
+    }
+
+    @Test
+    fun `protocol relative and absolute forms are rejected`() {
+        assertFalse(release(path = "//evil.example/gotcha/shell/download/${"T".repeat(43)}").isUsable())
+        assertFalse(release(path = "https://evil.example/gotcha/shell/download/${"T".repeat(43)}").isUsable())
+    }
+
+    @Test
     fun `default instance is not usable`() {
         assertFalse(ShellApkRelease().isUsable())
     }

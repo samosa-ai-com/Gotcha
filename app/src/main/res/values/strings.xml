@@ -1905,7 +1905,7 @@
     <string name="linux_shell_plan_needs_check">Gotcha could not confirm your Pro plan. Connect to the internet and open this page again.</string>
     <string name="linux_shell_app_title">Gotcha Shell app</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell is not installed. It is part of Pro, and Gotcha can download and install it for you.</string>
-    <string name="linux_shell_app_untrusted">An app with Gotcha Shell\'s name is installed, but it is not signed by the makers of Gotcha, so Gotcha will not use it. Uninstall it, then install the Gotcha Shell build you were given.</string>
+    <string name="linux_shell_app_untrusted">An app with Gotcha Shell\'s name is installed, but it is not signed by the makers of Gotcha, so Gotcha will not use it. Uninstall it, then let Gotcha install its own copy.</string>
     <string name="linux_shell_app_unreachable">Gotcha Shell %1$s is installed, but it did not answer. If your phone has an Autostart setting, allow it for Gotcha Shell, then come back to this page.</string>
     <string name="linux_shell_app_too_old">Gotcha Shell %1$s is too old for this version of Gotcha. Update Gotcha Shell.</string>
     <string name="linux_shell_app_installed">Gotcha Shell %1$s is installed and uses %2$s of storage.</string>
@@ -1932,6 +1932,8 @@
     <string name="linux_shell_get_app_expired">The download link expired. Try again.</string>
     <string name="linux_shell_get_app_corrupt">The download was damaged and was discarded. Try again.</string>
     <string name="linux_shell_get_app_wrong_build">That is not a newer Gotcha Shell build. Uninstall the installed copy, then try again.</string>
+    <string name="linux_shell_get_app_install_failed">The install did not finish. Try again, and allow the install when your phone asks.</string>
+    <string name="linux_shell_get_app_downgrade">A newer Gotcha Shell is already installed. Uninstall it first if you want to replace it.</string>
     <string name="linux_shell_get_app_unavailable">Could not reach the Gotcha Shell download. Check your connection and try again.</string>
     <string name="linux_shell_action_repair">Repair</string>
     <string name="linux_shell_action_reset">Reset</string>

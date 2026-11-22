@@ -190,6 +190,19 @@ data class ShellApkRelease(
     @SerialName("download_path") val downloadPath: String = "",
     @SerialName("expires_in_seconds") val expiresInSeconds: Long = 0L
 ) {
+    companion object {
+        /**
+         * The one shape the download path may take: the canonical route and a 43-character
+         * token, and nothing else.
+         *
+         * Checked this strictly because the path is concatenated onto the configured base URL
+         * and fetched with the caller's session. A prefix test alone would admit
+         * `.../download/../../admin/reset` or a query string, and OkHttp would resolve the
+         * traversal and send the bearer token to another endpoint on the same host.
+         */
+        private val DOWNLOAD_PATH = Regex("^/gotcha/shell/download/[A-Za-z0-9_-]{43}$")
+    }
+
     /**
      * Whether this answer is safe to act on. A partial one would only fail later, after the
      * user has waited for permission and a download.
@@ -197,7 +210,7 @@ data class ShellApkRelease(
     fun isUsable(): Boolean =
         version.isNotBlank() && sizeBytes > 0 &&
             sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' } &&
-            downloadPath.startsWith("/gotcha/shell/download/")
+            DOWNLOAD_PATH.matches(downloadPath)
 }
 
 /**

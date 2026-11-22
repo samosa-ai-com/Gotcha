@@ -80,7 +80,10 @@ class ShellEntitlementTest {
 
     @Test
     fun `offline the shell keeps working for 72 hours after the last Pro answer`() = runTest {
-        refresh(Source(TierAnswer.Tier("pro")))
+        // force = true, so this does not depend on what a previous test left in the shared
+        // preferences: without it the assertion below can see a stale state and fail
+        // intermittently depending on test order.
+        refresh(Source(TierAnswer.Tier("pro")), force = true)
         val offline = Source(TierAnswer.Unavailable)
 
         now += 71 * hour

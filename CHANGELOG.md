@@ -29,8 +29,10 @@ All notable changes to Gotcha are documented here.
   in `ShellEntitlement`. It derives from `SAMOSA_API_URL` and lives in
   `defaultConfig`, so a debug build against a real backend now exercises the
   same tier gate a release does. Previously every account looked like Pro on a
-  debug build, which made a tier test meaningless.
-### Added
+  debug build, which made a tier test meaningless, and a release build pins the
+  flag off so a release can never skip the gate.
+
+### Added (earlier this cycle)
 - **Linux runtime row in Settings ▸ Linux shell.** The shell's runtime is
   downloaded on first use rather than shipped in its APK, so it has its own
   setup check next to "Gotcha Shell" and "Linux system": downloaded and

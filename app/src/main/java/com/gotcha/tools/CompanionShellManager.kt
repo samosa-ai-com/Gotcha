@@ -53,6 +53,8 @@ class CompanionShellManager(
                 context.getString(com.gotcha.R.string.linux_shell_app_untrusted)
             CompanionApkInstaller.Result.WrongPackage ->
                 context.getString(com.gotcha.R.string.linux_shell_get_app_wrong_build)
+            CompanionApkInstaller.Result.Downgrade ->
+                context.getString(com.gotcha.R.string.linux_shell_get_app_downgrade)
             is CompanionApkInstaller.Result.Failed -> result.message
         }
     }
