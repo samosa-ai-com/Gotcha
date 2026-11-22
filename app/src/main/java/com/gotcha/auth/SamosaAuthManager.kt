@@ -415,6 +415,24 @@ class SamosaAuthManager(
     }
 
     /**
+     * The models the signed-in plan may call, or null when every model is allowed
+     * or the answer is unknown (signed out, offline, an older server). Callers treat
+     * null as "do not lock anything": the server still enforces the list.
+     */
+    suspend fun fetchAllowedModels(): Set<String>? {
+        val token = settingsRepository.load().samosaSessionToken
+        if (token.isBlank()) return null
+        return try {
+            ModelAccess.allowList(api.limits("Bearer $token").allowedModels)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GotchaLog.d(TAG, e) { "Could not fetch the plan's models (ignored)" }
+            null
+        }
+    }
+
+    /**
      * Fetches the user's remaining credit from GET /me. Returns null when not
      * signed in, when the user has no gateway key yet, or when the gateway is
      * unreachable — never throws, so a hiccup cannot break the page.

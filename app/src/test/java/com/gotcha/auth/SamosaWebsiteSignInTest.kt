@@ -71,6 +71,7 @@ class SamosaWebsiteSignInTest {
 
         override suspend fun register(body: RegisterRequest) = error("Google sign-in not expected")
         override suspend fun me(bearer: String) = MeResponse(SamosaUser(email = "user@example.com"))
+        override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
         override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
         override suspend fun logout(bearer: String) = Unit
     }
