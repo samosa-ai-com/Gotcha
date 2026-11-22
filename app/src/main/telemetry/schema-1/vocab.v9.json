@@ -917,6 +917,7 @@
               "notion_read_page",
               "notion_search",
               "notion_update_page",
+              "offer_linux_shell",
               "open_app",
               "open_setting",
               "other",
