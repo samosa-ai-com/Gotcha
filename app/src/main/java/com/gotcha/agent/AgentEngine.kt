@@ -362,6 +362,12 @@ class AgentEngine(
      */
     private var lastModelRequestFailed = false
 
+    /**
+     * [com.gotcha.upsell.Upsell.offersLinuxShell] as of the start of this model round. It probes
+     * the shell backends, so [hiddenTools] reads this rather than asking on every tool call.
+     */
+    private var linuxShellOfferable = false
+
     /** Falls back to [ChatTitle.fallback] until [generatedTitle] is set. */
     /** Chats deleted while this engine could still save them; see [discardSession]. */
     private val discardedSessionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -651,6 +657,11 @@ class AgentEngine(
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
 
+            // The daily plan check for the Linux shell. A disk read unless a check is due.
+            com.gotcha.tools.ShellEntitlement.refresh(appContext)
+            // Asked once per round, not on every tool call: it probes the shell backends.
+            linuxShellOfferable = com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)
+
             // Build message array optimized for prompt caching:
             //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile + memory pointer)
             //   2. Conversation history, headed by the one-time [memory_startup] system message (4-turn screen observation retention window)
@@ -664,8 +675,6 @@ class AgentEngine(
                 add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
-            // The daily plan check for the Linux shell. A disk read unless a check is due.
-            com.gotcha.tools.ShellEntitlement.refresh(appContext)
             val response = try {
                 llm.chat(
                     messages,
@@ -1552,9 +1561,7 @@ class AgentEngine(
             // Nobody is watching a scheduled run to be shown the offer, and a voice call has no
             // screen to show it on.
             (
-                if (!scheduledRun && events.showsUpsell && !offeredLinuxShell() &&
-                    com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)
-                ) {
+                if (!scheduledRun && events.showsUpsell && linuxShellOfferable && !offeredLinuxShell()) {
                     emptySet()
                 } else {
                     setOf(com.gotcha.tools.ShellTools.OFFER)
