@@ -222,6 +222,9 @@ class SamosaSessionTest {
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
 
             override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
+            // The companion APK route. Unused here; present because the interface grew.
+            override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
         }
 
         val result = SamosaAuthManager(context, store, api).register("google-id-token")
@@ -242,6 +245,9 @@ class SamosaSessionTest {
             override suspend fun logout(bearer: String) = Unit
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
             override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
+            // The companion APK route. Unused here; present because the interface grew.
+            override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
         }
 
         SamosaAuthManager(context, store, api).register("google-id-token")
