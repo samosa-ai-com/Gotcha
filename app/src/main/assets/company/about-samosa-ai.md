@@ -76,7 +76,7 @@ These summaries are not the agreements themselves. The full, authoritative text 
 
 ## Pricing
 
-A Samosa AI account starts on the free plan, with free credits to start. Samosa AI Pro adds Gotcha's built-in Linux shell (Gotcha Shell), more capable models, higher limits and early access to new features. Plans are bought on the Samosa AI account website, not inside the app: in Gotcha, the "Get Pro" button (from "Samosa AI Pro" in the side menu, or "See Pro" in Settings > AI > AI Configuration) opens it. For prices, send the user to that page or to https://samosa-ai.com/pricing rather than quoting a figure from this document.
+A Samosa AI account starts on the free plan, with free credits to start. Samosa AI Pro adds Gotcha's built-in Linux shell (Gotcha Shell), more capable models, higher limits and early access to new features. Plans are bought on the Samosa AI account website, not inside the app: in Gotcha, the "Get Pro" button (from "Get Samosa AI Pro" in the side menu, or "See Pro" on the Samosa AI account page, opened by tapping the account name in the side menu) opens it. For prices, send the user to that page or to https://samosa-ai.com/pricing rather than quoting a figure from this document.
 
 ## Developers and contact
 

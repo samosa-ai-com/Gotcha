@@ -193,9 +193,9 @@ endpoint with tool calling works, or sign in to Samosa AI for starter credits.
 
 **"What is Samosa AI Pro?"** A paid Samosa AI plan. It adds Gotcha's built-in
 Linux shell, more capable models, higher limits and early access to new
-features. "Samosa AI Pro" in the side menu, or "See Pro" in Settings > AI > AI
-Configuration, shows what it includes and opens the account website where it is
-bought.
+features. "Get Samosa AI Pro" in the side menu, or "See Pro" on the Samosa AI
+account page (tap your name in the side menu), shows what it includes and opens
+the account website where it is bought.
 
 **"Enable the floating ball / wake word."** Settings > Assistive Ball and Wake
 Word. The ball needs the display-over-other-apps permission; the wake word
