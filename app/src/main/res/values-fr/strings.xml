@@ -1819,7 +1819,7 @@
     <string name="upsell_not_now">Pas maintenant</string>
     <string name="upsell_settings_plan">Vous avez le forfait %1$s. Pro ajoute le shell Linux, des modèles plus performants et des limites plus élevées.</string>
     <string name="upsell_settings_switch">Passer à Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">Passer à Samosa AI Pro</string>
     <string name="upsell_welcome_title">Bienvenue dans Pro</string>
     <string name="upsell_welcome_text">Votre forfait Samosa AI Pro est actif : le shell Linux, des modèles plus performants et des limites plus élevées sont à vous.</string>
     <string name="upsell_welcome_shell">Configurer le shell Linux</string>

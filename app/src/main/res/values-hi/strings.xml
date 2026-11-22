@@ -1797,7 +1797,7 @@
     <string name="upsell_not_now">अभी नहीं</string>
     <string name="upsell_settings_plan">आप %1$s प्लान पर हैं। Pro में Linux शेल, ज़्यादा सक्षम मॉडल और ज़्यादा सीमाएँ मिलती हैं।</string>
     <string name="upsell_settings_switch">Samosa AI पर स्विच करें</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro पाएँ</string>
     <string name="upsell_welcome_title">Pro में आपका स्वागत है</string>
     <string name="upsell_welcome_text">आपका Samosa AI Pro प्लान सक्रिय है: Linux शेल, ज़्यादा सक्षम मॉडल और ज़्यादा सीमाएँ आपके लिए तैयार हैं।</string>
     <string name="upsell_welcome_shell">Linux शेल सेट अप करें</string>

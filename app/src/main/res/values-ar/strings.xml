@@ -2185,7 +2185,7 @@
     <string name="upsell_not_now">ليس الآن</string>
     <string name="upsell_settings_plan">أنت على خطة %1$s. يضيف Pro صدفة Linux ونماذج أكثر قدرة وحدودًا أعلى.</string>
     <string name="upsell_settings_switch">التبديل إلى Samosa AI</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">احصل على Samosa AI Pro</string>
     <string name="upsell_welcome_title">مرحبًا بك في Pro</string>
     <string name="upsell_welcome_text">خطة Samosa AI Pro مفعّلة: صدفة Linux والنماذج الأكثر قدرة والحدود الأعلى جاهزة لك.</string>
     <string name="upsell_welcome_shell">إعداد صدفة Linux</string>
