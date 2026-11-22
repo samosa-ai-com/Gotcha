@@ -5,9 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The first screen's three choices. The terms and age boxes are the gate; the
+ * The first screen's three answers. The terms and age boxes are the gate; the
  * usage-data box is a preference and must never be able to enable or disable
  * the button on its own.
+ *
+ * Usage data is on by default in every region. The region only decides whether
+ * the row appears on this screen, never whether it starts on.
  */
 class LegalConsentChoicesTest {
 
@@ -29,20 +32,22 @@ class LegalConsentChoicesTest {
     }
 
     @Test
-    fun `the usage box starts on only outside the consent regions`() {
-        assertTrue(initialUsageDataChecked("other", defaultUsageData = true))
-        assertFalse(initialUsageDataChecked("eea", defaultUsageData = false))
-        assertFalse(initialUsageDataChecked("uk", defaultUsageData = false))
-        assertFalse(initialUsageDataChecked(null, defaultUsageData = false))
-        // Fail closed even if a stale caller hands over an "on" default.
-        assertFalse(initialUsageDataChecked(null, defaultUsageData = true))
+    fun `usage data starts on`() {
+        assertTrue(LegalConsentChoices().usageData)
     }
 
     @Test
-    fun `submit forces the box off when the region is still unknown`() {
-        assertFalse(usageDataOnSubmit(checked = true, region = null))
-        assertTrue(usageDataOnSubmit(checked = true, region = "other"))
-        assertTrue(usageDataOnSubmit(checked = true, region = "eea"))
-        assertFalse(usageDataOnSubmit(checked = false, region = "other"))
+    fun `the row is shown only where the region asks for it`() {
+        assertFalse(usageRowVisible("other"))
+        assertTrue(usageRowVisible("eea"))
+        assertTrue(usageRowVisible("uk"))
+        // Not classified yet: show the control rather than hide it.
+        assertTrue(usageRowVisible(null))
+    }
+
+    @Test
+    fun `the user can turn it off`() {
+        assertFalse(LegalConsentChoices().withUsageDataChoice(false).usageData)
+        assertTrue(LegalConsentChoices().withUsageDataChoice(false).withUsageDataChoice(true).usageData)
     }
 }

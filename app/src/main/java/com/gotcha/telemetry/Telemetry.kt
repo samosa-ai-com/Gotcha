@@ -19,6 +19,9 @@ import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -98,8 +101,11 @@ class TelemetryClient internal constructor(
     private val enabled: Boolean get() = prefs.getBoolean(KEY_ENABLED, true)
     val hasConsent: Boolean get() = prefs.contains(KEY_CONSENT_AT)
     val region: String? get() = prefs.getString(KEY_REGION, null)
-    val defaultUsageData: Boolean get() = region == "other" &&
-        !prefs.getBoolean(KEY_CONSENT_REQUIRED, true)
+    private val _regionFlow = MutableStateFlow(region)
+    val regionFlow: StateFlow<String?> = _regionFlow.asStateFlow()
+
+    /** Usage data is on unless the user turns it off, in every region. */
+    val defaultUsageData: Boolean get() = true
     private val registered: Boolean get() = installId.isNotBlank() && token.isNotBlank()
     private val token: String get() = prefs.getString(KEY_TOKEN, "").orEmpty()
     private val installId: String get() = prefs.getString(KEY_INSTALL_ID, "").orEmpty()
@@ -199,6 +205,7 @@ class TelemetryClient internal constructor(
                         .putBoolean(KEY_CONSENT_REQUIRED, result.consentRequired)
                         .putFloat(KEY_SAMPLE, (result.sample ?: 1.0).coerceIn(0.0, 1.0).toFloat())
                         .remove(KEY_REREG_ATTEMPTS).apply()
+                    _regionFlow.value = result.region
                     if (!result.enabled) {
                         prefs.edit().putLong(KEY_PAUSED_UNTIL, clock() + SERVER_PAUSE_MS).apply()
                     }
@@ -382,6 +389,7 @@ object Telemetry {
 
     @Volatile
     private var client: TelemetryClient? = null
+    private val unknownRegion = MutableStateFlow<String?>(null).asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val main by lazy { Handler(Looper.getMainLooper()) }
@@ -421,6 +429,7 @@ object Telemetry {
 
     val isConfigured: Boolean get() = client?.isConfigured == true
     val region: String? get() = client?.region
+    val regionFlow: StateFlow<String?> get() = client?.regionFlow ?: unknownRegion
     val defaultUsageData: Boolean get() = client?.defaultUsageData == true
     val hasConsent: Boolean get() = client?.hasConsent == true
 

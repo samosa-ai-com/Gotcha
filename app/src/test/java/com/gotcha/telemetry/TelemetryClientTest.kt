@@ -91,7 +91,9 @@ class TelemetryClientTest {
     @Test
     fun `default on before consent does not queue`() {
         val c = client()
-        assertFalse(c.status().enabled)
+        // The switch reads on, but nothing is recorded until the first screen
+        // has been answered: the default is a choice in force, not consent.
+        assertTrue(c.status().enabled)
         assertFalse(c.hasConsent)
         c.track(TelemetryEvents.appOpen(cold = true, startMs = 500))
         assertEquals(0, queue.size())
@@ -110,6 +112,7 @@ class TelemetryClientTest {
     @Test
     fun `registration runs with usage data off and reuses installed time`() {
         val c = client()
+        assertEquals(null, c.regionFlow.value)
         c.recordConsent(false, ConsentSurface.FIRST_RUN)
         server.enqueue(MockResponse().setResponseCode(503))
         assertFalse(runBlocking { c.ensureRegistered() })
@@ -131,6 +134,7 @@ class TelemetryClientTest {
             Json.parseToJsonElement(second.body.readUtf8()).jsonObject["installed_at"]!!.jsonPrimitive.content.toLong()
         )
         assertEquals("other", c.region)
+        assertEquals("other", c.regionFlow.value)
         assertFalse(c.status().enabled)
         assertEquals(2, server.requestCount)
         assertTrue(runBlocking { c.ensureRegistered() })
@@ -138,10 +142,10 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `unknown region defaults off`() {
+    fun `every region defaults on`() {
         val c = client()
-        assertFalse(c.defaultUsageData)
-        assertFalse(c.status().enabled)
+        assertTrue(c.defaultUsageData)
+        assertTrue(c.status().enabled)
     }
 
     @Test
@@ -394,17 +398,15 @@ class TelemetryClientTest {
                 .commit()
         }
 
+        // Usage data is on by default in every region; the region only decides
+        // whether the row is shown on the first screen.
         region("eea", consentRequired = true)
-        assertFalse(c.defaultUsageData)
-        assertFalse(c.status().enabled)
+        assertTrue(c.defaultUsageData)
+        assertTrue(c.status().enabled)
 
         region("uk", consentRequired = true)
-        assertFalse(c.defaultUsageData)
-        assertFalse(c.status().enabled)
-
-        region("other", consentRequired = true)
-        assertFalse(c.defaultUsageData)
-        assertFalse(c.status().enabled)
+        assertTrue(c.defaultUsageData)
+        assertTrue(c.status().enabled)
 
         region("other", consentRequired = false)
         assertTrue(c.defaultUsageData)

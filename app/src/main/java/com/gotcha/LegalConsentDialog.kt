@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,13 +63,10 @@ fun LegalConsentDialog(
     onAgree: () -> Unit
 ) {
     val context = LocalContext.current
-    var choices by remember {
-        mutableStateOf(
-            LegalConsentChoices(
-                usageData = initialUsageDataChecked(Telemetry.region, Telemetry.defaultUsageData)
-            )
-        )
-    }
+    val region by Telemetry.regionFlow.collectAsState()
+    // Usage data is on by default everywhere; the row is shown only where the
+    // region asks for it, so the state is simply true until the user unticks it.
+    var choices by remember { mutableStateOf(LegalConsentChoices()) }
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
@@ -162,17 +160,20 @@ fun LegalConsentDialog(
                     tag = "legal_consent_age"
                 )
 
-                HorizontalDivider(thickness = 1.dp)
-
-                // Optional, independent of the two above: it is a preference,
-                // not a condition of using the app, so it never gates the button.
-                ConsentToggleRow(
-                    checked = choices.usageData,
-                    onCheckedChange = { choices = choices.copy(usageData = it) },
-                    label = stringResource(R.string.legal_consent_usage_data_label),
-                    hint = stringResource(R.string.legal_consent_usage_data_hint),
-                    tag = "legal_consent_usage"
-                )
+                // Shown where the region requires prior consent, and while the
+                // region is unknown. Elsewhere it is on by default and lives in
+                // Settings, so this screen stays short. It is never a condition
+                // of using the app, so it never gates the button.
+                if (usageRowVisible(region)) {
+                    HorizontalDivider(thickness = 1.dp)
+                    ConsentToggleRow(
+                        checked = choices.usageData,
+                        onCheckedChange = { choices = choices.withUsageDataChoice(it) },
+                        label = stringResource(R.string.legal_consent_usage_data_label),
+                        hint = stringResource(R.string.legal_consent_usage_data_hint),
+                        tag = "legal_consent_usage"
+                    )
+                }
             }
         },
         confirmButton = {
@@ -180,7 +181,7 @@ fun LegalConsentDialog(
                 onClick = {
                     // Recorded in the background; navigation does not wait for it.
                     Telemetry.recordConsent(
-                        usageDataOnSubmit(choices.usageData, Telemetry.region),
+                        choices.usageData,
                         ConsentSurface.FIRST_RUN
                     )
                     onAgree()
