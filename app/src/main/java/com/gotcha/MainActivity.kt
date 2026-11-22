@@ -1149,8 +1149,10 @@ class MainActivity : ComponentActivity() {
                     answered = starPrompt.answered()
                 ) ?: return@repeatOnLifecycle
                 delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
-                // Something that opened this frame hasn't cancelled the wait yet.
-                if (!starPromptStillQuiet) return@repeatOnLifecycle
+                // Something that opened this frame hasn't cancelled the wait yet. The launch flags
+                // are read directly, not through the remembered quiet, which only updates on the
+                // next recomposition: the other prompt may have woken in this same frame.
+                if (!starPromptStillQuiet || upsellShownThisLaunch) return@repeatOnLifecycle
                 starPrompt.markShown(System.currentTimeMillis())
                 starPromptShownThisLaunch = true
                 showStarPrompt = true
@@ -1177,7 +1179,8 @@ class MainActivity : ComponentActivity() {
                     starPromptShownAt = starPrompt.lastShownAt()
                 ) ?: return@repeatOnLifecycle
                 delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
-                if (!upsellStillQuiet) return@repeatOnLifecycle
+                // As above: the star ask may have opened in this same frame.
+                if (!upsellStillQuiet || starPromptShownThisLaunch) return@repeatOnLifecycle
                 upsellStore.markShown(System.currentTimeMillis())
                 upsellShownThisLaunch = true
                 upsellRequest = audience to UpsellReason.VALUE
