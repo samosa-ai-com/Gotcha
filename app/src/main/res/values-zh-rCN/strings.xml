@@ -1591,6 +1591,9 @@
     <string name="samosa_sign_in_hint_website">请在 Samosa AI 网站上登录以使用 Samosa AI。你的 OpenAI 兼容设置单独保存，不受影响。</string>
     <string name="samosa_opening_sign_in">正在打开 Samosa 登录…</string>
     <string name="samosa_manage_account">管理账号</string>
+    <string name="samosa_manage_models">管理你的模型</string>
+    <string name="account_title">Samosa AI 账户</string>
+    <string name="account_fallback_name">Samosa 账户</string>
     <string name="samosa_add_credits">添加额度</string>
     <string name="samosa_sign_in_cancelled">已取消登录。</string>
     <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>

@@ -1636,6 +1636,9 @@
     <string name="samosa_sign_in_hint_website">Accedi sul sito web di Samosa AI per usare Samosa AI. Le impostazioni compatibili con OpenAI sono conservate a parte e non cambiano.</string>
     <string name="samosa_opening_sign_in">Apertura dell\'accesso a Samosa…</string>
     <string name="samosa_manage_account">Gestisci account</string>
+    <string name="samosa_manage_models">Gestisci i tuoi modelli</string>
+    <string name="account_title">Account Samosa AI</string>
+    <string name="account_fallback_name">Account Samosa</string>
     <string name="samosa_add_credits">Aggiungi crediti</string>
     <string name="samosa_sign_in_cancelled">Accesso annullato.</string>
     <string name="samosa_session_ended">Sei stato disconnesso da Samosa AI. Accedi di nuovo per continuare a usarlo.</string>

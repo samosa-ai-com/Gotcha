@@ -1614,6 +1614,9 @@
     <string name="samosa_sign_in_hint_website">Melde dich auf der Samosa-AI-Website an, um Samosa AI zu nutzen. Deine OpenAI-kompatiblen Einstellungen werden getrennt gespeichert und bleiben unverändert.</string>
     <string name="samosa_opening_sign_in">Samosa-Anmeldung wird geöffnet…</string>
     <string name="samosa_manage_account">Konto verwalten</string>
+    <string name="samosa_manage_models">Deine Modelle verwalten</string>
+    <string name="account_title">Samosa AI-Konto</string>
+    <string name="account_fallback_name">Samosa-Konto</string>
     <string name="samosa_add_credits">Guthaben aufladen</string>
     <string name="samosa_sign_in_cancelled">Anmeldung abgebrochen.</string>
     <string name="samosa_session_ended">Du wurdest von Samosa AI abgemeldet. Melde dich erneut an, um es weiter zu nutzen.</string>

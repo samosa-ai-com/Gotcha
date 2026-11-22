@@ -2002,6 +2002,9 @@
     <string name="samosa_sign_in_hint_website">سجّل الدخول على موقع Samosa AI لاستخدام Samosa AI. تُحفظ إعداداتك المتوافقة مع OpenAI بشكل منفصل ولا تتأثر.</string>
     <string name="samosa_opening_sign_in">جارٍ فتح تسجيل الدخول إلى Samosa…</string>
     <string name="samosa_manage_account">إدارة الحساب</string>
+    <string name="samosa_manage_models">إدارة نماذجك</string>
+    <string name="account_title">حساب Samosa AI</string>
+    <string name="account_fallback_name">حساب Samosa</string>
     <string name="samosa_add_credits">إضافة رصيد</string>
     <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>

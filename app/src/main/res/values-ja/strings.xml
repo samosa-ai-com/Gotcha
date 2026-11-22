@@ -1591,6 +1591,9 @@
     <string name="samosa_sign_in_hint_website">Samosa AI を使うには Samosa AI のウェブサイトでサインインしてください。OpenAI 互換の設定は別に保存され、影響を受けません。</string>
     <string name="samosa_opening_sign_in">Samosa のサインインを開いています…</string>
     <string name="samosa_manage_account">アカウントを管理</string>
+    <string name="samosa_manage_models">モデルを管理</string>
+    <string name="account_title">Samosa AI アカウント</string>
+    <string name="account_fallback_name">Samosa アカウント</string>
     <string name="samosa_add_credits">クレジットを追加</string>
     <string name="samosa_sign_in_cancelled">サインインをキャンセルしました。</string>
     <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
@@ -83,6 +84,12 @@ fun AppDrawerContent(
     /** Who the Samosa AI / Pro door speaks to; [com.gotcha.upsell.UpsellAudience.NONE] hides it. */
     upsellAudience: com.gotcha.upsell.UpsellAudience = com.gotcha.upsell.UpsellAudience.NONE,
     onOpenUpsell: () -> Unit = {},
+    /**
+     * The Samosa account row under Settings: the signed-in user's name, or null
+     * when signed out (the row then offers to sign in).
+     */
+    accountName: String? = null,
+    onOpenAccount: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -269,6 +276,18 @@ fun AppDrawerContent(
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                 onClick = onOpenSettings,
                 modifier = Modifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
+            )
+            FeatureRow(
+                label = accountName ?: stringResource(R.string.samosa_sign_in_website),
+                icon = {
+                    if (accountName != null) {
+                        AccountAvatar(accountName, size = 24)
+                    } else {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null)
+                    }
+                },
+                onClick = onOpenAccount,
+                modifier = Modifier.testTag("drawer_account")
             )
             if (upsellAudience != com.gotcha.upsell.UpsellAudience.NONE) {
                 val pro = upsellAudience == com.gotcha.upsell.UpsellAudience.PRO

@@ -125,6 +125,8 @@ data class Settings(
     // stores the Google ID token). Only used when provider == SAMOSA_AI.
     val samosaSessionToken: String = "",
     val samosaEmail: String = "",
+    /** The signed-in user's name, cached from the last profile read so the drawer can show it offline. */
+    val samosaDisplayName: String = "",
     val subAgentModel: String = "", // empty = same as main agent
     val navigatorModel: String = "", // empty = same as main model
     val maxToolRounds: Int = 300,
@@ -671,6 +673,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         model = string(KEY_MODEL, Settings.DEFAULT_MODEL),
         samosaSessionToken = string(KEY_SAMOSA_TOKEN),
         samosaEmail = string(KEY_SAMOSA_EMAIL),
+        samosaDisplayName = string(KEY_SAMOSA_DISPLAY_NAME),
         subAgentModel = string(KEY_SUB_AGENT_MODEL),
         navigatorModel = string(KEY_NAVIGATOR_MODEL),
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
@@ -940,11 +943,17 @@ class SettingsRepository(context: Context) : SettingsStore {
     }
 
     /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
+    /** Caches the signed-in user's name for the drawer; see [Settings.samosaDisplayName]. */
+    fun saveSamosaDisplayName(name: String) {
+        prefs.edit().putString(KEY_SAMOSA_DISPLAY_NAME, name).apply()
+    }
+
     fun clearSamosaSession() {
         prefs.edit()
             .remove(KEY_SAMOSA_TOKEN)
             .remove(KEY_SAMOSA_REFRESH_TOKEN)
             .remove(KEY_SAMOSA_EMAIL)
+            .remove(KEY_SAMOSA_DISPLAY_NAME)
             .apply()
         com.gotcha.tools.ShellEntitlement.onSignedOut(appContext)
     }
@@ -973,6 +982,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_SAMOSA_PENDING_STATE = "samosa_pending_sign_in_state"
         const val KEY_SAMOSA_PENDING_STARTED_AT = "samosa_pending_sign_in_started_at"
         const val KEY_SAMOSA_EMAIL = "samosa_email"
+        const val KEY_SAMOSA_DISPLAY_NAME = "samosa_display_name"
         const val KEY_SUB_AGENT_MODEL = "sub_agent_model"
         const val KEY_NAVIGATOR_MODEL = "navigator_model"
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"

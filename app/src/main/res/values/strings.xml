@@ -2025,6 +2025,9 @@
     <string name="samosa_sign_in_hint_website">Sign in on the Samosa AI website to use Samosa AI. Your OpenAI-compatible settings are kept separately and are unaffected.</string>
     <string name="samosa_opening_sign_in">Opening Samosa sign-in…</string>
     <string name="samosa_manage_account">Manage account</string>
+    <string name="samosa_manage_models">Manage your Models</string>
+    <string name="account_title">Samosa AI account</string>
+    <string name="account_fallback_name">Samosa account</string>
     <string name="samosa_add_credits">Add credits</string>
     <string name="samosa_sign_in_cancelled">Sign-in cancelled.</string>
     <string name="samosa_session_ended">You were signed out of Samosa AI. Sign in again to keep using it.</string>
