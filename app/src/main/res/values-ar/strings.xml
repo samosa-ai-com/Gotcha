@@ -139,7 +139,10 @@
     <string name="settings_page_speech_summary">الأصوات، النسخ، قراءة الردود بصوت عالٍ</string>
     <string name="settings_page_permissions">الأذونات</string>
     <string name="settings_page_permissions_summary">ما يُسمح للمساعد بفعله</string>
-    <string name="settings_page_termux">Termux (صدفة Linux)</string>
+    <string name="settings_page_shell">الصدفة</string>
+    <string name="settings_page_shell_summary">Gotcha Shell أو Termux: حيث يشغّل المساعد أوامر Linux</string>
+    <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">شغّل الأوامر في صدفة Linux حقيقية</string>
     <string name="settings_page_skills">المهارات / الإضافات</string>
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
@@ -2098,7 +2101,7 @@
     <string name="telemetry_event_setup">عندما تحفظ إعداد الذكاء الاصطناعي أو تختبر الاتصال: Samosa AI أو خادمك الخاص (يُذكر نوعه فقط)، وهل أُدخل مفتاح، وهل نجح الاختبار، دون المفتاح أو العنوان أو النموذج أبدًا</string>
     <string name="telemetry_event_lens">عندما تستخدم Screen Lens أو اقتراحًا من Screen Companion: نوع الإجراء الذي نقرت عليه، مثل النسخ أو الترجمة أو الاتصال، دون ما كان على الشاشة أبدًا</string>
     <string name="telemetry_event_crash">عندما يتعطل Gotcha: نوع الخطأ والدالة التي جاء منها، دون رسالته أبدًا</string>
-    <string name="settings_page_linux_shell">صدفة Linux</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: نظام Linux كامل للمساعد</string>
     <string name="linux_shell_intro">Gotcha Shell تطبيق منفصل يمنح المساعد نظام Linux كاملًا: تثبيت الحزم وتشغيل نصوص برمجية وأدوات لا يأتي بها أي هاتف. يعمل بمعزل عن Gotcha، فلا يستطيع أي أمر تغيير إعدادات Gotcha أو محادثاته أو ذاكرته، ولا يرى ملفاتك إلا إذا سلّمه Gotcha ملفًا.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>

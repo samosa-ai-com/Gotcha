@@ -193,7 +193,7 @@ class SettingsFlowTest {
         composeRule.onNodeWithTag("settings_search").performTextReplacement("wake word")
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_assistive_ball_row").assertExists()
-        composeRule.onNodeWithTag("settings_termux_row").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings_shell_row").assertDoesNotExist()
         // The tour and feedback rows are not pages, so they drop out of a search.
         composeRule.onNodeWithTag("settings_feature_tour_row").assertDoesNotExist()
 
@@ -208,7 +208,7 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_search_empty").assertDoesNotExist()
         composeRule.onNodeWithTag("settings_feature_tour_row").performScrollTo().assertExists()
-        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_shell_row").performScrollTo().assertExists()
     }
 
     @Test
@@ -239,7 +239,7 @@ class SettingsFlowTest {
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_shell_row").performScrollTo().assertExists()
     }
 
     @Test

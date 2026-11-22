@@ -73,7 +73,10 @@
     <string name="settings_page_speech_summary">音声、文字起こし、回答の読み上げ</string>
     <string name="settings_page_permissions">権限</string>
     <string name="settings_page_permissions_summary">アシスタントにできること</string>
-    <string name="settings_page_termux">Termux (Linux シェル)</string>
+    <string name="settings_page_shell">シェル</string>
+    <string name="settings_page_shell_summary">Gotcha Shell または Termux: アシスタントが Linux コマンドを実行する場所</string>
+    <string name="shell_hub_intro">アシスタントが Linux コマンドを実行する方法は 2 つあります。Gotcha Shell は専用アプリで動く完全な Linux システムです。Termux は、すでにお持ちの Termux アプリを使います。どちらか一方、または両方を設定できます。</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">本物の Linux シェルでコマンドを実行</string>
     <string name="settings_page_skills">スキル / プラグイン</string>
     <string name="settings_page_skills_summary">内蔵スキルとコミュニティスキル</string>
@@ -1687,7 +1690,7 @@
     <string name="telemetry_event_setup">AI の設定を保存したとき、または接続をテストしたとき: Samosa AI か自分のサーバーか（種類のみ）、キーが入力されているか、テストが成功したか。キー、アドレス、モデルは送信しません</string>
     <string name="telemetry_event_lens">Screen Lens や Screen Companion の提案を使ったとき: タップしたアクションの種類（コピー、翻訳、電話など）。画面の内容は送信しません</string>
     <string name="telemetry_event_crash">Gotcha がクラッシュしたとき: エラーの種類と発生したメソッド。メッセージは送信しません</string>
-    <string name="settings_page_linux_shell">Linux シェル</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell：アシスタント用の完全な Linux システム</string>
     <string name="linux_shell_intro">Gotcha Shell は、アシスタントに完全な Linux システムを提供する別のアプリです。パッケージのインストールや、スマートフォンにはないスクリプトやツールの実行ができます。Gotcha とは別に動作するため、コマンドが Gotcha の設定、チャット、メモリを変更することはできず、Gotcha が渡さない限りあなたのファイルを見ることもできません。</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>

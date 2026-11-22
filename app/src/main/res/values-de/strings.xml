@@ -73,7 +73,10 @@
     <string name="settings_page_speech_summary">Stimmen, Transkription, Antworten vorlesen</string>
     <string name="settings_page_permissions">Berechtigungen</string>
     <string name="settings_page_permissions_summary">Was der Assistent darf</string>
-    <string name="settings_page_termux">Termux (Linux-Shell)</string>
+    <string name="settings_page_shell">Shell</string>
+    <string name="settings_page_shell_summary">Gotcha Shell oder Termux: wo der Assistent Linux-Befehle ausführt</string>
+    <string name="shell_hub_intro">Zwei Wege, wie der Assistent Linux-Befehle ausführen kann. Gotcha Shell ist ein vollständiges Linux-System in einer eigenen App; Termux nutzt die Termux-App, falls du sie schon hast. Richte eine davon ein, oder beide.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Befehle in einer echten Linux-Shell ausführen</string>
     <string name="settings_page_skills">Skills / Plugins</string>
     <string name="settings_page_skills_summary">Integrierte und Community-Skills</string>
@@ -1710,7 +1713,7 @@
     <string name="telemetry_event_setup">Wenn du die KI-Einrichtung speicherst oder die Verbindung testest: Samosa AI oder dein eigener Server (nur als Art benannt), ob ein Schlüssel eingetragen ist und ob der Test geklappt hat, nie der Schlüssel, die Adresse oder das Modell</string>
     <string name="telemetry_event_lens">Wenn du Screen Lens oder einen Vorschlag von Screen Companion nutzt: welche Art von Aktion du angetippt hast, etwa Kopieren, Übersetzen oder Anrufen, nie was auf dem Bildschirm war</string>
     <string name="telemetry_event_crash">Wenn Gotcha abstürzt: die Art des Fehlers und die Methode, aus der er kam, nie seine Meldung</string>
-    <string name="settings_page_linux_shell">Linux-Shell</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: ein vollständiges Linux-System für den Assistenten</string>
     <string name="linux_shell_intro">Gotcha Shell ist eine eigene App, die dem Assistenten ein vollständiges Linux-System gibt: Pakete installieren, Skripte und Werkzeuge ausführen, die kein Handy mitbringt. Sie läuft getrennt von Gotcha, sodass kein Befehl Gotchas Einstellungen, Chats oder Erinnerungen ändern kann, und sie sieht deine Dateien nur, wenn Gotcha ihr eine übergibt.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>

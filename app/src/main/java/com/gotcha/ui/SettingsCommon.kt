@@ -110,9 +110,10 @@ import kotlin.math.round
  *
  * Most pages hang directly off the home list. The exceptions declare a [parent]:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. Two hubs exist: [AI], which collects
- * everything the assistant thinks, hears and speaks with, and [ABOUT], which
- * collects "who made this app and what did I agree to".
+ * that parent instead of from the home list. Three hubs exist: [AI], which collects
+ * everything the assistant thinks, hears and speaks with, [SHELL], which collects
+ * the two ways it can run Linux commands, and [ABOUT], which collects "who made
+ * this app and what did I agree to".
  */
 enum class SettingsPage(
     @StringRes val title: Int,
@@ -168,10 +169,16 @@ enum class SettingsPage(
         R.string.settings_page_privacy_summary,
         "settings_privacy_row"
     ),
+    SHELL(
+        R.string.settings_page_shell,
+        R.string.settings_page_shell_summary,
+        "settings_shell_row"
+    ),
     LINUX_SHELL(
         R.string.settings_page_linux_shell,
         R.string.settings_page_linux_shell_summary,
-        "settings_linux_shell_row"
+        "settings_linux_shell_row",
+        { SHELL }
     ),
     LINUX_TERMINAL(
         R.string.settings_page_linux_terminal,
@@ -182,7 +189,8 @@ enum class SettingsPage(
     TERMUX(
         R.string.settings_page_termux,
         R.string.settings_page_termux_summary,
-        "settings_termux_row"
+        "settings_termux_row",
+        { SHELL }
     ),
     SKILLS(
         R.string.settings_page_skills,

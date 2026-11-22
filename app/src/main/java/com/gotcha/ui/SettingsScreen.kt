@@ -257,6 +257,10 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenPage = onPageChange
                 )
+                SettingsPage.SHELL -> ShellHubScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange
+                )
                 SettingsPage.LINUX_SHELL -> LinuxShellScreen(
                     onBack = backToHome,
                     onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) },

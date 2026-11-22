@@ -142,9 +142,12 @@
     <string name="settings_page_speech_summary">Voices, transcription, read replies aloud</string>
     <string name="settings_page_permissions">Permissions</string>
     <string name="settings_page_permissions_summary">What the assistant is allowed to do</string>
-    <string name="settings_page_linux_shell">Linux shell</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: a full Linux system for the assistant</string>
-    <string name="settings_page_termux">Termux (Linux shell)</string>
+    <string name="settings_page_shell">Shell</string>
+    <string name="settings_page_shell_summary">Gotcha Shell or Termux: where the assistant runs Linux commands</string>
+    <string name="shell_hub_intro">Two ways to let the assistant run Linux commands. Gotcha Shell is a full Linux system in its own app; Termux uses the Termux app if you already have it. Set up either one, or both.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Run commands in a real Linux shell</string>
     <string name="settings_page_skills">Skills / Plugins</string>
     <string name="settings_page_skills_summary">Built-in and community skills</string>

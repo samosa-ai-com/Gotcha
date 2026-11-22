@@ -73,7 +73,10 @@
     <string name="settings_page_speech_summary">Vozes, transcrição, leitura das respostas em voz alta</string>
     <string name="settings_page_permissions">Permissões</string>
     <string name="settings_page_permissions_summary">O que o assistente pode fazer</string>
-    <string name="settings_page_termux">Termux (shell Linux)</string>
+    <string name="settings_page_shell">Shell</string>
+    <string name="settings_page_shell_summary">Gotcha Shell ou Termux: onde o assistente executa comandos Linux</string>
+    <string name="shell_hub_intro">Duas formas de deixar o assistente executar comandos Linux. O Gotcha Shell é um sistema Linux completo no próprio app; o Termux usa o app Termux, se você já o tiver. Configure um deles, ou os dois.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Execute comandos em um shell Linux de verdade</string>
     <string name="settings_page_skills">Habilidades / Plugins</string>
     <string name="settings_page_skills_summary">Habilidades integradas e da comunidade</string>
@@ -1732,7 +1735,7 @@
     <string name="telemetry_event_setup">Quando você salva a configuração de IA ou testa a conexão: Samosa AI ou seu próprio servidor (indicado só pelo tipo), se há uma chave preenchida e se o teste funcionou, nunca a chave, o endereço ou o modelo</string>
     <string name="telemetry_event_lens">Quando você usa o Screen Lens ou uma sugestão do Screen Companion: que tipo de ação você tocou, como copiar, traduzir ou ligar, nunca o que estava na tela</string>
     <string name="telemetry_event_crash">Quando o Gotcha falha: o tipo de erro e o método de onde veio, nunca a mensagem</string>
-    <string name="settings_page_linux_shell">Shell Linux</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: um sistema Linux completo para o assistente</string>
     <string name="linux_shell_intro">O Gotcha Shell é um app separado que dá ao assistente um sistema Linux completo: instalar pacotes, executar scripts e ferramentas que nenhum celular traz. Ele funciona separado do Gotcha, então nada que um comando faça pode mudar as configurações, as conversas ou a memória do Gotcha, e ele não vê seus arquivos a menos que o Gotcha entregue um.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
