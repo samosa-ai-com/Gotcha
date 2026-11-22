@@ -72,13 +72,6 @@ fun AiConfigScreen(
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside this screen; it re-reads it. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    onSamosaSignOut: suspend () -> Unit = {},
-    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
-    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Claims an invite code via the auth manager. */
-    onClaimReferral: suspend (String) -> Result<Unit> = {
-        Result.failure(Exception("Not supported"))
-    },
     onClearLlmCache: () -> Unit = {},
     onClearDebugScreenshots: () -> Unit = {}
 ) {
@@ -91,10 +84,6 @@ fun AiConfigScreen(
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
-    var samosaCredits by remember { mutableStateOf<Double?>(null) }
-    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
-    var referralBusy by remember { mutableStateOf(false) }
-    var referralError by remember { mutableStateOf<String?>(null) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
@@ -119,18 +108,8 @@ fun AiConfigScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the profile & credit balance when signed in, and whenever the token changes
-    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
-    LaunchedEffect(samosaToken) {
-        if (samosaToken.isBlank()) {
-            samosaCredits = null
-            samosaUser = null
-        } else {
-            val profile = onFetchSamosaProfile()
-            samosaUser = profile
-            samosaCredits = profile?.creditsRemaining
-        }
-    }
+    // The account, its credits and log out live on the Account screen (from
+    // the drawer); this page only needs to know whether the user is signed in.
     SamosaSessionSync(
         sessionChanges = samosaSessionChanges,
         onSessionChanged = {
@@ -138,16 +117,7 @@ fun AiConfigScreen(
             samosaToken = current.samosaSessionToken
             samosaEmail = current.samosaEmail
         },
-        onResumed = {
-            if (samosaToken.isNotBlank()) {
-                scope.launch {
-                    onFetchSamosaProfile()?.let { profile ->
-                        samosaUser = profile
-                        samosaCredits = profile.creditsRemaining
-                    }
-                }
-            }
-        }
+        onResumed = {}
     )
 
     /** Runs one sign-in attempt and shows how it went. */
@@ -159,9 +129,6 @@ fun AiConfigScreen(
             result.onSuccess { (email, token) ->
                 samosaEmail = email
                 samosaToken = token
-                val profile = onFetchSamosaProfile()
-                samosaUser = profile
-                samosaCredits = profile?.creditsRemaining
                 status = localContext.getString(R.string.samosa_signed_in_as, email)
             }.onFailure { e ->
                 status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
@@ -275,32 +242,7 @@ fun AiConfigScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
-                creditsRemaining = samosaCredits,
-                user = samosaUser,
-                referralBusy = referralBusy,
-                referralError = referralError,
-                onClaimReferral = { code ->
-                    referralBusy = true
-                    referralError = null
-                    scope.launch {
-                        val res = onClaimReferral(code)
-                        res.onSuccess {
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = (profile ?: samosaUser)?.let { u ->
-                                u.copy(
-                                    referral = u.referral.copy(canClaim = false),
-                                    creditsRemaining = profile?.creditsRemaining ?: samosaCredits
-                                )
-                            }
-                            samosaCredits = samosaUser?.creditsRemaining
-                            referralBusy = false
-                            status = localContext.getString(R.string.samosa_invite_applied)
-                        }.onFailure { e ->
-                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
-                            referralBusy = false
-                        }
-                    }
-                },
+                modelsOnly = true,
                 signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
                     runSamosaSignIn(
@@ -315,20 +257,6 @@ fun AiConfigScreen(
                 onSignInWithGoogle = onSamosaSignInWithGoogle?.let { google ->
                     {
                         runSamosaSignIn(R.string.samosa_signing_in_google, google)
-                    }
-                },
-                onSignOut = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_out)
-                    scope.launch {
-                        onSamosaSignOut()
-                        samosaToken = ""
-                        samosaEmail = ""
-                        samosaCredits = null
-                        samosaUser = null
-                        availableChatModels = emptyList()
-                        status = localContext.getString(R.string.samosa_signed_out)
-                        samosaBusy = false
                     }
                 }
             )

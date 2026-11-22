@@ -87,18 +87,10 @@ fun SettingsScreen(
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
-    /** Logs out of Samosa (clears JWT + Google state). */
     /** Google sign-in when the account website is the main sign-in; null when Google is the only one. */
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside a screen's own sign-in or sign-out. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    onSamosaSignOut: suspend () -> Unit = {},
-    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
-    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Claims an invite code via the auth manager. */
-    onClaimReferral: suspend (String) -> Result<Unit> = {
-        Result.failure(Exception("Not supported"))
-    },
     /**
      * Forces a fetch of the server-messages feed (notifications). Bypasses
      * the 6h gate. Returns the new last-fetched-at timestamp (ms), or null
@@ -238,9 +230,6 @@ fun SettingsScreen(
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,
-                    onSamosaSignOut = onSamosaSignOut,
-                    onFetchSamosaProfile = onFetchSamosaProfile,
-                    onClaimReferral = onClaimReferral,
                     onClearLlmCache = onClearLlmCache,
                     onClearDebugScreenshots = onClearDebugScreenshots
                 )
@@ -252,9 +241,6 @@ fun SettingsScreen(
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,
-                    onSamosaSignOut = onSamosaSignOut,
-                    onFetchSamosaProfile = onFetchSamosaProfile,
-                    onClaimReferral = onClaimReferral,
                     onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) },
                     onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
