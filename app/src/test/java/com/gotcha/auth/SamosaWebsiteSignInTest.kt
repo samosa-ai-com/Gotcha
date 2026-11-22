@@ -60,6 +60,9 @@ class SamosaWebsiteSignInTest {
 
         override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
 
+        // The companion APK route. Unused by these tests; present because the interface grew.
+        override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
+
         override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse {
             exchanges += body
             exchangeError?.let { throw it }

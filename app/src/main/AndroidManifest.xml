@@ -277,6 +277,16 @@
             android:name=".tools.ScheduledSmsReceiver"
             android:exported="false" />
 
+        <!-- The system installer's answer for a Gotcha Shell APK install. Not exported: the
+             PendingIntent names this component explicitly, so nothing else can deliver here. -->
+        <receiver
+            android:name=".tools.InstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.gotcha.shell.INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
+
         <!-- Alarm and timer firing receiver -->
         <receiver
             android:name=".tools.AlarmReceiver"

@@ -93,11 +93,13 @@ object ShellEntitlement {
     /**
      * The remembered answer, read from disk only: safe on any thread and on every tool call.
      *
-     * Debug builds are always allowed. A debug Gotcha can only reach a debug Gotcha Shell, which
-     * exists on developers' machines, and a public checkout has no backend to ask.
+     * A debug build is allowed without asking the backend only when the build explicitly opts
+     * in via SAMOSA_SKIP_TIER_CHECK, and that defaults to true only for the placeholder backend.
+     * Testing a debug build against a real backend (staging or production) needs the real gate:
+     * otherwise every account looks like Pro and the tier test proves nothing.
      */
     fun access(context: Context, now: Long = System.currentTimeMillis()): Access =
-        if (BuildConfig.DEBUG) Access.ALLOWED else remembered(context, now)
+        if (BuildConfig.SKIP_TIER_CHECK) Access.ALLOWED else remembered(context, now)
 
     /** [access] without the debug-build exemption. */
     internal fun remembered(context: Context, now: Long = System.currentTimeMillis()): Access =

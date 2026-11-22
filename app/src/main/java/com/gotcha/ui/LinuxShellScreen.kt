@@ -2,7 +2,6 @@ package com.gotcha.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -35,16 +35,16 @@ import com.gotcha.R
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionConnection
 import com.gotcha.tools.CompanionIdentity
+import com.gotcha.tools.CompanionInstalls
 import com.gotcha.tools.CompanionShellBackend
 import com.gotcha.tools.CompanionShellManager
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ShellEntitlement
 import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.launch
-import java.util.Date
 
 /** What the page is doing right now; one action at a time. */
-private enum class ShellAction { INSTALL, REPAIR, RESET }
+private enum class ShellAction { GET_APP, INSTALL, REPAIR, RESET }
 
 /** Install progress as the companion reports it. */
 private data class InstallProgress(val phase: String, val done: Long, val total: Long)
@@ -70,6 +70,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
     var running by remember { mutableStateOf<ShellAction?>(null) }
     var progress by remember { mutableStateOf<InstallProgress?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
+    var showInstallPrep by remember { mutableStateOf(false) }
 
     // Re-read on every resume: the companion may have been installed, updated or removed
     // while the user was away from this page.
@@ -87,6 +88,22 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         access = ShellEntitlement.refresh(context, force = true)
         identity = manager.identity()
         info = if (identity.installed && identity.trusted) manager.info() else null
+        // The system installer answers by broadcast, which may arrive while this screen is
+        // gone. Without this the user who declined the prompt, or was blocked by Play Protect,
+        // returned to a page that simply still said "not installed" and no explanation.
+        CompanionInstalls.last?.let { outcome ->
+            val reason = CompanionInstalls.lastReason
+            CompanionInstalls.clear()
+            if (outcome == CompanionInstalls.Outcome.FAILED) {
+                overlay.show(
+                    if (reason.isNullOrBlank()) {
+                        context.getString(R.string.linux_shell_get_app_install_failed)
+                    } else {
+                        reason
+                    }
+                )
+            }
+        }
     }
     LaunchedEffect(resumeSignal) { refresh() }
 
@@ -102,6 +119,32 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         }
     }
 
+    // The runtime is not optional: without it the shell cannot start, so offering it as a
+    // separate button invites a companion that is installed but unusable. When the companion
+    // becomes available and the system is not there yet, install it without being asked.
+    //
+    // Once per visit, deliberately: if the automatic attempt fails the row shows the error and
+    // the user can retry. Looping on failure would fight them and burn their data.
+    var autoChainedRuntime by remember { mutableStateOf(false) }
+    LaunchedEffect(identity.installed, identity.trusted, info?.rootfsReady, access) {
+        if (autoChainedRuntime) return@LaunchedEffect
+        if (access != ShellEntitlement.Access.ALLOWED) return@LaunchedEffect
+        if (!identity.installed || !identity.trusted) return@LaunchedEffect
+        // `info` is null until the first refresh returns. Treating "not known yet" as "not
+        // installed" would start an install every time this screen opens, on a device that
+        // already has one — and installing replaces the Linux system, so that would destroy
+        // the user's files, packages and scripts on every visit.
+        val current = info ?: return@LaunchedEffect
+        if (current.rootfsReady) return@LaunchedEffect
+        // The companion may already be installing (a previous attempt, or a command started
+        // one). Do not stack a second install on top of it.
+        if (current.installing) return@LaunchedEffect
+        autoChainedRuntime = true
+        perform(ShellAction.INSTALL, R.string.linux_shell_install_done) {
+            manager.install { phase, done, total -> progress = InstallProgress(phase, done, total) }
+        }
+    }
+
     SettingsScaffold(title = stringResource(SettingsPage.LINUX_SHELL.title), onBack = onBack, overlay = overlay) {
         Text(stringResource(R.string.linux_shell_intro), style = MaterialTheme.typography.bodySmall)
 
@@ -109,13 +152,26 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         SetupCheck(
             title = stringResource(R.string.linux_shell_plan_title),
             done = allowed,
-            detail = planDetail(access, ShellEntitlement.allowedUntil(context))
+            detail = planDetail(access)
         )
 
         SetupCheck(
             title = stringResource(R.string.linux_shell_app_title),
             done = identity.installed && identity.trusted,
-            detail = appDetail(identity, info)
+            detail = appDetail(identity, info),
+            // Only a plan that includes the shell may obtain it. When the gate says no, there is
+            // no action at all: the APK route would refuse anyway, and offering a button that
+            // always fails is worse than not offering one.
+            action = if (allowed && (!identity.installed || !identity.trusted) && running == null) {
+                SetupAction(stringResource(R.string.linux_shell_action_get_app)) {
+                    // Shown before anything downloads: the phone will ask to allow installs
+                    // from Gotcha, and Play Protect may warn. Neither can be suppressed, so
+                    // the user is told first instead of meeting an unexplained blocker.
+                    showInstallPrep = true
+                }
+            } else {
+                null
+            }
         )
 
         val current = info
@@ -151,8 +207,10 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
                     null
                 }
             )
-            progress?.let { InstallProgressBar(it) }
         }
+        // Rendered outside the installed-only branch: the APK fetch shows progress before the
+        // companion is present at all, which is the whole point of this screen's first action.
+        progress?.let { InstallProgressBar(it) }
 
         if (current?.rootfsReady == true) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -232,6 +290,37 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         )
     }
 
+    if (showInstallPrep) {
+        // The system install dialog is unavoidable and Play Protect may warn on top of it.
+        // Saying so beforehand turns a scary blocker into an expected step.
+        SkinAlertDialog(
+            onDismissRequest = { showInstallPrep = false },
+            title = { Text(stringResource(R.string.linux_shell_prep_title)) },
+            text = { Text(stringResource(R.string.linux_shell_prep_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showInstallPrep = false
+                        perform(ShellAction.GET_APP, R.string.linux_shell_get_app_started) {
+                            manager.installFromBackend { phase, done, total ->
+                                // The download reports from Dispatchers.IO; a snapshot write
+                                // from there can miss a recomposition.
+                                Snapshot.withMutableSnapshot {
+                                    progress = InstallProgress(phase, done, total)
+                                }
+                            }
+                        }
+                    }
+                ) { Text(stringResource(R.string.linux_shell_prep_continue)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInstallPrep = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+
     if (confirmReset) {
         SkinAlertDialog(
             onDismissRequest = { confirmReset = false },
@@ -253,17 +342,11 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
 }
 
 @Composable
-private fun planDetail(access: ShellEntitlement.Access, allowedUntil: Long?): String = when (access) {
-    ShellEntitlement.Access.ALLOWED ->
-        if (allowedUntil == null) {
-            stringResource(R.string.linux_shell_plan_active)
-        } else {
-            val context = LocalContext.current
-            stringResource(
-                R.string.linux_shell_plan_active_until,
-                DateFormat.getMediumDateFormat(context).format(Date(allowedUntil))
-            )
-        }
+private fun planDetail(access: ShellEntitlement.Access): String = when (access) {
+    // Deliberately does not mention when the offline grace expires. A user who was never told
+    // about the grace reads a date here as a subscription countdown, and it answers a question
+    // nobody asked. The grace still works; it is simply not advertised.
+    ShellEntitlement.Access.ALLOWED -> stringResource(R.string.linux_shell_plan_active)
     ShellEntitlement.Access.SIGNED_OUT -> stringResource(R.string.linux_shell_plan_signed_out)
     ShellEntitlement.Access.NOT_PRO -> stringResource(R.string.linux_shell_plan_not_pro)
     ShellEntitlement.Access.NEEDS_CHECK -> stringResource(R.string.linux_shell_plan_needs_check)
@@ -311,6 +394,9 @@ private fun InstallProgressBar(progress: InstallProgress) {
             "download" -> R.string.linux_shell_phase_download
             "verify" -> R.string.linux_shell_phase_verify
             "extract" -> R.string.linux_shell_phase_extract
+            "download-apk" -> R.string.linux_shell_phase_download_apk
+            "verify-apk" -> R.string.linux_shell_phase_verify_apk
+            "install-apk" -> R.string.linux_shell_phase_install_apk
             "download-runtime" -> R.string.linux_shell_phase_download_runtime
             "verify-runtime" -> R.string.linux_shell_phase_verify_runtime
             "install-runtime" -> R.string.linux_shell_phase_install_runtime

@@ -68,6 +68,21 @@ android {
             "SAMOSA_SKILL_HOST",
             "\"${samosaConfig("SAMOSA_SKILL_HOST", "samosa-ai.example")}\""
         )
+        // Skip the Shell tier check and treat every account as paying.
+        //
+        // Defaults to TRUE only when the backend is still the placeholder, which is the case a
+        // public checkout with no server behind it needs. Point the app at a real backend and the
+        // default flips to false, so a debug build exercises the same tier gate a release does —
+        // otherwise every account looks like Pro and a tier test proves nothing.
+        val samosaApiUrl = samosaConfig("SAMOSA_API_URL", "https://api.samosa-ai.example")
+        val placeholderBackend = samosaApiUrl.contains("samosa-ai.example")
+        buildConfigField(
+            "boolean",
+            "SKIP_TIER_CHECK",
+            samosaConfig("SAMOSA_SKIP_TIER_CHECK", placeholderBackend.toString())
+                .trim().lowercase().toBooleanStrictOrNull()
+                ?.toString() ?: placeholderBackend.toString()
+        )
         buildConfigField(
             "String",
             "SAMOSA_WEB_CLIENT_ID",
@@ -157,6 +172,10 @@ android {
 
     buildTypes {
         release {
+            // Pin the tier gate ON for release, overriding defaultConfig. Without this a
+            // release built without SAMOSA_API_URL resolves to the placeholder backend, where
+            // SKIP_TIER_CHECK defaults true — which would hand the shell to every free account.
+            buildConfigField("boolean", "SKIP_TIER_CHECK", "false")
             isMinifyEnabled = false
             // Use the release signing config when one was configured above. A keyless
             // checkout may only fall back to the debug key when explicitly opted in via

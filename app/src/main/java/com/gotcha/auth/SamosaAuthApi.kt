@@ -174,6 +174,45 @@ data class ShellRuntimeSource(
             sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' }
 }
 
+/** Response from GET /gotcha/shell/release — the companion APK itself. */
+@Serializable
+data class ShellApkRelease(
+    /** For example "0.2.0". */
+    val version: String = "",
+    /** SHA-256 of the APK, 64 lowercase hex characters. */
+    val sha256: String = "",
+    @SerialName("size_bytes") val sizeBytes: Long = 0L,
+    /**
+     * RELATIVE path such as `/gotcha/shell/download/<token>`. The server returns it relative on
+     * purpose: it is resolved against the configured Samosa origin here, so a staging hub on a
+     * different host needs no server-side change.
+     */
+    @SerialName("download_path") val downloadPath: String = "",
+    @SerialName("expires_in_seconds") val expiresInSeconds: Long = 0L
+) {
+    companion object {
+        /**
+         * The one shape the download path may take: the canonical route and a 43-character
+         * token, and nothing else.
+         *
+         * Checked this strictly because the path is concatenated onto the configured base URL
+         * and fetched with the caller's session. A prefix test alone would admit
+         * `.../download/../../admin/reset` or a query string, and OkHttp would resolve the
+         * traversal and send the bearer token to another endpoint on the same host.
+         */
+        private val DOWNLOAD_PATH = Regex("^/gotcha/shell/download/[A-Za-z0-9_-]{43}$")
+    }
+
+    /**
+     * Whether this answer is safe to act on. A partial one would only fail later, after the
+     * user has waited for permission and a download.
+     */
+    fun isUsable(): Boolean =
+        version.isNotBlank() && sizeBytes > 0 &&
+            sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' } &&
+            DOWNLOAD_PATH.matches(downloadPath)
+}
+
 /**
  * Samosa AI auth endpoints (base URL [AUTH_BASE_URL], from BuildConfig).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
@@ -211,6 +250,16 @@ interface SamosaAuthApi {
      */
     @GET("gotcha/shell/runtime/latest")
     suspend fun shellRuntime(@Header("Authorization") bearer: String): ShellRuntimeSource
+
+    /**
+     * The companion APK release, for a Pro/influencer account.
+     *
+     * Unlike the runtime source this is fetched by Gotcha, which holds a session — the companion
+     * cannot, so it is never asked to. The route is tier-gated for the same reason: an APK is a
+     * licence-gated binary, not a public download.
+     */
+    @GET("gotcha/shell/release")
+    suspend fun shellApkRelease(@Header("Authorization") bearer: String): ShellApkRelease
 
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */
