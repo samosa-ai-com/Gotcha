@@ -965,6 +965,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
         if (runSummary.succeeded) com.gotcha.upsell.UpsellStore(settingsRepository.prefs).recordSuccessfulRun()
     }
 
+    override val showsUpsell: Boolean get() = true
+
     override fun onUpsell(reason: com.gotcha.upsell.UpsellReason) {
         val sessionId = engine.sessionId ?: return
         val anyone = com.gotcha.upsell.Upsell.audience(app, settings)

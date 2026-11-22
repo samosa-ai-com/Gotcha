@@ -1549,9 +1549,10 @@ class AgentEngine(
             DeviceCapabilities.hiddenToolNames(appContext) +
             // A run a schedule started can't plant, re-enable or widen tasks (issue #132).
             (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet()) +
-            // Nobody is watching a scheduled run to be shown the offer.
+            // Nobody is watching a scheduled run to be shown the offer, and a voice call has no
+            // screen to show it on.
             (
-                if (!scheduledRun && !offeredLinuxShell() &&
+                if (!scheduledRun && events.showsUpsell && !offeredLinuxShell() &&
                     com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)
                 ) {
                     emptySet()

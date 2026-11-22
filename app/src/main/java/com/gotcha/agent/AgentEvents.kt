@@ -86,6 +86,12 @@ interface AgentEvents {
     fun onUpsell(reason: com.gotcha.upsell.UpsellReason) {}
 
     /**
+     * True when [onUpsell] puts something on screen. Tools that promise the user is being shown
+     * an offer, like [com.gotcha.tools.ShellTools.OFFER], are withheld from hosts that can't.
+     */
+    val showsUpsell: Boolean get() = false
+
+    /**
      * The host should hide/show its floating chrome (ball, call buttons) around
      * an agent screenshot capture so Gotcha's own controls never appear in the
      * frame. Default no-op for hosts that have no floating chrome to hide.
