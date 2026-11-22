@@ -1775,7 +1775,6 @@
     <string name="upsell_settings_plan">現在のプランは %1$s です。Pro では Linux シェル、より高性能なモデル、より高い上限が使えます。</string>
     <string name="upsell_settings_switch">Samosa AI に切り替える</string>
     <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Samosa AI を見てみる</string>
     <string name="upsell_welcome_title">Pro へようこそ</string>
     <string name="upsell_welcome_text">Samosa AI Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
     <string name="upsell_welcome_shell">Linux シェルを設定</string>

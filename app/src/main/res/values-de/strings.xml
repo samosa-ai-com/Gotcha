@@ -1798,7 +1798,6 @@
     <string name="upsell_settings_plan">Du nutzt den Tarif %1$s. Pro bietet die Linux-Shell, leistungsfähigere Modelle und höhere Limits.</string>
     <string name="upsell_settings_switch">Zu Samosa AI wechseln</string>
     <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Samosa AI entdecken</string>
     <string name="upsell_welcome_title">Willkommen bei Pro</string>
     <string name="upsell_welcome_text">Dein Samosa-AI-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
     <string name="upsell_welcome_shell">Linux-Shell einrichten</string>

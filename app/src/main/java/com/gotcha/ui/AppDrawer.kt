@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,7 +80,7 @@ fun AppDrawerContent(
     onOpenConnectors: () -> Unit,
     onOpenScheduledTasks: () -> Unit = {},
     onOpenSecondBrain: () -> Unit = {},
-    /** Who the Samosa AI / Pro door speaks to; [com.gotcha.upsell.UpsellAudience.NONE] hides it. */
+    /** Who the Pro door speaks to; it shows only for [com.gotcha.upsell.UpsellAudience.PRO]. */
     upsellAudience: com.gotcha.upsell.UpsellAudience = com.gotcha.upsell.UpsellAudience.NONE,
     onOpenUpsell: () -> Unit = {},
     /**
@@ -289,13 +288,14 @@ fun AppDrawerContent(
                 onClick = onOpenAccount,
                 modifier = Modifier.testTag("drawer_account")
             )
-            if (upsellAudience != com.gotcha.upsell.UpsellAudience.NONE) {
-                val pro = upsellAudience == com.gotcha.upsell.UpsellAudience.PRO
+            // Only the Pro offer gets a row: a signed-out user is already invited
+            // in by the account row above, so "Discover Samosa AI" would repeat it.
+            if (upsellAudience == com.gotcha.upsell.UpsellAudience.PRO) {
                 FeatureRow(
-                    label = stringResource(if (pro) R.string.upsell_drawer_pro else R.string.upsell_drawer_samosa),
+                    label = stringResource(R.string.upsell_drawer_pro),
                     icon = {
                         Icon(
-                            if (pro) Icons.Outlined.WorkspacePremium else Icons.Outlined.Bolt,
+                            Icons.Outlined.WorkspacePremium,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )

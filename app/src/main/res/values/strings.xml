@@ -2099,7 +2099,6 @@
     <string name="upsell_settings_plan">You\'re on the %1$s plan. Pro adds the Linux shell, more capable models and higher limits.</string>
     <string name="upsell_settings_switch">Switch to Samosa AI</string>
     <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Discover Samosa AI</string>
     <string name="upsell_welcome_title">Welcome to Pro</string>
     <string name="upsell_welcome_text">Your Samosa AI Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
     <string name="upsell_welcome_shell">Set up the Linux shell</string>

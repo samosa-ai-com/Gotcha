@@ -1820,7 +1820,6 @@
     <string name="upsell_settings_plan">Hai il piano %1$s. Pro aggiunge la shell Linux, modelli più capaci e limiti più alti.</string>
     <string name="upsell_settings_switch">Passa a Samosa AI</string>
     <string name="upsell_drawer_pro">Samosa AI Pro</string>
-    <string name="upsell_drawer_samosa">Scopri Samosa AI</string>
     <string name="upsell_welcome_title">Benvenuto in Pro</string>
     <string name="upsell_welcome_text">Il tuo piano Samosa AI Pro è attivo: la shell Linux, modelli più capaci e limiti più alti sono pronti.</string>
     <string name="upsell_welcome_shell">Configura la shell Linux</string>
