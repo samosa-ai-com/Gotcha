@@ -218,11 +218,14 @@ and can be turned off; see Section 11.
          which builds are in use — and to protect the service from
          abuse.
 
-    11.2 Usage data is on by default in regions where prior consent is
-         not required. In regions where it is required, it stays off
-         until you turn it on; the switch is on the first screen in
-         either case. It is always in Settings → Privacy → "Share
-         usage data". Nothing in the App depends on it.
+    11.2 Usage data is on by default in every country. The switch is
+         always in Settings → Privacy → "Share usage data". On the
+         first screen it is shown as well where the law treats prior
+         consent as required (for example the European Economic Area
+         and the United Kingdom), so the disclosure and the control sit
+         together; elsewhere it is on by default and only in Settings.
+         Nothing in the App depends on it, and turning it off costs you
+         no feature.
 
     11.3 Purpose: to learn which features are used and where the App
          fails or crashes, so we can fix and improve it. It is never
