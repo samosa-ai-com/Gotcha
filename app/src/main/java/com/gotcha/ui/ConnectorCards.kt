@@ -39,6 +39,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.connectors.oauth.OAuthConnectFlow
+import com.gotcha.telemetry.ConnectorAction
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -209,7 +212,9 @@ fun TokenConnectorCard(
     /** Optional refresh action shown when connected (e.g. Home Assistant dynamic tool sync). */
     onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
-    headerTestTag: String = "connector_header_$title"
+    headerTestTag: String = "connector_header_$title",
+    /** [com.gotcha.connectors.ConnectorCatalog] id, for opt-in usage data. */
+    connectorId: String? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -267,6 +272,10 @@ fun TokenConnectorCard(
                             busy = true
                             scope.launch {
                                 status = onConnect()
+                                trackConnector(
+                                    connectorId,
+                                    if (isConnected()) ConnectorAction.CONNECT else ConnectorAction.ERROR
+                                )
                                 busy = false
                                 refreshTick++
                             }
@@ -291,6 +300,7 @@ fun TokenConnectorCard(
                             scope = scope,
                             onRefresh = onRefresh,
                             onResult = {
+                                trackConnector(connectorId, ConnectorAction.REFRESH)
                                 status = it
                                 refreshTick++
                             }
@@ -299,6 +309,7 @@ fun TokenConnectorCard(
                     OutlinedButton(
                         onClick = {
                             onDisconnect()
+                            trackConnector(connectorId, ConnectorAction.DISCONNECT)
                             fields.filter { it.secret }.forEach { it.value = "" }
                             status = context.getString(R.string.connector_cards_disconnected)
                             refreshTick++
@@ -332,7 +343,9 @@ fun OAuthConnectorCard(
     /** Optional refresh action shown when connected. */
     onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
-    headerTestTag: String = "connector_header_$title"
+    headerTestTag: String = "connector_header_$title",
+    /** [com.gotcha.connectors.ConnectorCatalog] id, for opt-in usage data. */
+    connectorId: String? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -347,6 +360,10 @@ fun OAuthConnectorCard(
     val usesSecret = initialClientSecret != null
 
     fun apply(outcome: OAuthConnectFlow.Outcome) {
+        trackConnector(
+            connectorId,
+            if (outcome is OAuthConnectFlow.Outcome.Connected) ConnectorAction.CONNECT else ConnectorAction.ERROR
+        )
         status = when (outcome) {
             is OAuthConnectFlow.Outcome.Connected -> context.getString(R.string.connector_cards_connected_as, outcome.account)
             is OAuthConnectFlow.Outcome.Failed -> outcome.message
@@ -465,6 +482,7 @@ fun OAuthConnectorCard(
                             scope = scope,
                             onRefresh = onRefresh,
                             onResult = {
+                                trackConnector(connectorId, ConnectorAction.REFRESH)
                                 status = it
                                 refreshTick++
                             }
@@ -473,6 +491,7 @@ fun OAuthConnectorCard(
                     OutlinedButton(
                         onClick = {
                             onDisconnect()
+                            trackConnector(connectorId, ConnectorAction.DISCONNECT)
                             clientSecret = ""
                             status = context.getString(R.string.connector_cards_disconnected)
                             refreshTick++
@@ -483,4 +502,10 @@ fun OAuthConnectorCard(
             }
         }
     }
+}
+
+/** One `connector` event; nothing for a card that has no catalogue id. */
+private fun trackConnector(connectorId: String?, action: ConnectorAction) {
+    connectorId ?: return
+    Telemetry.track(FeatureEvents.connector(connectorId, action))
 }

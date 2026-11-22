@@ -363,6 +363,23 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
+
+        <!--
+          ML Kit (text and barcode recognition, all on-device) reports its own
+          usage to Google through the datatransport library, whose only upload
+          backend is CCT (firebaselogging.googleapis.com). Removing that backend's
+          registration leaves datatransport nothing to upload with, so it drops
+          ML Kit's log events instead of sending them; recognition is unaffected.
+          The job service and alarm receiver stay: datatransport still schedules
+          its upload job, and a missing service would crash it.
+        -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="merge">
+            <meta-data
+                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+                tools:node="remove" />
+        </service>
     </application>
 
 </manifest>

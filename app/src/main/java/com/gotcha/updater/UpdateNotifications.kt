@@ -132,6 +132,9 @@ internal suspend fun runUpdateCheck(
     )
     if (!notify || !notifier.post(info, LocalNotificationStore(context))) return UpdateCheckOutcome.UP_TO_DATE
     store.lastNotifiedVersionCode = info.versionCode
+    com.gotcha.telemetry.Telemetry.track(
+        com.gotcha.telemetry.TelemetryEvents.update(com.gotcha.telemetry.UpdatePhase.NOTIFIED)
+    )
     UpdateCheckOutcome.NOTIFIED
 }
 

@@ -21,6 +21,15 @@ All notable changes to Gotcha are documented here.
   separate button that invites an installed-but-unusable state.
 - Real download progress for the APK, with byte counts, so a multi-megabyte
   fetch no longer looks frozen.
+- **Privacy page.** Settings ▸ Privacy shows what Gotcha has recorded about
+  its use on your phone: chats, voice calls, requests and how many finished,
+  actions taken, the models used and crashes. It is worked out on the phone
+  and sent nowhere.
+- **Optional usage data, off by default.** On the same page you can choose
+  to send counts and outcomes (never your messages, screen, files, contacts,
+  commands or app names) to help improve Gotcha, see exactly what is sent,
+  and delete what was sent. The data retention policy has a new Section 11
+  about it, so you will be asked to accept the updated terms once.
 
 ### Changed
 - The Linux-shell plan row no longer shows the date the offline grace expires.

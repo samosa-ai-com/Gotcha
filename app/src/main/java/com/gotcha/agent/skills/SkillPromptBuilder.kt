@@ -63,6 +63,10 @@ object SkillPromptBuilder {
             .toSet()
     }
 
+    /** The skill ids listed in one `<available-skills>` message built by [build]. */
+    fun offeredSkillIds(message: ChatMessage): Set<String> =
+        AVAILABLE_SKILL_REGEX.findAll(message.textContent).map { it.groupValues[1] }.toSet()
+
     /**
      * Extracts the text of the last genuine user (human) message from history,
      * skipping synthetic observation messages (e.g. vision/screenshot observations

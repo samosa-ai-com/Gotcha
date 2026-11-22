@@ -26,6 +26,10 @@ import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.coalescedSettingsListener
 import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.stringLookup
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.LensAction
+import com.gotcha.telemetry.LensKind
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import com.gotcha.ui.nameRes
@@ -229,6 +233,7 @@ class AssistiveBallService : Service() {
             onEndCall = { callController.endCall() }
             onToggleChatWindow = { } // no-op during calls (ball is hidden)
             onSmartActionSelected = { prompt ->
+                Telemetry.track(FeatureEvents.lens(LensKind.COMPANION, LensAction.ofSuggestion(prompt)))
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             }
             onRequestClipboardCheck = {
@@ -353,7 +358,7 @@ class AssistiveBallService : Service() {
                 history.add(userMsg)
 
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(history.toList())
+                    llmClient.chat(history.toList(), feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
@@ -409,7 +414,7 @@ class AssistiveBallService : Service() {
                     )
                 )
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(history.toList())
+                    llmClient.chat(history.toList(), feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
@@ -432,6 +437,7 @@ class AssistiveBallService : Service() {
                 openCompanionWithImage(base64)
             },
             onContextualAction = { prompt ->
+                Telemetry.track(FeatureEvents.lens(LensKind.LENS, LensAction.ofSuggestion(prompt)))
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             },
             onImagePrompt = { base64, prompt ->
@@ -682,7 +688,7 @@ class AssistiveBallService : Service() {
         scope.launch {
             try {
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                    llmClient.chat(currentHistory)
+                    llmClient.chat(currentHistory, feature = com.gotcha.telemetry.LlmFeature.BALL)
                 }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 activeCompanionHistory.add(
@@ -795,7 +801,7 @@ class AssistiveBallService : Service() {
                 scope.launch {
                     try {
                         val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
-                            llmClient.chat(currentHistory)
+                            llmClient.chat(currentHistory, feature = com.gotcha.telemetry.LlmFeature.BALL)
                         }
                         val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                         activeCompanionHistory.add(
@@ -958,7 +964,9 @@ class AssistiveBallService : Service() {
         // The call hides the ball almost immediately, so the visual ack has to
         // be kicked off before it starts — see AssistiveBallOverlay.playWakeAnimation.
         overlay.playWakeAnimation()
-        if (!callController.startWakeWordCall()) {
+        val callStarted = callController.startWakeWordCall()
+        com.gotcha.telemetry.Telemetry.track(com.gotcha.telemetry.TelemetryEvents.wakeWord(callStarted))
+        if (!callStarted) {
             // The call was refused before it began — no provider configured, no
             // API key, the mic grant gone. startCall() reports that through
             // onError() and leaves the state machine in IDLE, so the collector

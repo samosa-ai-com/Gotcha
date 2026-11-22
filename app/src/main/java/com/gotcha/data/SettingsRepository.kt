@@ -1073,5 +1073,9 @@ class SettingsRepository(context: Context) : SettingsStore {
  * The dialog's "I am at least 18" checkbox was added without a bump, on
  * purpose: it applies to new installs only, and users who already accepted
  * version 2 are not asked again. A later bump will ask everyone for it.
+ *
+ * Version 3: the data retention policy gained Section 11 (optional usage
+ * data) and no longer says the app has no telemetry endpoint. A material
+ * change, so everyone accepts again, and with it confirms their age.
  */
-const val LEGAL_VERSION: String = "2"
+const val LEGAL_VERSION: String = "3"

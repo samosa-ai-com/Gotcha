@@ -31,6 +31,9 @@ import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.data.DEFAULT_MAX_CONTEXT_TOKENS
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.SetupAction
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
@@ -585,6 +588,17 @@ fun AiConfigScreen(
         Button(
             onClick = {
                 onSave { applyAiConfig(it) }
+                Telemetry.track(
+                    FeatureEvents.setup(
+                        SetupAction.SAVED,
+                        provider,
+                        baseUrl.trim(),
+                        hasKey = when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank()
+                        }
+                    )
+                )
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
@@ -605,7 +619,9 @@ fun AiConfigScreen(
                 overlay.show(localContext.getString(R.string.ai_config_testing_connection), sticky = true)
                 status = null
                 scope.launch {
-                    val result = onTestConnection(draftAiConfig())
+                    val draft = draftAiConfig()
+                    val result = onTestConnection(draft)
+                    Telemetry.track(FeatureEvents.setup(draft, SetupAction.TESTED, testOk = result.isSuccess))
                     overlay.show(
                         result.fold(
                             onSuccess = { localContext.getString(R.string.ai_config_connected, it) },
