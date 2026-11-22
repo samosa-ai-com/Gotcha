@@ -153,7 +153,8 @@ fun AccountScreen(
             }
         }
         SamosaAuthSection(
-            email = "", // the header above already shows it
+            email = email,
+            showEmail = false, // the header above already shows it
             signedIn = signedIn,
             busy = busy,
             creditsRemaining = user?.creditsRemaining,

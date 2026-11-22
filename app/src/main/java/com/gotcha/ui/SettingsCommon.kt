@@ -749,7 +749,9 @@ fun SamosaAuthSection(
      * Set when the account website is the main sign-in: shows a secondary
      * "Use Google instead" button that runs this.
      */
-    onSignInWithGoogle: (() -> Unit)? = null
+    onSignInWithGoogle: (() -> Unit)? = null,
+    /** False when the caller already shows [email]; it still pre-fills the influencer form. */
+    showEmail: Boolean = true
 ) {
     val websiteSignIn = onSignInWithGoogle != null
     val context = LocalContext.current
@@ -788,7 +790,7 @@ fun SamosaAuthSection(
             }
         }
 
-        if (signedIn && email.isNotBlank()) {
+        if (signedIn && showEmail && email.isNotBlank()) {
             Text(
                 text = email,
                 style = MaterialTheme.typography.bodyMedium
