@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.shell.IInstallCallback
 import com.gotcha.shell.IShellService
 import com.gotcha.shell.JobStatus
@@ -12,7 +13,6 @@ import com.gotcha.shell.SessionHandle
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionTerminal.Opened
 import com.gotcha.tools.CompanionTerminal.Refusal
-import com.gotcha.auth.ShellRuntimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking

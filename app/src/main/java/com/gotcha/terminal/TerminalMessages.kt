@@ -25,11 +25,18 @@ fun refusalMessage(context: Context, refusal: Refusal): String = when (refusal) 
     )
     is Refusal.TooOld -> context.getString(R.string.linux_terminal_refused_too_old, refusal.found, refusal.needed)
     is Refusal.NoLinuxSystem -> context.getString(
-        if (refusal.installing) R.string.linux_terminal_refused_installing else R.string.linux_terminal_refused_no_system
+        if (refusal.installing) {
+            R.string.linux_terminal_refused_installing
+        } else {
+            R.string.linux_terminal_refused_no_system
+        }
     )
     is Refusal.NoRuntime -> context.getString(
-        if (refusal.installing) R.string.linux_terminal_refused_runtime_installing
-        else R.string.linux_terminal_refused_runtime_missing
+        if (refusal.installing) {
+            R.string.linux_terminal_refused_runtime_installing
+        } else {
+            R.string.linux_terminal_refused_runtime_missing
+        }
     )
     is Refusal.TooManySessions ->
         if (refusal.limit > 0) {

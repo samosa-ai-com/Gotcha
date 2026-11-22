@@ -217,7 +217,10 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
             val terminalSupported = current.interfaceVersion >= CompanionShellBackend.INTERFACE_VERSION
             Button(
                 onClick = onOpenTerminal,
-                enabled = allowed && terminalSupported && running == null,
+                // Also refuse while the companion is downloading its runtime on its own: the
+                // screen's `running` only covers work it started itself, and opening a session
+                // mid-download can only fail.
+                enabled = allowed && terminalSupported && running == null && !current.runtimeInstalling,
                 modifier = Modifier.fillMaxWidth().testTag("linux_shell_open_terminal")
             ) { Text(stringResource(R.string.linux_shell_action_open_terminal)) }
             if (!terminalSupported) {
