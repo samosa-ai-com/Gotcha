@@ -374,6 +374,9 @@ detekt {
 }
 
 dependencies {
+    // Termux's terminal emulator and view, copied into third_party/termux-terminal (Apache-2.0).
+    implementation(project(":termux-terminal"))
+
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
     implementation(composeBom)

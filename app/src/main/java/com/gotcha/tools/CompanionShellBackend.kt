@@ -321,38 +321,8 @@ internal class CompanionShellBackend(
         }
     }
 
-    /**
-     * Fetches the runtime source from the backend and hands it to the companion.
-     *
-     * Returns whether the companion now has a source it can install from. Silence would be wrong
-     * here: without a source the companion has nothing to fetch, so the caller must say so.
-     * The answer is held by the companion for ten minutes, so calling this on every command costs
-     * one request only when it has expired.
-     */
-    private suspend fun offerRuntime(): Boolean {
-        // CancellationException is not a failure to swallow: stopping a turn must stay a stop,
-        // which is why the rest of this class rethrows it explicitly.
-        val ticket = try {
-            runtimeSource()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
-        }
-        val source = ticket?.source
-        if (source == null || !source.isUsable()) return false
-        return try {
-            link.call { it.offerRuntime(source.version, source.url, source.sha256) }
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            // The companion refused the offer: record it against the account that fetched it, so
-            // the next command waits out the cooldown instead of spending another request.
-            ticket.noteRejected()
-            false
-        }
-    }
+    /** Silence would be wrong if this fails: without a source the companion has nothing to fetch. */
+    private suspend fun offerRuntime(): Boolean = offerRuntimeSource(link, runtimeSource)
 
     private fun proRequired(access: ShellEntitlement.Access) = ToolResult.error(
         "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
@@ -462,6 +432,43 @@ object ShellResultFormat {
             if (stdout.isEmpty() && stderr.isEmpty()) append("\n(no output)")
             notes.forEach { append("\n$it") }
         }
+}
+
+/**
+ * Fetches the runtime source from the backend and hands it to the companion. Shared by
+ * [CompanionShellBackend] and [CompanionTerminal]: both need the runtime, and the companion cannot
+ * fetch the tier-gated source itself.
+ *
+ * Returns whether the companion now has a source it can install from. The answer is held by the
+ * companion for ten minutes, so calling this on every command costs one request only when it has
+ * expired.
+ */
+internal suspend fun offerRuntimeSource(
+    link: CompanionLink,
+    runtimeSource: suspend () -> CompanionRuntimeSource.ResolvedSource?
+): Boolean {
+    // CancellationException is not a failure to swallow: stopping a turn must stay a stop,
+    // which is why every caller rethrows it explicitly.
+    val ticket = try {
+        runtimeSource()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+    val source = ticket?.source
+    if (source == null || !source.isUsable()) return false
+    return try {
+        link.call { it.offerRuntime(source.version, source.url, source.sha256) }
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // The companion refused the offer: record it against the account that fetched it, so
+        // the next command waits out the cooldown instead of spending another request.
+        ticket.noteRejected()
+        false
+    }
 }
 
 /**

@@ -2007,4 +2007,37 @@
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
     <string name="samosa_session_deactivated">تم إلغاء تنشيط حساب Samosa AI هذا.</string>
     <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. في Samosa AI: الإعدادات ← إعداد الذكاء الاصطناعي ← إضافة رصيد.</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">الطرفية</string>
+    <string name="settings_page_linux_terminal_summary">اكتب الأوامر بنفسك في نظام Linux</string>
+    <string name="linux_shell_action_open_terminal">فتح الطرفية</string>
+    <string name="linux_shell_terminal_needs_update">تحتاج الطرفية إلى إصدار أحدث من Gotcha Shell. حدّث Gotcha Shell لاستخدامها.</string>
+    <string name="linux_terminal_opening">جارٍ تشغيل الطرفية…</string>
+    <string name="linux_terminal_ended">انتهت الجلسة.</string>
+    <string name="linux_terminal_restart">بدء جلسة جديدة</string>
+    <string name="linux_terminal_retry">إعادة المحاولة</string>
+    <string name="linux_terminal_more">المزيد</string>
+    <string name="linux_terminal_paste">لصق</string>
+    <string name="linux_terminal_reset">إعادة ضبط الشاشة</string>
+    <string name="linux_terminal_end_session">إنهاء الجلسة</string>
+    <string name="linux_terminal_key_up">سهم لأعلى</string>
+    <string name="linux_terminal_key_down">سهم لأسفل</string>
+    <string name="linux_terminal_key_left">سهم لليسار</string>
+    <string name="linux_terminal_key_right">سهم لليمين</string>
+    <string name="linux_terminal_refused_signed_out">صدفة Linux جزء من Samosa AI Pro. سجّل الدخول إلى Samosa AI لاستخدامها.</string>
+    <string name="linux_terminal_refused_not_pro">صدفة Linux جزء من Samosa AI Pro، وهذا الحساب على خطة أخرى.</string>
+    <string name="linux_terminal_refused_needs_check">تعذّر على Gotcha تأكيد خطة Samosa AI Pro مؤخرًا. اتصل بالإنترنت وحاول مرة أخرى.</string>
+    <string name="linux_terminal_refused_not_installed">تطبيق Gotcha Shell غير مثبّت على هذا الهاتف.</string>
+    <string name="linux_terminal_refused_untrusted">تطبيق Gotcha Shell على هذا الهاتف غير موقّع بنفس مفتاح Gotcha، لذلك لن يستخدمه Gotcha.</string>
+    <string name="linux_terminal_refused_no_answer">لم يستجب Gotcha Shell. حاول مرة أخرى بعد قليل.</string>
+    <string name="linux_terminal_refused_too_old">إصدار Gotcha Shell هذا قديم جدًا على الطرفية (يستخدم الإصدار %1$d، والطرفية تحتاج %2$d). حدّث Gotcha Shell.</string>
+    <string name="linux_terminal_refused_no_system">نظام Linux غير مثبّت بعد. ثبّته من الإعدادات › Linux shell.</string>
+    <string name="linux_terminal_refused_installing">ما زال نظام Linux قيد التثبيت. حاول مرة أخرى عند انتهائه.</string>
+    <string name="linux_terminal_refused_runtime_installing">ما زال Gotcha Shell يُنزّل بيئة تشغيل Linux. حاول مرة أخرى عند انتهائه.</string>
+    <string name="linux_terminal_refused_runtime_missing">يحتاج Gotcha Shell أولًا إلى تنزيل بيئة تشغيل Linux، ولم يتمكّن Gotcha من الحصول عليها. تحقّق من الاتصال ومن أن حسابك يشمل صدفة Linux، ثم حاول مرة أخرى.</string>
+    <string name="linux_terminal_refused_too_many">عدد جلسات الطرفية المفتوحة كبير جدًا (الحد الأقصى %1$d). أنهِ إحداها أولًا.</string>
+    <string name="linux_terminal_refused_too_many_unknown">عدد جلسات الطرفية المفتوحة كبير جدًا. أنهِ إحداها أولًا.</string>
+    <string name="linux_terminal_refused_failed">تعذّر تشغيل الطرفية: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">تعذّر تشغيل الطرفية.</string>
 </resources>

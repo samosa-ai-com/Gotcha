@@ -1596,4 +1596,37 @@
     <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>
     <string name="samosa_session_deactivated">この Samosa AI アカウントは無効化されました。</string>
     <string name="error_out_of_credits_http_402">クレジットがありません (HTTP 402)。続けるにはクレジットを追加してください。Samosa AI の場合: 設定 → AI 設定 → クレジットを追加。</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">ターミナル</string>
+    <string name="settings_page_linux_terminal_summary">Linux システムで自分でコマンドを入力します</string>
+    <string name="linux_shell_action_open_terminal">ターミナルを開く</string>
+    <string name="linux_shell_terminal_needs_update">ターミナルには新しい Gotcha Shell が必要です。使うには Gotcha Shell を更新してください。</string>
+    <string name="linux_terminal_opening">ターミナルを起動しています…</string>
+    <string name="linux_terminal_ended">セッションが終了しました。</string>
+    <string name="linux_terminal_restart">新しいセッションを開始</string>
+    <string name="linux_terminal_retry">再試行</string>
+    <string name="linux_terminal_more">その他</string>
+    <string name="linux_terminal_paste">貼り付け</string>
+    <string name="linux_terminal_reset">画面をリセット</string>
+    <string name="linux_terminal_end_session">セッションを終了</string>
+    <string name="linux_terminal_key_up">上矢印</string>
+    <string name="linux_terminal_key_down">下矢印</string>
+    <string name="linux_terminal_key_left">左矢印</string>
+    <string name="linux_terminal_key_right">右矢印</string>
+    <string name="linux_terminal_refused_signed_out">Linux シェルは Samosa AI Pro の機能です。使うには Samosa AI にサインインしてください。</string>
+    <string name="linux_terminal_refused_not_pro">Linux シェルは Samosa AI Pro の機能ですが、このアカウントは別のプランです。</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha は最近 Samosa AI Pro プランを確認できませんでした。インターネットに接続してもう一度お試しください。</string>
+    <string name="linux_terminal_refused_not_installed">この端末には Gotcha Shell がインストールされていません。</string>
+    <string name="linux_terminal_refused_untrusted">この端末の Gotcha Shell は Gotcha と同じ鍵で署名されていないため、Gotcha は使用しません。</string>
+    <string name="linux_terminal_refused_no_answer">Gotcha Shell が応答しませんでした。しばらくしてからもう一度お試しください。</string>
+    <string name="linux_terminal_refused_too_old">この Gotcha Shell はターミナルには古すぎます（バージョン %1$d、ターミナルには %2$d が必要）。Gotcha Shell を更新してください。</string>
+    <string name="linux_terminal_refused_no_system">Linux システムはまだインストールされていません。設定 › Linux shell からインストールしてください。</string>
+    <string name="linux_terminal_refused_installing">Linux システムはまだインストール中です。完了してからもう一度お試しください。</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell は Linux ランタイムをまだダウンロードしています。完了してからもう一度お試しください。</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell はまず Linux ランタイムをダウンロードする必要がありますが、Gotcha はそれを取得できませんでした。接続と、アカウントに Linux シェルが含まれているかを確認して、もう一度お試しください。</string>
+    <string name="linux_terminal_refused_too_many">開いているターミナルセッションが多すぎます（最大 %1$d）。先に 1 つ終了してください。</string>
+    <string name="linux_terminal_refused_too_many_unknown">開いているターミナルセッションが多すぎます。先に 1 つ終了してください。</string>
+    <string name="linux_terminal_refused_failed">ターミナルを起動できませんでした: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">ターミナルを起動できませんでした。</string>
 </resources>

@@ -1596,4 +1596,37 @@
     <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>
     <string name="samosa_session_deactivated">此 Samosa AI 账号已停用。</string>
     <string name="error_out_of_credits_http_402">额度已用完 (HTTP 402)。请添加额度后继续。Samosa AI：设置 → AI 配置 → 添加额度。</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">终端</string>
+    <string name="settings_page_linux_terminal_summary">自己在 Linux 系统中输入命令</string>
+    <string name="linux_shell_action_open_terminal">打开终端</string>
+    <string name="linux_shell_terminal_needs_update">终端需要更新版本的 Gotcha Shell。请更新 Gotcha Shell 后使用。</string>
+    <string name="linux_terminal_opening">正在启动终端…</string>
+    <string name="linux_terminal_ended">会话已结束。</string>
+    <string name="linux_terminal_restart">开始新会话</string>
+    <string name="linux_terminal_retry">重试</string>
+    <string name="linux_terminal_more">更多</string>
+    <string name="linux_terminal_paste">粘贴</string>
+    <string name="linux_terminal_reset">重置屏幕</string>
+    <string name="linux_terminal_end_session">结束会话</string>
+    <string name="linux_terminal_key_up">上箭头</string>
+    <string name="linux_terminal_key_down">下箭头</string>
+    <string name="linux_terminal_key_left">左箭头</string>
+    <string name="linux_terminal_key_right">右箭头</string>
+    <string name="linux_terminal_refused_signed_out">Linux shell 是 Samosa AI Pro 的一部分。请登录 Samosa AI 后使用。</string>
+    <string name="linux_terminal_refused_not_pro">Linux shell 是 Samosa AI Pro 的一部分，而此账号使用的是其他套餐。</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha 最近无法确认你的 Samosa AI Pro 套餐。请连接互联网后重试。</string>
+    <string name="linux_terminal_refused_not_installed">此手机上未安装 Gotcha Shell。</string>
+    <string name="linux_terminal_refused_untrusted">此手机上的 Gotcha Shell 与 Gotcha 的签名密钥不同，因此 Gotcha 不会使用它。</string>
+    <string name="linux_terminal_refused_no_answer">Gotcha Shell 没有响应。请稍后重试。</string>
+    <string name="linux_terminal_refused_too_old">此 Gotcha Shell 版本过旧，无法使用终端（它使用版本 %1$d，终端需要 %2$d）。请更新 Gotcha Shell。</string>
+    <string name="linux_terminal_refused_no_system">Linux 系统尚未安装。请在 设置 › Linux shell 中安装。</string>
+    <string name="linux_terminal_refused_installing">Linux 系统仍在安装中。完成后请重试。</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell 仍在下载其 Linux 运行环境。完成后请重试。</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell 需要先下载其 Linux 运行环境，但 Gotcha 无法获取。请检查网络连接，并确认你的账号包含 Linux shell，然后重试。</string>
+    <string name="linux_terminal_refused_too_many">打开的终端会话过多（最多 %1$d 个）。请先结束一个。</string>
+    <string name="linux_terminal_refused_too_many_unknown">打开的终端会话过多。请先结束一个。</string>
+    <string name="linux_terminal_refused_failed">终端无法启动：%1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">终端无法启动。</string>
 </resources>
