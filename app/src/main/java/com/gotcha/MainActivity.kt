@@ -173,6 +173,9 @@ class MainActivity : ComponentActivity() {
     /** The Samosa AI / Pro pitch on screen, with who it speaks to and why it came up. */
     private var upsellRequest by mutableStateOf<Pair<UpsellAudience, UpsellReason>?>(null)
 
+    /** When [checkForNewProPlan] last asked the backend; 0 when not yet. */
+    private var lastProPlanCheckAt = 0L
+
     /** Set when a return from the account website finds the plan is now Pro. */
     private var showProWelcome by mutableStateOf(false)
 
@@ -892,10 +895,15 @@ class MainActivity : ComponentActivity() {
     private fun checkForNewProPlan() {
         val startedAt = upsellStore.upgradeStartedAt()
         if (startedAt == 0L) return
-        if (System.currentTimeMillis() - startedAt !in 0 until Upsell.UPGRADE_CHECK_WINDOW_MS) {
+        val now = System.currentTimeMillis()
+        if (now - startedAt !in 0 until Upsell.UPGRADE_CHECK_WINDOW_MS) {
             upsellStore.setUpgradeStartedAt(0L)
             return
         }
+        // The forced ask skips the rest after an unanswered one, so it is spaced out by hand:
+        // switching apps back and forth must not send a request on every return.
+        if (now - lastProPlanCheckAt in 0 until PRO_PLAN_CHECK_GAP_MS) return
+        lastProPlanCheckAt = now
         lifecycleScope.launch {
             ShellEntitlement.refresh(this@MainActivity, force = true)
             val audience = Upsell.audience(this@MainActivity, settingsRepository.load())
@@ -1944,6 +1952,7 @@ class MainActivity : ComponentActivity() {
 
         /** How long Home must stay quiet before the "Enjoying Gotcha?" ask appears. */
         private const val STAR_PROMPT_DELAY_MS = 1_500L
+        private const val PRO_PLAN_CHECK_GAP_MS = 60_000L
 
         /** The AI Configuration field a Samosa AI nudge points at: the provider picker. */
         private const val SAMOSA_PROVIDER_FIELD = "settings_llm_provider"
