@@ -25,6 +25,10 @@ private inline fun <reified E> words(): Vocab.Words where E : Enum<E>, E : WireW
 private fun word(value: WireWord) = JsonPrimitive(value.wire)
 
 /** How the user turned usage data on. */
+enum class ConsentSurface(override val wire: String) : WireWord {
+    FIRST_RUN("first_run"), SETTINGS("settings")
+}
+
 enum class OptInSurface(override val wire: String) : WireWord {
     SETTINGS("settings")
 }
@@ -154,6 +158,8 @@ object TelemetryEvents {
 
     const val APP_OPEN = "app_open"
     const val SESSION_END = "session_end"
+    const val CONSENT = "consent"
+    const val SESSION_PROFILE = "session_profile"
     const val TELEMETRY_OPT_IN = "telemetry_opt_in"
     const val CRASH = "crash"
     const val AGENT_RUN = "agent_run"
@@ -177,6 +183,29 @@ object TelemetryEvents {
         schema.define(
             SESSION_END,
             "length_s" to Prop(Vocab.Words(Buckets.SECONDS))
+        )
+        schema.define(
+            CONSENT,
+            "terms" to Prop(Vocab.Words(setOf("accepted"))),
+            "policy_version" to Prop(Vocab.Count(1..999)),
+            "usage_data" to Prop(Vocab.Words(setOf("accepted", "declined"))),
+            "surface" to Prop(words<ConsentSurface>())
+        )
+        schema.define(
+            SESSION_PROFILE,
+            "archetype" to Prop(Vocab.Words(setOf("glance", "chat", "voice", "automation", "lens", "setup", "idle"))),
+            "struggle" to Prop(Vocab.Words(setOf("none", "mild", "high"))),
+            "length_s" to Prop(Vocab.Words(Buckets.SECONDS)),
+            "runs" to Prop(Vocab.Words(Buckets.COUNT)),
+            "run_fail_ratio" to Prop(Vocab.Words(SessionRules.FAIL_RATIOS)),
+            "tool_fail_ratio" to Prop(Vocab.Words(SessionRules.FAIL_RATIOS)),
+            "retries" to Prop(Vocab.Words(Buckets.COUNT)),
+            "features_used" to Prop(Vocab.Words(Buckets.COUNT)),
+            "first_run_ms" to Prop(Vocab.Words(Buckets.MS)),
+            "jank_ratio" to Prop(Vocab.Words(SessionRules.JANK_RATIOS)),
+            "anr_last_session" to Prop(Vocab.Bool),
+            "permission_denied" to Prop(Vocab.Bool),
+            "rules_version" to Prop(Vocab.Count(1..999))
         )
         schema.define(
             TELEMETRY_OPT_IN,
@@ -373,6 +402,16 @@ object TelemetryEvents {
         mapOf("length_s" to JsonPrimitive(Buckets.seconds(lengthMs / MS_PER_SECOND)))
     )
 
+    fun consent(usageData: Boolean, surface: ConsentSurface) = TelemetryEvent(
+        CONSENT,
+        mapOf(
+            "terms" to JsonPrimitive("accepted"),
+            "policy_version" to JsonPrimitive(com.gotcha.data.LEGAL_VERSION.toInt()),
+            "usage_data" to JsonPrimitive(if (usageData) "accepted" else "declined"),
+            "surface" to word(surface)
+        )
+    )
+
     fun optIn(surface: OptInSurface) = TelemetryEvent(
         TELEMETRY_OPT_IN,
         mapOf("surface" to word(surface))
@@ -400,6 +439,8 @@ object TelemetryEvents {
     fun descriptionOf(name: String): Int? = when (name) {
         APP_OPEN -> R.string.telemetry_event_app_open
         SESSION_END -> R.string.telemetry_event_session_end
+        CONSENT -> R.string.telemetry_event_consent
+        SESSION_PROFILE -> R.string.telemetry_event_session_profile
         TELEMETRY_OPT_IN -> R.string.telemetry_event_opt_in
         CRASH -> R.string.telemetry_event_crash
         AGENT_RUN -> R.string.telemetry_event_agent_run

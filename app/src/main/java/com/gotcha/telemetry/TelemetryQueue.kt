@@ -55,7 +55,11 @@ class TelemetryQueue(
         file.parentFile?.mkdirs()
         file.appendText(event.toJson().toString() + "\n")
         if (lineCount() > maxEvents) {
-            val kept = readAll().let { it.drop(it.size - maxEvents * KEEP_PERCENT / PERCENT) }
+            val all = readAll()
+            val consent = all.filter { it.name == TelemetryEvents.CONSENT }.takeLast(maxEvents)
+            val ordinary = all.filter { it.name != TelemetryEvents.CONSENT }
+            val ordinaryLimit = (maxEvents * KEEP_PERCENT / PERCENT - consent.size).coerceAtLeast(0)
+            val kept = consent + ordinary.takeLast(ordinaryLimit)
             writeAll(kept)
         }
     }
@@ -73,6 +77,11 @@ class TelemetryQueue(
 
     @Synchronized
     fun size(): Int = readAll().size
+
+    @Synchronized
+    fun retainConsent() {
+        writeAll(readAll().filter { it.name == TelemetryEvents.CONSENT })
+    }
 
     @Synchronized
     fun clear() {

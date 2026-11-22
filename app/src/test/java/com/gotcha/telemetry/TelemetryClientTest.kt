@@ -57,8 +57,8 @@ class TelemetryClientTest {
     }
 
     private fun client(
-        url: String = server.url("/v1/telemetry").toString(),
-        key: String = "ingest-key"
+        url: String = server.url("/").toString(),
+        key: String = "enrollment-key"
     ): TelemetryClient {
         val config = TelemetryConfig(url, key)
         return TelemetryClient(
@@ -74,6 +74,12 @@ class TelemetryClientTest {
         )
     }
 
+    private fun ready(c: TelemetryClient, usageData: Boolean = true) {
+        prefs.edit().putString(TelemetryClient.KEY_INSTALL_ID, "server-install")
+            .putString(TelemetryClient.KEY_TOKEN, "install-token").commit()
+        c.recordConsent(usageData, ConsentSurface.FIRST_RUN)
+    }
+
     private fun accepted(body: String = """{"ok":true,"enabled":true,"sample":1.0}""") =
         MockResponse().setResponseCode(202).setBody(body)
 
@@ -83,9 +89,10 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `off by default, nothing is queued`() {
+    fun `default on before consent does not queue`() {
         val c = client()
         assertFalse(c.status().enabled)
+        assertFalse(c.hasConsent)
         c.track(TelemetryEvents.appOpen(cold = true, startMs = 500))
         assertEquals(0, queue.size())
     }
@@ -101,18 +108,54 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `opting in creates a random id and queues the opt-in event`() {
+    fun `registration runs with usage data off and reuses installed time`() {
         val c = client()
-        c.setEnabled(true)
-        val id = prefs.getString(TelemetryClient.KEY_INSTALL_ID, "")!!
-        assertEquals(36, id.length)
-        assertEquals(listOf(TelemetryEvents.TELEMETRY_OPT_IN), queue.peek(10).map { it.name })
+        c.recordConsent(false, ConsentSurface.FIRST_RUN)
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(runBlocking { c.ensureRegistered() })
+        val installedAt = prefs.getLong(TelemetryClient.KEY_INSTALLED_AT, 0)
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"install_id":"server-install","token":"install-token","region":"other",
+                    "consent_required":false,"config":{"enabled":true,"sample":1.0}}"""
+            )
+        )
+        assertTrue(runBlocking { c.ensureRegistered() })
+        val first = server.takeRequest()
+        val second = server.takeRequest()
+        assertEquals("/v1/install", first.path)
+        assertEquals("/v1/install", second.path)
+        assertEquals("Bearer enrollment-key", second.getHeader("Authorization"))
+        assertEquals(
+            installedAt,
+            Json.parseToJsonElement(second.body.readUtf8()).jsonObject["installed_at"]!!.jsonPrimitive.content.toLong()
+        )
+        assertEquals("other", c.region)
+        assertFalse(c.status().enabled)
+        assertEquals(2, server.requestCount)
+        assertTrue(runBlocking { c.ensureRegistered() })
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `unknown region defaults off`() {
+        val c = client()
+        assertFalse(c.defaultUsageData)
+        assertFalse(c.status().enabled)
+    }
+
+    @Test
+    fun `declined consent is queued`() {
+        val c = client()
+        c.recordConsent(false, ConsentSurface.FIRST_RUN)
+        assertEquals(listOf(TelemetryEvents.CONSENT), queue.peek(10).map { it.name })
+        assertFalse(c.isActive)
     }
 
     @Test
     fun `an event outside the schema is dropped`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         c.track(TelemetryEvent("chat_text", mapOf("text" to JsonPrimitive("hello"))))
         assertEquals(1, queue.size())
     }
@@ -120,21 +163,21 @@ class TelemetryClientTest {
     @Test
     fun `flush sends a gzip batch with the product, the id and no account`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         c.track(TelemetryEvents.appOpen(cold = true, startMs = 940))
         server.enqueue(accepted())
 
         assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
 
         val request = server.takeRequest(1, TimeUnit.SECONDS)!!
-        assertEquals("Bearer ingest-key", request.getHeader("Authorization"))
+        assertEquals("Bearer install-token", request.getHeader("Authorization"))
         assertEquals("gzip", request.getHeader("Content-Encoding"))
         val body = request.json()
         assertEquals("gotcha", body["product"]!!.jsonPrimitive.content)
         assertEquals(prefs.getString(TelemetryClient.KEY_INSTALL_ID, ""), body["install_id"]!!.jsonPrimitive.content)
         assertEquals(setOf("schema", "product", "install_id", "sent_at", "app", "events"), body.keys)
         val names = body["events"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content }
-        assertEquals(listOf("telemetry_opt_in", "app_open"), names)
+        assertEquals(listOf("consent", "app_open"), names)
         assertEquals(0, queue.size())
         assertEquals(now, c.status().lastSentAt)
     }
@@ -142,7 +185,7 @@ class TelemetryClientTest {
     @Test
     fun `nothing is sent on mobile data unless allowed`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         network = NetworkState(connected = true, metered = true)
         assertEquals(FlushOutcome.METERED, runBlocking { c.flush(force = true) })
         assertEquals(0, server.requestCount)
@@ -155,7 +198,7 @@ class TelemetryClientTest {
     @Test
     fun `offline keeps the queue`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         network = NetworkState(connected = false, metered = false)
         assertEquals(FlushOutcome.OFFLINE, runBlocking { c.flush(force = true) })
         assertEquals(1, queue.size())
@@ -164,7 +207,7 @@ class TelemetryClientTest {
     @Test
     fun `flushes are spaced fifteen minutes apart unless forced`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(accepted())
         assertEquals(FlushOutcome.SENT, runBlocking { c.flush() })
         c.track(TelemetryEvents.sessionEnd(10_000))
@@ -178,7 +221,7 @@ class TelemetryClientTest {
     @Test
     fun `a server error keeps the batch for next time`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(MockResponse().setResponseCode(503))
         assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
         assertEquals(1, queue.size())
@@ -187,28 +230,28 @@ class TelemetryClientTest {
     @Test
     fun `a refused batch is dropped, not retried forever`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(MockResponse().setResponseCode(400))
         runBlocking { c.flush(force = true) }
-        assertEquals(0, queue.size())
+        assertEquals(1, queue.size())
     }
 
     @Test
     fun `a refused key pauses this version and clears the queue`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(MockResponse().setResponseCode(401))
         assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
-        assertEquals(0, queue.size())
+        assertEquals(1, queue.size())
         assertTrue(c.status().paused)
         c.track(TelemetryEvents.sessionEnd(10_000))
-        assertEquals(0, queue.size())
+        assertEquals(1, queue.size())
     }
 
     @Test
     fun `rate limiting waits for retry_after_ms`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(MockResponse().setResponseCode(429).setBody("""{"retry_after_ms":60000}"""))
         assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
         now += 30_000
@@ -221,7 +264,7 @@ class TelemetryClientTest {
     @Test
     fun `the server's kill switch pauses sending for a day`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(accepted("""{"ok":true,"enabled":false}"""))
         assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
         assertTrue(c.status().paused)
@@ -234,7 +277,7 @@ class TelemetryClientTest {
     @Test
     fun `server sampling thins events`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         server.enqueue(accepted("""{"ok":true,"enabled":true,"sample":0.25}"""))
         runBlocking { c.flush(force = true) }
         // random() is 0.5, above the 0.25 sample, so this one is not kept.
@@ -245,7 +288,7 @@ class TelemetryClientTest {
     @Test
     fun `a long queue goes out in batches of at most fifty`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         repeat(119) { c.track(TelemetryEvents.sessionEnd(10_000)) }
         repeat(3) { server.enqueue(accepted()) }
         assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
@@ -257,45 +300,26 @@ class TelemetryClientTest {
     @Test
     fun `opting out deletes the queue at once`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         c.track(TelemetryEvents.sessionEnd(10_000))
         c.setEnabled(false)
-        assertEquals(0, queue.size())
+        assertEquals(1, queue.size())
         c.track(TelemetryEvents.sessionEnd(10_000))
-        assertEquals(0, queue.size())
-        assertEquals(FlushOutcome.OFF, runBlocking { c.flush(force = true) })
-    }
-
-    @Test
-    fun `delete my data asks the server, then forgets the id`() {
-        val c = client()
-        c.setEnabled(true)
-        val id = prefs.getString(TelemetryClient.KEY_INSTALL_ID, "")!!
-        server.enqueue(MockResponse().setResponseCode(200))
-
-        assertTrue(runBlocking { c.deleteMyData() })
-
-        val request = server.takeRequest()
-        assertEquals("DELETE", request.method)
-        assertEquals("/v1/telemetry/$id", request.path)
-        assertFalse(c.status().enabled)
-        assertFalse(c.status().hasInstallId)
+        assertEquals(1, queue.size())
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
         assertEquals(0, queue.size())
     }
 
     @Test
-    fun `a failed delete keeps the id so it can be retried`() {
-        val c = client()
-        c.setEnabled(true)
-        server.enqueue(MockResponse().setResponseCode(500))
-        assertFalse(runBlocking { c.deleteMyData() })
-        assertTrue(c.status().hasInstallId)
+    fun `sender exposes no delete request`() {
+        assertFalse(TelemetrySender::class.java.declaredMethods.any { it.name == "delete" })
     }
 
     @Test
     fun `a crash is recorded with class and method only`() {
         val c = client()
-        c.setEnabled(true)
+        ready(c)
         val throwable = IllegalStateException("user typed this").apply {
             stackTrace = arrayOf(StackTraceElement("com.gotcha.agent.ChatRunner", "start", "ChatRunner.kt", 1))
         }

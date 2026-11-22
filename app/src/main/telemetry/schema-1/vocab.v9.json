@@ -333,6 +333,47 @@
         }
       }
     },
+    "consent": {
+      "props": {
+        "policy_version": {
+          "optional": false,
+          "vocab": {
+            "kind": "count",
+            "max": 999,
+            "min": 1
+          }
+        },
+        "surface": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "first_run",
+              "settings"
+            ]
+          }
+        },
+        "terms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "accepted"
+            ]
+          }
+        },
+        "usage_data": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "accepted",
+              "declined"
+            ]
+          }
+        }
+      }
+    },
     "crash": {
       "props": {
         "exception": {
@@ -497,6 +538,168 @@
               "6-30",
               "601-1800",
               ">1800"
+            ]
+          }
+        }
+      }
+    },
+    "session_profile": {
+      "props": {
+        "anr_last_session": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "archetype": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "automation",
+              "chat",
+              "glance",
+              "idle",
+              "lens",
+              "setup",
+              "voice"
+            ]
+          }
+        },
+        "features_used": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "first_run_ms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        },
+        "jank_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "<10",
+              "<25",
+              "<5",
+              ">=25"
+            ]
+          }
+        },
+        "length_s": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0-5",
+              "121-600",
+              "31-120",
+              "6-30",
+              "601-1800",
+              ">1800"
+            ]
+          }
+        },
+        "permission_denied": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "retries": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "rules_version": {
+          "optional": false,
+          "vocab": {
+            "kind": "count",
+            "max": 999,
+            "min": 1
+          }
+        },
+        "run_fail_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "100",
+              "<25",
+              "<50",
+              "<75"
+            ]
+          }
+        },
+        "runs": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "struggle": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "high",
+              "mild",
+              "none"
+            ]
+          }
+        },
+        "tool_fail_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "100",
+              "<25",
+              "<50",
+              "<75"
             ]
           }
         }

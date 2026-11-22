@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
@@ -25,8 +26,32 @@ data class AppInfo(
     val build: String,
     val sdk: Int,
     val locale: String,
-    val deviceClass: String
+    val deviceClass: String,
+    val installProfile: InstallProfile = InstallProfile()
 )
+
+data class InstallProfile(
+    val source: String = "sideload",
+    val oemSkin: String = "other",
+    val ram: String = "unknown",
+    val storage: String = "unknown",
+    val screenDp: String = "unknown",
+    val density: String = "unknown",
+    val refresh: String = "unknown",
+    val rooted: Boolean = false
+)
+
+sealed interface RegisterResult {
+    data class Registered(
+        val installId: String,
+        val token: String,
+        val region: String,
+        val consentRequired: Boolean,
+        val enabled: Boolean,
+        val sample: Double?
+    ) : RegisterResult
+    data object Failed : RegisterResult
+}
 
 /** What one POST came to, as far as the queue and the switch are concerned. */
 sealed interface SendResult {
@@ -55,15 +80,15 @@ sealed interface SendResult {
  */
 class TelemetrySender(
     private val endpoint: String,
-    private val key: String,
+    private val enrollmentKey: String,
     private val client: OkHttpClient = defaultClient()
 ) {
 
-    fun send(installId: String, app: AppInfo, events: List<QueuedEvent>, sentAt: Long): SendResult {
+    fun send(installId: String, token: String, app: AppInfo, events: List<QueuedEvent>, sentAt: Long): SendResult {
         val body = envelope(installId, app, events, sentAt).toString().toByteArray()
         val request = Request.Builder()
-            .url(endpoint)
-            .header("Authorization", "Bearer $key")
+            .url(endpoint.trimEnd('/') + "/v1/events")
+            .header("Authorization", "Bearer $token")
             .header("Content-Encoding", "gzip")
             .post(gzip(body).toRequestBody(JSON))
             .build()
@@ -83,17 +108,75 @@ class TelemetrySender(
         }
     }
 
-    /** Asks the server to delete everything sent under [installId]. True once it confirms. */
-    fun delete(installId: String): Boolean {
-        val request = Request.Builder()
-            .url(endpoint.trimEnd('/') + "/" + installId)
-            .header("Authorization", "Bearer $key")
-            .delete()
-            .build()
+    fun register(app: AppInfo, installedAt: Long): RegisterResult {
+        val body = buildJsonObject {
+            put("product", TelemetrySchema.PRODUCT)
+            put("schema", TelemetrySchema.VERSION)
+            put("installed_at", installedAt)
+            put(
+                "app",
+                buildJsonObject {
+                    put("version", app.version)
+                    put("code", app.code)
+                    put("build", app.build)
+                    put("install_source", app.installProfile.source)
+                }
+            )
+            put(
+                "device",
+                buildJsonObject {
+                    put("sdk", app.sdk)
+                    put("release", android.os.Build.VERSION.RELEASE.orEmpty())
+                    put("security_patch", android.os.Build.VERSION.SECURITY_PATCH.orEmpty())
+                    put("abi", android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
+                    put("manufacturer", android.os.Build.MANUFACTURER.orEmpty())
+                    put("model", android.os.Build.MODEL.orEmpty())
+                    put("oem_skin", app.installProfile.oemSkin)
+                    put("device_class", app.deviceClass)
+                    put("ram", app.installProfile.ram)
+                    put("storage", app.installProfile.storage)
+                    put("screen_dp", app.installProfile.screenDp)
+                    put("density", app.installProfile.density)
+                    put("refresh", app.installProfile.refresh)
+                    put("emulator", android.os.Build.FINGERPRINT.orEmpty().contains("generic"))
+                    put("rooted", app.installProfile.rooted)
+                    put(
+                        "timezone_offset",
+                        java.time.ZoneId.systemDefault().rules
+                            .getOffset(java.time.Instant.ofEpochMilli(installedAt)).id.let {
+                                if (it == "Z") "+00:00" else it
+                            }
+                    )
+                }
+            )
+            put("locale", app.locale)
+        }
+        val request = Request.Builder().url(endpoint.trimEnd('/') + "/v1/install")
+            .header("Authorization", "Bearer $enrollmentKey")
+            .post(body.toString().toRequestBody(JSON)).build()
         return try {
-            client.newCall(request).execute().use { it.isSuccessful }
-        } catch (_: IOException) {
-            false
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200 && response.code != 409) return RegisterResult.Failed
+                val obj = Json.parseToJsonElement(response.body?.string().orEmpty()) as JsonObject
+                val id = (obj["install_id"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                val token = (obj["token"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                val region = (obj["region"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                if (id.isBlank() || token.isBlank() || region !in setOf("eea", "uk", "other")) {
+                    RegisterResult.Failed
+                } else {
+                    val config = obj["config"] as? JsonObject
+                    RegisterResult.Registered(
+                        id,
+                        token,
+                        region,
+                        (obj["consent_required"] as? JsonPrimitive)?.booleanOrNull ?: true,
+                        (config?.get("enabled") as? JsonPrimitive)?.booleanOrNull ?: true,
+                        (config?.get("sample") as? JsonPrimitive)?.doubleOrNull
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            RegisterResult.Failed
         }
     }
 

@@ -55,8 +55,9 @@ class FeatureEventsTest {
             network = { NetworkState(connected = false, metered = false) },
             executor = { it.run() }
         ).also {
-            it.setEnabled(true)
-            queue.clear()
+            prefs.edit().putString(TelemetryClient.KEY_INSTALL_ID, "server-install")
+                .putString(TelemetryClient.KEY_TOKEN, "install-token")
+                .putLong(TelemetryClient.KEY_CONSENT_AT, System.currentTimeMillis()).commit()
             Telemetry.installForTest(it)
         }
     }

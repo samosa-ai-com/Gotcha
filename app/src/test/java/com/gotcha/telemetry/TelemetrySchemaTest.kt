@@ -14,6 +14,8 @@ class TelemetrySchemaTest {
         TelemetryEvents.appOpen(cold = true, startMs = 940),
         TelemetryEvents.appOpen(cold = false, startMs = null),
         TelemetryEvents.sessionEnd(lengthMs = 95_000),
+        TelemetryEvents.consent(false, ConsentSurface.FIRST_RUN),
+        SessionRules.profileOf(SessionSnapshot(), 95_000),
         TelemetryEvents.optIn(OptInSurface.SETTINGS),
         TelemetryEvents.crash("java.lang.IllegalStateException", "ChatRunner.start", CrashThread.MAIN, true),
         TelemetryEvents.crash("kotlin.KotlinNullPointerException", null, CrashThread.OTHER, false),

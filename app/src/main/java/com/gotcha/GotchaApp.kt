@@ -45,15 +45,18 @@ class GotchaApp : Application() {
         super.onCreate()
         // Before anything can send a Samosa request: every client looks the session up here.
         com.gotcha.auth.SamosaSession.install(this)
-        // Opt-in usage data. Off unless the user turned it on, and a no-op in a build
+        // Usage data waits for the first terms decision, and is a no-op in a build
         // without an endpoint; installed early so the crash handler below can use it.
         com.gotcha.telemetry.Telemetry.install(this)
+        com.gotcha.telemetry.Telemetry.ensureRegistered()
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 if (startedActivities++ == 0) com.gotcha.telemetry.Telemetry.onForeground()
+                com.gotcha.telemetry.Telemetry.observeActivity(activity)
             }
 
             override fun onActivityStopped(activity: Activity) {
+                com.gotcha.telemetry.Telemetry.stopObservingActivity(activity)
                 startedActivities = (startedActivities - 1).coerceAtLeast(0)
                 if (startedActivities == 0) com.gotcha.telemetry.Telemetry.onBackground()
             }
