@@ -43,7 +43,7 @@ data class TelemetryStatus(
     val configured: Boolean,
     val enabled: Boolean,
     val mobileData: Boolean,
-    /** The server asked for a pause, or refused this install token. */
+    /** The server asked for a pause, or refused the enrollment key. */
     val paused: Boolean,
     /** Epoch millis of the last accepted batch, 0 if none. */
     val lastSentAt: Long,
@@ -147,7 +147,7 @@ class TelemetryClient internal constructor(
 
     /** First terms decision, or a later Settings choice. Consent is sent even when declined. */
     fun recordConsent(usageData: Boolean, surface: ConsentSurface) {
-        prefs.edit().putLong(KEY_CONSENT_AT, clock()).putBoolean(KEY_ENABLED, usageData).commit()
+        prefs.edit().putLong(KEY_CONSENT_AT, clock()).putBoolean(KEY_ENABLED, usageData).apply()
         val event = TelemetryEvents.consent(usageData, surface)
         if (isConfigured && TelemetrySchema.accepts(event)) {
             runCatching {
@@ -159,10 +159,30 @@ class TelemetryClient internal constructor(
         }
     }
 
-    /** Changes the stored choice after the first terms decision. */
-    fun setEnabled(on: Boolean) {
-        prefs.edit().putBoolean(KEY_ENABLED, on).remove(KEY_PAUSED_UNTIL).commit()
-        if (!on) executor.execute { runCatching { queue.retainConsent() } }
+    /** Records a Settings choice, including a toggle before the first terms decision. */
+    fun setEnabled(on: Boolean, afterRecorded: () -> Unit = {}) {
+        prefs.edit().putLong(KEY_CONSENT_AT, clock()).putBoolean(KEY_ENABLED, on)
+            .remove(KEY_PAUSED_UNTIL).apply()
+        executor.execute {
+            runCatching {
+                if (!on) queue.retainConsent()
+                if (isConfigured) {
+                    val event = TelemetryEvents.consent(on, ConsentSurface.SETTINGS)
+                    if (TelemetrySchema.accepts(event)) {
+                        queue.append(
+                            QueuedEvent(
+                                UUID.randomUUID().toString(),
+                                event.name,
+                                clock(),
+                                sessionId,
+                                event.props
+                            )
+                        )
+                    }
+                }
+            }.onFailure { GotchaLog.w(TAG) { "consent queue failed: ${it.javaClass.simpleName}" } }
+            runCatching { afterRecorded() }
+        }
     }
 
     /** Registration bypasses the usage switch and can be retried after a network failure. */
@@ -171,21 +191,35 @@ class TelemetryClient internal constructor(
             if (registered) return@withLock true
             val sent = sender ?: return@withLock false
             val installedAt = prefs.getLong(KEY_INSTALLED_AT, 0L).takeIf { it > 0L }
-                ?: clock().also { prefs.edit().putLong(KEY_INSTALLED_AT, it).commit() }
+                ?: clock().also { prefs.edit().putLong(KEY_INSTALLED_AT, it).apply() }
             when (val result = runCatching { sent.register(appInfo(), installedAt) }.getOrNull()) {
                 is RegisterResult.Registered -> {
                     prefs.edit().putString(KEY_INSTALL_ID, result.installId)
                         .putString(KEY_TOKEN, result.token).putString(KEY_REGION, result.region)
                         .putBoolean(KEY_CONSENT_REQUIRED, result.consentRequired)
                         .putFloat(KEY_SAMPLE, (result.sample ?: 1.0).coerceIn(0.0, 1.0).toFloat())
-                        .apply()
+                        .remove(KEY_REREG_ATTEMPTS).apply()
                     if (!result.enabled) {
                         prefs.edit().putLong(KEY_PAUSED_UNTIL, clock() + SERVER_PAUSE_MS).apply()
                     }
                     GotchaLog.i(TAG) { "registration: REGISTERED" }
                     true
                 }
+                RegisterResult.Refused -> {
+                    prefs.edit().putInt(KEY_PAUSED_FOR_VERSION, BuildConfig.VERSION_CODE).apply()
+                    GotchaLog.w(TAG) { "registration: enrollment_key_refused" }
+                    false
+                }
                 else -> {
+                    val attempts = prefs.getInt(KEY_REREG_ATTEMPTS, 0)
+                    if (attempts > 0) {
+                        val next = attempts + 1
+                        val edit = prefs.edit().putInt(KEY_REREG_ATTEMPTS, next)
+                        if (next >= MAX_REREG_ATTEMPTS) {
+                            edit.putInt(KEY_PAUSED_FOR_VERSION, BuildConfig.VERSION_CODE)
+                        }
+                        edit.apply()
+                    }
                     GotchaLog.w(TAG) { "registration: FAILED" }
                     false
                 }
@@ -218,12 +252,15 @@ class TelemetryClient internal constructor(
     }
 
     @Suppress("ReturnCount", "CyclomaticComplexMethod")
-    private fun flushLocked(force: Boolean): FlushOutcome {
+    private suspend fun flushLocked(force: Boolean): FlushOutcome {
         val sent = sender ?: return FlushOutcome.NOT_CONFIGURED
-        if (!registered) return FlushOutcome.OFF
+        if (paused()) return FlushOutcome.PAUSED
+        if (!registered) {
+            if (prefs.getInt(KEY_REREG_ATTEMPTS, 0) == 0) return FlushOutcome.OFF
+            if (!ensureRegistered()) return if (paused()) FlushOutcome.PAUSED else FlushOutcome.FAILED
+        }
         if (!enabled && queue.peek(1).none { it.name == TelemetryEvents.CONSENT }) return FlushOutcome.OFF
         if (!hasConsent && queue.peek(1).none { it.name == TelemetryEvents.CONSENT }) return FlushOutcome.OFF
-        if (paused()) return FlushOutcome.PAUSED
         val now = clock()
         if (now < prefs.getLong(KEY_RETRY_AFTER, 0L)) return FlushOutcome.NOT_DUE
         val last = prefs.getLong(KEY_LAST_FLUSH_AT, 0L)
@@ -253,17 +290,23 @@ class TelemetryClient internal constructor(
                     outcome = FlushOutcome.SENT
                 }
                 SendResult.Rejected -> {
-                    GotchaLog.w(TAG) { "flush failure: batch_rejected" }
-                    queue.remove(
-                        ids.filter { id -> batch.first { it.id == id }.name != TelemetryEvents.CONSENT }.toSet()
-                    )
+                    GotchaLog.w(TAG) {
+                        "flush failure: permanent_batch_rejection; dropping ${ids.size} events including consent"
+                    }
+                    queue.remove(ids)
                     return FlushOutcome.REJECTED
                 }
                 SendResult.Unauthorized -> {
                     GotchaLog.w(TAG) { "flush failure: token_unauthorized" }
-                    prefs.edit().putInt(KEY_PAUSED_FOR_VERSION, BuildConfig.VERSION_CODE).apply()
-                    queue.retainConsent()
-                    return FlushOutcome.PAUSED
+                    prefs.edit().remove(KEY_INSTALL_ID).remove(KEY_TOKEN)
+                        .putInt(KEY_REREG_ATTEMPTS, 1).apply()
+                    return if (ensureRegistered()) {
+                        FlushOutcome.FAILED
+                    } else if (paused()) {
+                        FlushOutcome.PAUSED
+                    } else {
+                        FlushOutcome.FAILED
+                    }
                 }
                 is SendResult.Throttled -> {
                     GotchaLog.w(TAG) { "flush failure: rate_limited" }
@@ -309,11 +352,13 @@ class TelemetryClient internal constructor(
         internal const val KEY_PAUSED_UNTIL = "paused_until"
         internal const val KEY_PAUSED_FOR_VERSION = "paused_for_version"
         internal const val KEY_SAMPLE = "sample"
+        internal const val KEY_REREG_ATTEMPTS = "rereg_attempts"
 
         const val MIN_FLUSH_INTERVAL_MS = 15L * 60L * 1000L
         const val MAX_EVENTS_PER_BATCH = 50
         const val MAX_BATCH_BYTES = 64 * 1024
         const val MAX_BATCHES_PER_FLUSH = 3
+        private const val MAX_REREG_ATTEMPTS = 3
 
         /** How long the server's enabled:false holds before the app tries again. */
         const val SERVER_PAUSE_MS = 24L * 60L * 60L * 1000L
@@ -402,9 +447,17 @@ object Telemetry {
     }
 
     fun setEnabled(on: Boolean) {
-        val hadConsent = client?.hasConsent == true
-        client?.setEnabled(on)
-        if (hadConsent) recordConsent(on, ConsentSurface.SETTINGS)
+        val current = client
+        if (current != null) {
+            current.setEnabled(on) {
+                scope.launch {
+                    runCatching {
+                        current.ensureRegistered()
+                        current.flush(force = true)
+                    }
+                }
+            }
+        }
         if (on) checkPermissionsInBackground() else permissionWatch?.reset()
     }
 

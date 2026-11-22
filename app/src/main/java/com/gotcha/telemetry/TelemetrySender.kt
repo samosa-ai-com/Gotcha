@@ -51,6 +51,7 @@ sealed interface RegisterResult {
         val sample: Double?
     ) : RegisterResult
     data object Failed : RegisterResult
+    data object Refused : RegisterResult
 }
 
 /** What one POST came to, as far as the queue and the switch are concerned. */
@@ -61,7 +62,7 @@ sealed interface SendResult {
     /** The server will never take this batch (400, 413): drop it rather than retry forever. */
     data object Rejected : SendResult
 
-    /** The ingest key was refused: stop until an app update brings a new one. */
+    /** The install token was refused: registration may issue a replacement. */
     data object Unauthorized : SendResult
 
     /** Rate limited: try again after [retryAfterMs]. */
@@ -156,6 +157,9 @@ class TelemetrySender(
             .post(body.toString().toRequestBody(JSON)).build()
         return try {
             client.newCall(request).execute().use { response ->
+                if (response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN) {
+                    return RegisterResult.Refused
+                }
                 if (response.code != 200 && response.code != 409) return RegisterResult.Failed
                 val obj = Json.parseToJsonElement(response.body?.string().orEmpty()) as JsonObject
                 val id = (obj["install_id"] as? JsonPrimitive)?.contentOrNull.orEmpty()

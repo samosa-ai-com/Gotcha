@@ -228,25 +228,70 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `a refused batch is dropped, not retried forever`() {
+    fun `rejected consent batch does not block the next batch`() {
         val c = client()
         ready(c)
         server.enqueue(MockResponse().setResponseCode(400))
-        runBlocking { c.flush(force = true) }
-        assertEquals(1, queue.size())
+        assertEquals(FlushOutcome.REJECTED, runBlocking { c.flush(force = true) })
+        assertEquals(0, queue.size())
+        c.track(TelemetryEvents.sessionEnd(10_000))
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
+        assertEquals("/v1/events", server.takeRequest().path)
+        val nextName = server.takeRequest().json()["events"]!!.jsonArray.last()
+            .jsonObject["name"]!!.jsonPrimitive.content
+        assertEquals("session_end", nextName)
     }
 
     @Test
-    fun `a refused key pauses this version and clears the queue`() {
+    fun `revoked install token re-registers and sends on next flush`() {
         val c = client()
         ready(c)
         server.enqueue(MockResponse().setResponseCode(401))
-        assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
+        server.enqueue(registration())
+        assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
         assertEquals(1, queue.size())
-        assertTrue(c.status().paused)
-        c.track(TelemetryEvents.sessionEnd(10_000))
-        assertEquals(1, queue.size())
+        assertFalse(c.status().paused)
+        assertEquals("/v1/events", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
+        assertEquals("/v1/install", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
+        assertEquals("Bearer replacement-token", server.takeRequest().getHeader("Authorization"))
     }
+
+    @Test
+    fun `refused enrollment key pauses after revoked token`() {
+        val c = client()
+        ready(c)
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.enqueue(MockResponse().setResponseCode(401))
+        assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
+        assertTrue(c.status().paused)
+        assertEquals(1, queue.size())
+        assertEquals("/v1/events", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
+        assertEquals("/v1/install", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
+    }
+
+    @Test
+    fun `repeated re-registration failures pause this version`() {
+        val c = client()
+        ready(c)
+        server.enqueue(MockResponse().setResponseCode(401))
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
+        assertFalse(c.status().paused)
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
+        assertTrue(c.status().paused)
+        assertEquals(1, queue.size())
+        val paths = (1..3).map { server.takeRequest(1, TimeUnit.SECONDS)!!.path }
+        assertEquals(listOf("/v1/events", "/v1/install", "/v1/install"), paths)
+    }
+
+    private fun registration() = MockResponse().setResponseCode(200).setBody(
+        """{"install_id":"replacement-install","token":"replacement-token","region":"other",
+            "consent_required":false,"config":{"enabled":true,"sample":1.0}}"""
+    )
 
     @Test
     fun `rate limiting waits for retry_after_ms`() {
@@ -303,17 +348,23 @@ class TelemetryClientTest {
         ready(c)
         c.track(TelemetryEvents.sessionEnd(10_000))
         c.setEnabled(false)
-        assertEquals(1, queue.size())
+        assertEquals(2, queue.size())
         c.track(TelemetryEvents.sessionEnd(10_000))
-        assertEquals(1, queue.size())
+        assertEquals(2, queue.size())
         server.enqueue(accepted())
         assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
         assertEquals(0, queue.size())
     }
 
     @Test
-    fun `sender exposes no delete request`() {
-        assertFalse(TelemetrySender::class.java.declaredMethods.any { it.name == "delete" })
+    fun `sender uses POST for registration and events`() {
+        val c = client()
+        server.enqueue(registration())
+        assertTrue(runBlocking { c.ensureRegistered() })
+        c.recordConsent(true, ConsentSurface.FIRST_RUN)
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
+        assertEquals(listOf("POST", "POST"), listOf(server.takeRequest().method, server.takeRequest().method))
     }
 
     @Test
@@ -381,5 +432,24 @@ class TelemetryClientTest {
         assertFalse(c.status().enabled)
         c.setEnabled(true)
         assertTrue(c.status().enabled)
+    }
+
+    @Test
+    fun `toggle before consent records a settings choice`() {
+        val c = client()
+        c.setEnabled(false)
+        assertTrue(c.hasConsent)
+        assertFalse(c.status().enabled)
+        assertEquals("settings", queue.peek(1).single().props["surface"]!!.content)
+    }
+
+    @Test
+    fun `enabling before consent overrides an off regional default`() {
+        val c = client()
+        prefs.edit().putString(TelemetryClient.KEY_REGION, "eea").apply()
+        c.setEnabled(true)
+        assertTrue(c.hasConsent)
+        assertTrue(c.status().enabled)
+        assertEquals("accepted", queue.peek(1).single().props["usage_data"]!!.content)
     }
 }

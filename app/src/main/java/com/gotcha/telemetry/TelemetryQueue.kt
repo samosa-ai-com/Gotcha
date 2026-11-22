@@ -76,7 +76,7 @@ class TelemetryQueue(
     }
 
     @Synchronized
-    fun size(): Int = readAll().size
+    fun size(): Int = lineCount()
 
     @Synchronized
     fun retainConsent() {

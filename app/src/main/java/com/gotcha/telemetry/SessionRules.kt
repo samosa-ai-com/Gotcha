@@ -71,7 +71,7 @@ class SessionCounters {
                     retries = state.retries + if (lastRunFailed) 1 else 0,
                     firstRunLatencyMs = if (state.runs == 0) (now - startedAt).coerceAtLeast(0) else state.firstRunLatencyMs
                 )
-                lastRunFailed = prop("end") != RunEnd.REPLY.wire
+                lastRunFailed = failed
             }
             TelemetryEvents.TOOL_CALL -> state = state.copy(
                 toolCalls = state.toolCalls + 1,

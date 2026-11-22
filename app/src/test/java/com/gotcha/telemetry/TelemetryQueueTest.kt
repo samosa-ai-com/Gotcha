@@ -60,4 +60,11 @@ class TelemetryQueueTest {
         assertEquals(false, file.exists())
         assertEquals(0, q.size())
     }
+
+    @Test
+    fun `size counts lines without parsing queued JSON`() {
+        val file = File(tmp.root, "queue.ndjson")
+        file.writeText("not json\n\n{broken}\n")
+        assertEquals(2, TelemetryQueue(file).size())
+    }
 }

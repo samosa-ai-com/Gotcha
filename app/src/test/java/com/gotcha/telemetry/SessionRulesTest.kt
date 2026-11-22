@@ -6,6 +6,19 @@ import org.junit.Test
 
 class SessionRulesTest {
 
+    @Test fun `successful finish task does not count next run as retry`() {
+        val counters = SessionCounters()
+        counters.reset(1_000)
+        fun run(end: RunEnd) = TelemetryEvents.agentRun(
+            RunSurface.CHAT, AgentModeWire.OPERATOR, ProviderKind.SAMOSA, EndpointClass.SAMOSA,
+            ok = true, durationMs = 300, rounds = 1, toolCalls = 0, toolFailures = 0,
+            delegated = false, end = end
+        )
+        counters.record(run(RunEnd.FINISH_TASK), 2_000)
+        counters.record(run(RunEnd.REPLY), 3_000)
+        assertEquals(0, counters.snapshot().retries)
+    }
+
     @Test fun idleLeaf() = assertEquals("idle", SessionRules.archetype(SessionSnapshot(), 1_000))
 
     @Test fun setupLeaf() = assertEquals("setup", SessionRules.archetype(SessionSnapshot(setupActions = 1), 11_000))
