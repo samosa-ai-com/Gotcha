@@ -226,7 +226,8 @@ class CallSessionController(
                 settingsRepository.save(plan.applyTo(settingsRepository.load()))
                 ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
             },
-            workingDirRoot = CALLS_WORKING_ROOT
+            workingDirRoot = CALLS_WORKING_ROOT,
+            runSurface = com.gotcha.telemetry.RunSurface.CALL
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
         newEngine.callMode = true
@@ -237,6 +238,12 @@ class CallSessionController(
         newEngine.promptCacheKey = CALL_PROMPT_CACHE_KEY
         newEngine.setupWorkingDir()
         engine = newEngine
+        callStartedAt = android.os.SystemClock.elapsedRealtime()
+        callTrigger = if (handsFree) {
+            com.gotcha.telemetry.CallTrigger.WAKE_WORD
+        } else {
+            com.gotcha.telemetry.CallTrigger.BALL
+        }
         narrationErrorReported = false
         voiceMissingReported = false
         _state.value = CallState.STARTING
@@ -399,8 +406,34 @@ class CallSessionController(
         _state.value = CallState.READY
     }
 
+    /** When the current call started, for opt-in usage data. */
+    private var callStartedAt = 0L
+    private var callTrigger = com.gotcha.telemetry.CallTrigger.BALL
+
+    /** One `voice_call` for opt-in usage data: how it started, how long, how many turns. Never what was said. */
+    private fun trackCallEnd(ending: AgentEngine) {
+        val s = settingsRepository.load()
+        com.gotcha.telemetry.Telemetry.track(
+            com.gotcha.telemetry.TelemetryEvents.voiceCall(
+                trigger = callTrigger,
+                lengthMs = android.os.SystemClock.elapsedRealtime() - callStartedAt,
+                turns = ending.history.count { it.role == "user" },
+                stt = speechKind(s.sttProvider),
+                tts = speechKind(s.ttsProvider)
+            )
+        )
+    }
+
+    private fun speechKind(provider: com.gotcha.audio.AudioProvider) = when (provider) {
+        com.gotcha.audio.AudioProvider.ANDROID -> com.gotcha.telemetry.SpeechKind.ANDROID
+        com.gotcha.audio.AudioProvider.SAMOSA_AI -> com.gotcha.telemetry.SpeechKind.SAMOSA
+        com.gotcha.audio.AudioProvider.API -> com.gotcha.telemetry.SpeechKind.API
+        com.gotcha.audio.AudioProvider.NONE -> com.gotcha.telemetry.SpeechKind.NONE
+    }
+
     /** End the call and delete its chat session + working directory. */
     fun endCall() {
+        engine?.let { trackCallEnd(it) }
         handsFree = false
         handsFreeAutoListen?.cancel()
         handsFreeAutoListen = null

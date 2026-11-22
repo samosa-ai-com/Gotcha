@@ -21,6 +21,15 @@ object GotchaLog {
         if (BuildConfig.DEBUG) Log.d(tag, message(), throwable)
     }
 
+    /** Operational outcomes are visible in release logcat too. */
+    inline fun i(tag: String, message: () -> String) {
+        Log.i(tag, message())
+    }
+
+    inline fun w(tag: String, message: () -> String) {
+        Log.w(tag, message())
+    }
+
     inline fun v(tag: String, message: () -> String) {
         if (BuildConfig.DEBUG) Log.v(tag, message())
     }

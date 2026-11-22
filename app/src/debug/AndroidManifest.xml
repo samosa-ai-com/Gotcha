@@ -12,6 +12,7 @@
             <intent-filter>
                 <action android:name="com.gotcha.debug.SEED_SETTINGS" />
                 <action android:name="com.gotcha.debug.SET_APPEARANCE" />
+                <action android:name="com.gotcha.debug.FLUSH_TELEMETRY" />
             </intent-filter>
         </receiver>
     </application>

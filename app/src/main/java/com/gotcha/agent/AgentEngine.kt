@@ -90,7 +90,9 @@ class AgentEngine(
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
     /** Supplies the active agent mode to persist so it survives restarts. */
-    private val agentModeProvider: () -> AgentMode? = { null }
+    private val agentModeProvider: () -> AgentMode? = { null },
+    /** Where runs of this engine start from, for opt-in usage data. A scheduled run overrides it. */
+    private val runSurface: com.gotcha.telemetry.RunSurface = com.gotcha.telemetry.RunSurface.CHAT
 ) {
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
@@ -423,7 +425,12 @@ class AgentEngine(
             // Capped on its own: the title is a nicety, and the run is not marked
             // finished until it returns.
             val response = withTimeoutOrNull(TITLE_TIMEOUT_MS) {
-                llm.chat(messages = messages, temperature = 0f, modelOverride = titleModel)
+                llm.chat(
+                    messages = messages,
+                    temperature = 0f,
+                    modelOverride = titleModel,
+                    feature = com.gotcha.telemetry.LlmFeature.TITLE
+                )
             } ?: return
             ChatTitle.sanitize(response.choices.firstOrNull()?.message?.textContent)?.let {
                 generatedTitle = it
@@ -518,7 +525,10 @@ class AgentEngine(
         )
 
         try {
-            val response = llm.chat(listOf(compactionSystem, requestMessage))
+            val response = llm.chat(
+                listOf(compactionSystem, requestMessage),
+                feature = com.gotcha.telemetry.LlmFeature.COMPACTION
+            )
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()
@@ -613,7 +623,9 @@ class AgentEngine(
 
         // Called at every terminal path: builds the structured record and hands
         // it to the host (persists into this session's runSummaries).
-        fun emitRunSummary(finalReply: String, succeeded: Boolean) {
+        var roundsUsed = 0
+        skillsOfferedThisRun.clear()
+        fun emitRunSummary(finalReply: String, succeeded: Boolean, end: com.gotcha.telemetry.RunEnd) {
             val userPrompt = history.lastOrNull { it.role == "user" }?.textContent?.take(400) ?: ""
             val summary = RunSummary(
                 startedAt = runStartedAt,
@@ -632,8 +644,10 @@ class AgentEngine(
                 repeat(overflow) { runSummaries.removeAt(0) }
             }
             events.onRunSummary(summary)
+            trackRun(summary, succeeded, end, roundsUsed)
         }
         repeat(settings.maxToolRounds) { iteration ->
+            roundsUsed = iteration + 1
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
 
@@ -674,7 +688,7 @@ class AgentEngine(
                     events.onUpsell(com.gotcha.upsell.UpsellReason.LIMITS)
                 }
                 events.onAssistantReply(error)
-                emitRunSummary(error, succeeded = false)
+                emitRunSummary(error, succeeded = false, end = com.gotcha.telemetry.RunEnd.MODEL_ERROR)
                 return
             }
 
@@ -691,7 +705,7 @@ class AgentEngine(
                 val error = "The model returned an empty response."
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
-                emitRunSummary(error, succeeded = false)
+                emitRunSummary(error, succeeded = false, end = com.gotcha.telemetry.RunEnd.EMPTY)
                 return
             }
 
@@ -716,7 +730,7 @@ class AgentEngine(
                 if (content.isNotEmpty()) {
                     events.onAssistantReply(content)
                 }
-                emitRunSummary(content, succeeded = true)
+                emitRunSummary(content, succeeded = true, end = com.gotcha.telemetry.RunEnd.REPLY)
                 return
             }
 
@@ -746,6 +760,7 @@ class AgentEngine(
             var finishSummary: String? = null
             suspend fun executeToolCalls() {
                 for (call in toolCalls) {
+                    val toolStartedAt = android.os.SystemClock.elapsedRealtime()
                     val firstAttempt = when (decision) {
                         ConfirmDecision.APPROVED -> executeCall(call, agent)
                         ConfirmDecision.DENIED ->
@@ -763,6 +778,15 @@ class AgentEngine(
                         firstAttempt
                     }
                     recordTool(call, result)
+                    if (decision == ConfirmDecision.APPROVED) {
+                        com.gotcha.telemetry.Telemetry.track(
+                            com.gotcha.telemetry.TelemetryEvents.toolCall(
+                                call.function.name,
+                                result.success,
+                                android.os.SystemClock.elapsedRealtime() - toolStartedAt
+                            )
+                        )
+                    }
                     result.upsell?.let { events.onUpsell(it) }
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
@@ -861,7 +885,7 @@ class AgentEngine(
                 history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                 events.onUi(MessageKind.ASSISTANT, reply)
                 events.onAssistantReply(reply)
-                emitRunSummary(reply, succeeded = true)
+                emitRunSummary(reply, succeeded = true, end = com.gotcha.telemetry.RunEnd.FINISH_TASK)
                 saveCurrentSession()
                 return
             }
@@ -887,7 +911,7 @@ class AgentEngine(
                         "Check that the required service/permission is available, then try again."
                     events.onUi(MessageKind.ERROR, stopped)
                     events.onAssistantReply(stopped)
-                    emitRunSummary(stopped, succeeded = false)
+                    emitRunSummary(stopped, succeeded = false, end = com.gotcha.telemetry.RunEnd.STUCK)
                     return
                 }
             } else {
@@ -917,7 +941,11 @@ class AgentEngine(
                     history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                     events.onUi(MessageKind.ASSISTANT, reply)
                     events.onAssistantReply(reply)
-                    emitRunSummary(reply, succeeded = lastDelegatedAnswer != null)
+                    emitRunSummary(
+                        reply,
+                        succeeded = lastDelegatedAnswer != null,
+                        end = com.gotcha.telemetry.RunEnd.DELEGATION_LIMIT
+                    )
                     saveCurrentSession()
                     return
                 }
@@ -937,7 +965,7 @@ class AgentEngine(
             "to avoid running forever."
         events.onUi(MessageKind.ERROR, exhausted)
         events.onAssistantReply(exhausted)
-        emitRunSummary(exhausted, succeeded = false)
+        emitRunSummary(exhausted, succeeded = false, end = com.gotcha.telemetry.RunEnd.EXHAUSTED)
     }
 
     /**
@@ -998,6 +1026,34 @@ class AgentEngine(
      */
     private fun requestConfirmation(@Suppress("UNUSED_PARAMETER") toolCalls: List<ToolCall>): ConfirmDecision {
         return ConfirmDecision.APPROVED
+    }
+
+    /** One `agent_run` for opt-in usage data: counts, buckets and how it ended, never what was said. */
+    private fun trackRun(summary: RunSummary, succeeded: Boolean, end: com.gotcha.telemetry.RunEnd, rounds: Int) {
+        val current = settings
+        com.gotcha.telemetry.Telemetry.track(
+            com.gotcha.telemetry.TelemetryEvents.agentRun(
+                surface = if (scheduledRun) com.gotcha.telemetry.RunSurface.SCHEDULED else runSurface,
+                mode = if (summary.agentMode == AgentMode.OPERATOR.name) {
+                    com.gotcha.telemetry.AgentModeWire.OPERATOR
+                } else {
+                    com.gotcha.telemetry.AgentModeWire.MONITOR
+                },
+                provider = if (current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI) {
+                    com.gotcha.telemetry.ProviderKind.SAMOSA
+                } else {
+                    com.gotcha.telemetry.ProviderKind.BYO
+                },
+                endpoint = com.gotcha.telemetry.EndpointClass.of(current.provider, current.effectiveBaseUrl),
+                ok = succeeded,
+                durationMs = summary.endedAt - summary.startedAt,
+                rounds = rounds,
+                toolCalls = summary.toolCalls.size,
+                toolFailures = summary.toolCalls.count { !it.success },
+                delegated = summary.delegated,
+                end = end
+            )
+        )
     }
 
     /**
@@ -1560,8 +1616,12 @@ class AgentEngine(
             communityIds = communityIds,
             history = history
         ) ?: return emptyList()
+        com.gotcha.telemetry.SkillTelemetry.trackOffered(message, skillsOfferedThisRun)
         return listOf(message)
     }
+
+    /** Skills already counted as offered in this run; the summary is re-sent every round. */
+    private val skillsOfferedThisRun = mutableSetOf<String>()
 
     /**
      * Complete System Prompt sent at Index 0.

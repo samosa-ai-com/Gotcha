@@ -44,6 +44,9 @@ import com.gotcha.connectors.mcp.formatHeaderLines
 import com.gotcha.connectors.mcp.isCleartextWithSecret
 import com.gotcha.connectors.mcp.parseHeaderLines
 import com.gotcha.i18n.stringLookup
+import com.gotcha.telemetry.ConnectorAction
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.Telemetry
 import kotlinx.coroutines.launch
 
 /** [editing] value for the add form, as opposed to a server id. */
@@ -198,6 +201,7 @@ private fun McpServerRow(
                     busy = true
                     scope.launch {
                         val text = mcp.refresh(server.id, strings)
+                        trackMcp(mcp, ConnectorAction.REFRESH)
                         busy = false
                         onChanged(text)
                     }
@@ -213,6 +217,7 @@ private fun McpServerRow(
             TextButton(onClick = {
                 if (confirmRemove) {
                     mcp.remove(server.id)
+                    trackMcp(mcp, ConnectorAction.DISCONNECT)
                     onChanged("")
                 } else {
                     confirmRemove = true
@@ -356,6 +361,7 @@ private fun McpServerForm(
                     busy = true
                     scope.launch {
                         val (saved, text) = mcp.save(existing?.id, name, url, token, parsed, strings)
+                        trackMcp(mcp, if (saved) ConnectorAction.CONNECT else ConnectorAction.ERROR)
                         busy = false
                         if (saved) onDone(true, text) else result = text
                     }
@@ -365,4 +371,9 @@ private fun McpServerForm(
         }
         TextButton(onClick = onCancel, enabled = !busy) { Text(stringResource(R.string.mcp_cancel)) }
     }
+}
+
+/** One `connector` event for MCP, with how many servers are set up now — never which. */
+private fun trackMcp(mcp: McpServersConnector, action: ConnectorAction) {
+    Telemetry.track(FeatureEvents.connector(McpServersConnector.ID, action, mcpServers = mcp.servers().size))
 }

@@ -80,7 +80,10 @@ class ShellEntitlementTest {
 
     @Test
     fun `offline the shell keeps working for 72 hours after the last Pro answer`() = runTest {
-        refresh(Source(TierAnswer.Tier("pro")))
+        // force = true, so this does not depend on what a previous test left in the shared
+        // preferences: without it the assertion below can see a stale state and fail
+        // intermittently depending on test order.
+        refresh(Source(TierAnswer.Tier("pro")), force = true)
         val offline = Source(TierAnswer.Unavailable)
 
         now += 71 * hour
@@ -147,6 +150,16 @@ class ShellEntitlementTest {
         refresh(Source(TierAnswer.Tier("pro")))
         refresh(Source(TierAnswer.SignedOut), force = true)
         assertEquals(Access.SIGNED_OUT, remembered())
+    }
+
+    @Test
+    fun `a missing token during a backend refresh keeps the remembered Pro answer`() = runTest {
+        FakeAndroidKeyStore.setUp()
+        SettingsRepository(context).clearSamosaSession()
+        ShellEntitlement.onSignedIn(context)
+        refresh(Source(TierAnswer.Tier("pro")), force = true)
+        ShellEntitlement.refresh(context, force = true) { now }
+        assertEquals(Access.ALLOWED, remembered())
     }
 
     @Test

@@ -8,6 +8,8 @@ import com.gotcha.auth.RegisterRequest
 import com.gotcha.auth.RegisterResponse
 import com.gotcha.auth.SamosaAuthApi
 import com.gotcha.auth.SamosaUser
+import com.gotcha.auth.ShellApkRelease
+import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.llm.ChatMessage
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
@@ -206,5 +208,10 @@ class FeedbackChannelTest {
             body: ClaimReferralRequest
         ): ClaimReferralResponse = ClaimReferralResponse()
         override suspend fun logout(bearer: String) = Unit
+
+        override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
+        // The companion APK route. Unused here; present because the interface grew.
+        override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
     }
 }

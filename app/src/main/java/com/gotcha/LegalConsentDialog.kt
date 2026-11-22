@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.telemetry.ConsentSurface
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.renderLegalMarkdown
 import com.gotcha.ui.theme.SkinAlertDialog
 
@@ -44,10 +47,11 @@ import com.gotcha.ui.theme.SkinAlertDialog
  * "I agree" button. All three legal documents (Terms, Disclaimer, Data
  * Retention) are shown inline up front, and the "I have read and accept…"
  * checkbox sits at the very end, after the documents, since it attests to
- * having read them, followed by an "I am at least 18" checkbox. The button
- * stays disabled until both are ticked. The age checkbox reaches new installs
- * only: it came without a [com.gotcha.data.LEGAL_VERSION] bump, so users who
- * had already accepted aren't shown the dialog again for it.
+ * having read them, followed by an "I am at least 18" checkbox and an optional
+ * usage-data choice. The button stays disabled until both required boxes are
+ * ticked; the usage-data box never gates it. The age checkbox reaches new
+ * installs only: it came without a [com.gotcha.data.LEGAL_VERSION] bump, so
+ * users who had already accepted aren't shown the dialog again for it.
  *
  * Re-prompted by [com.gotcha.MainActivity] whenever the stored
  * [com.gotcha.data.Settings.legalAcceptedVersion] doesn't match the current
@@ -58,9 +62,16 @@ import com.gotcha.ui.theme.SkinAlertDialog
 fun LegalConsentDialog(
     onAgree: () -> Unit
 ) {
+    val region by Telemetry.regionFlow.collectAsState()
+    LegalConsentDialogContent(onAgree, region)
+}
+
+@Composable
+internal fun LegalConsentDialogContent(onAgree: () -> Unit, region: String?) {
     val context = LocalContext.current
-    var accepted by remember { mutableStateOf(false) }
-    var ageConfirmed by remember { mutableStateOf(false) }
+    // Usage data is on by default everywhere; the row is shown only where the
+    // region asks for it, so the state is simply true until the user unticks it.
+    var choices by remember { mutableStateOf(LegalConsentChoices()) }
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
@@ -142,23 +153,45 @@ fun LegalConsentDialog(
                 // The acceptance rows, last so they come after the user has
                 // had the chance to read everything above them.
                 ConsentToggleRow(
-                    checked = accepted,
-                    onCheckedChange = { accepted = it },
+                    checked = choices.termsAccepted,
+                    onCheckedChange = { choices = choices.copy(termsAccepted = it) },
                     label = stringResource(R.string.legal_consent_toggle_label),
                     tag = "legal_consent_toggle"
                 )
                 ConsentToggleRow(
-                    checked = ageConfirmed,
-                    onCheckedChange = { ageConfirmed = it },
+                    checked = choices.ageConfirmed,
+                    onCheckedChange = { choices = choices.copy(ageConfirmed = it) },
                     label = stringResource(R.string.legal_consent_age_label),
                     tag = "legal_consent_age"
                 )
+
+                // Shown where the region requires prior consent, and while the
+                // region is unknown. Elsewhere it is on by default and lives in
+                // Settings, so this screen stays short. It is never a condition
+                // of using the app, so it never gates the button.
+                if (usageRowVisible(region)) {
+                    HorizontalDivider(thickness = 1.dp)
+                    ConsentToggleRow(
+                        checked = choices.usageData,
+                        onCheckedChange = { choices = choices.withUsageDataChoice(it) },
+                        label = stringResource(R.string.legal_consent_usage_data_label),
+                        hint = stringResource(R.string.legal_consent_usage_data_hint),
+                        tag = "legal_consent_usage"
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = onAgree,
-                enabled = accepted && ageConfirmed,
+                onClick = {
+                    // Recorded in the background; navigation does not wait for it.
+                    Telemetry.recordConsent(
+                        choices.usageData,
+                        ConsentSurface.FIRST_RUN
+                    )
+                    onAgree()
+                },
+                enabled = choices.canContinue,
                 modifier = Modifier.testTag("legal_consent_agree_button")
             ) { Text(stringResource(R.string.legal_consent_agree)) }
         }
@@ -175,7 +208,8 @@ private fun ConsentToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     label: String,
-    tag: String
+    tag: String,
+    hint: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -195,11 +229,23 @@ private fun ConsentToggleRow(
             onCheckedChange = null,
             modifier = Modifier.testTag("${tag}_checkbox")
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (hint != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("${tag}_hint")
+                )
+            }
+        }
     }
 }
 

@@ -163,10 +163,21 @@ enum class SettingsPage(
         R.string.settings_page_permissions_summary,
         "settings_permissions_row"
     ),
+    PRIVACY(
+        R.string.settings_page_privacy,
+        R.string.settings_page_privacy_summary,
+        "settings_privacy_row"
+    ),
     LINUX_SHELL(
         R.string.settings_page_linux_shell,
         R.string.settings_page_linux_shell_summary,
         "settings_linux_shell_row"
+    ),
+    LINUX_TERMINAL(
+        R.string.settings_page_linux_terminal,
+        R.string.settings_page_linux_terminal_summary,
+        "settings_linux_terminal_row",
+        parentPage = { LINUX_SHELL }
     ),
     TERMUX(
         R.string.settings_page_termux,

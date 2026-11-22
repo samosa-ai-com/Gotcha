@@ -1843,7 +1843,8 @@ class MainActivity : ComponentActivity() {
         )
         val response = client.chat(
             messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
-            temperature = 0f
+            temperature = 0f,
+            feature = com.gotcha.telemetry.LlmFeature.CONNECTION_TEST
         )
         response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
     }

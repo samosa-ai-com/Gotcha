@@ -1,5 +1,6 @@
 import java.util.Properties
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     id("com.android.application")
@@ -68,6 +69,21 @@ android {
             "SAMOSA_SKILL_HOST",
             "\"${samosaConfig("SAMOSA_SKILL_HOST", "samosa-ai.example")}\""
         )
+        // Skip the Shell tier check and treat every account as paying.
+        //
+        // Defaults to TRUE only when the backend is still the placeholder, which is the case a
+        // public checkout with no server behind it needs. Point the app at a real backend and the
+        // default flips to false, so a debug build exercises the same tier gate a release does —
+        // otherwise every account looks like Pro and a tier test proves nothing.
+        val samosaApiUrl = samosaConfig("SAMOSA_API_URL", "https://api.samosa-ai.example")
+        val placeholderBackend = samosaApiUrl.contains("samosa-ai.example")
+        buildConfigField(
+            "boolean",
+            "SKIP_TIER_CHECK",
+            samosaConfig("SAMOSA_SKIP_TIER_CHECK", placeholderBackend.toString())
+                .trim().lowercase().toBooleanStrictOrNull()
+                ?.toString() ?: placeholderBackend.toString()
+        )
         buildConfigField(
             "String",
             "SAMOSA_WEB_CLIENT_ID",
@@ -124,6 +140,21 @@ android {
             "FEEDBACK_ENTRY_CHAT_LOG",
             "\"${samosaConfig("FEEDBACK_ENTRY_CHAT_LOG", "")}\""
         )
+        // Opt-in usage data (Settings ▸ Privacy): the ingest endpoint and its key,
+        // injected the same way as FEEDBACK_FORM_URL. The key ships in the APK, so it
+        // is an ingest key, never a secret. Either one blank hides the Usage data
+        // section and makes telemetry a no-op, so a public checkout or a fork can
+        // never send anything.
+        buildConfigField(
+            "String",
+            "TELEMETRY_URL",
+            "\"${samosaConfig("TELEMETRY_URL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "TELEMETRY_KEY",
+            "\"${samosaConfig("TELEMETRY_KEY", "")}\""
+        )
         // Google Form for the influencer program signup, injected the same way as
         // FEEDBACK_FORM_URL above. A blank URL hides the influencer card, keeping
         // a public checkout inert.
@@ -157,6 +188,10 @@ android {
 
     buildTypes {
         release {
+            // Pin the tier gate ON for release, overriding defaultConfig. Without this a
+            // release built without SAMOSA_API_URL resolves to the placeholder backend, where
+            // SKIP_TIER_CHECK defaults true — which would hand the shell to every free account.
+            buildConfigField("boolean", "SKIP_TIER_CHECK", "false")
             isMinifyEnabled = false
             // Use the release signing config when one was configured above. A keyless
             // checkout may only fall back to the debug key when explicitly opted in via
@@ -320,6 +355,40 @@ android {
     }
 }
 
+val telemetryVocabularyFile = layout.projectDirectory.file(
+    "src/main/telemetry/schema-1/vocab.v${android.defaultConfig.versionCode}.json"
+)
+
+fun Test.configureTelemetryVocabulary(output: String, expected: String? = null) {
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTest.testClassesDirs
+    classpath = unitTest.classpath
+    dependsOn("compileDebugUnitTestKotlin")
+    filter.includeTestsMatching("com.gotcha.telemetry.TelemetryVocabularyTest")
+    systemProperty("gotcha.telemetry.output", output)
+    if (expected != null) systemProperty("gotcha.telemetry.expected", expected)
+    outputs.upToDateWhen { false }
+}
+
+tasks.register<Test>("exportTelemetryVocabulary") {
+    description = "Export the telemetry vocabulary from the app's schema and bundled assets."
+    group = "verification"
+    configureTelemetryVocabulary(telemetryVocabularyFile.asFile.absolutePath)
+}
+
+tasks.register<Test>("verifyTelemetryVocabulary") {
+    description = "Fail if the committed telemetry vocabulary differs from the app schema."
+    group = "verification"
+    val temporaryExport = layout.buildDirectory.file("telemetry-verification/vocab.json")
+    configureTelemetryVocabulary(
+        temporaryExport.get().asFile.absolutePath,
+        telemetryVocabularyFile.asFile.absolutePath
+    )
+    inputs.file(telemetryVocabularyFile).withPropertyName("committedTelemetryVocabulary")
+}
+
+tasks.named("check") { dependsOn("verifyTelemetryVocabulary") }
+
 /**
  * Coverage reporting only — deliberately no `koverVerify` thresholds.
  *
@@ -355,6 +424,9 @@ detekt {
 }
 
 dependencies {
+    // Termux's terminal emulator and view, copied into third_party/termux-terminal (Apache-2.0).
+    implementation(project(":termux-terminal"))
+
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
     implementation(composeBom)

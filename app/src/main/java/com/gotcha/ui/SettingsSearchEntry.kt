@@ -230,6 +230,14 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("linux, shell, ubuntu, command, terminal, package, apt, python, gotcha shell, companion")
     )
+    SettingsPage.LINUX_TERMINAL -> SettingsSearchEntry(
+        page,
+        words("terminal, console, command line, bash, shell, linux, ssh, vim")
+    )
+    SettingsPage.PRIVACY -> SettingsSearchEntry(
+        page,
+        words("privacy, usage, statistics, stats, data, crashes, what gotcha knows, telemetry, analytics")
+    )
     SettingsPage.TERMUX -> SettingsSearchEntry(
         page,
         words("linux, shell, command, terminal, ffmpeg, package, bash")

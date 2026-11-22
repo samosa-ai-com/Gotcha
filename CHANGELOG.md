@@ -4,6 +4,71 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Gotcha installs Gotcha Shell for you.** A Pro or influencer account gets a
+  *Get Gotcha Shell* action on the Linux-shell page; the app downloads the
+  companion APK from the hub, verifies it, and hands it to the system installer.
+  Until now the companion had to be sideloaded, and the page said so.
+- **The download is verified before anything is installed.** Size, digest,
+  package name and version are checked against what the server advertised, and
+  the APK's signing certificate must match Gotcha's own — that last check is
+  what stops a substituted build, and it needs no pin because the key cannot
+  change without a new Gotcha release.
+- **The user is warned before the install prompt.** Android will ask to allow
+  installs from Gotcha, and Play Protect may warn; neither can be suppressed, so
+  the page explains both first instead of leaving an unexplained blocker.
+- **The Linux system installs itself** once the companion is available. It is
+  not optional — without it the shell cannot start — so it is no longer a
+  separate button that invites an installed-but-unusable state.
+- Real download progress for the APK, with byte counts, so a multi-megabyte
+  fetch no longer looks frozen.
+- **Privacy page.** Settings ▸ Privacy shows what Gotcha has recorded about
+  its use on your phone: chats, voice calls, requests and how many finished,
+  actions taken, the models used and crashes. It is worked out on the phone
+  and sent nowhere.
+- **Optional usage data, off by default.** On the same page you can choose
+  to send counts and outcomes (never your messages, screen, files, contacts,
+  commands or app names) to help improve Gotcha, see exactly what is sent,
+  and delete what was sent. The data retention policy has a new Section 11
+  about it, so you will be asked to accept the updated terms once.
+
+### Changed
+- The Linux-shell plan row no longer shows the date the offline grace expires.
+  The grace still applies; advertising it read as a subscription countdown.
+- `BuildConfig.SKIP_TIER_CHECK` replaces the hardcoded `BuildConfig.DEBUG` bypass
+  in `ShellEntitlement`. It derives from `SAMOSA_API_URL` and lives in
+  `defaultConfig`, so a debug build against a real backend now exercises the
+  same tier gate a release does. Previously every account looked like Pro on a
+  debug build, which made a tier test meaningless, and a release build pins the
+  flag off so a release can never skip the gate.
+
+### Added (earlier this cycle)
+- **Linux runtime row in Settings ▸ Linux shell.** The shell's runtime is
+  downloaded on first use rather than shipped in its APK, so it has its own
+  setup check next to "Gotcha Shell" and "Linux system": downloaded and
+  verified, downloading, or not yet fetched.
+- **Gotcha fetches the runtime source.** That route needs the account's session
+  and tier, which the companion does not have, so Gotcha asks the backend
+  (`GET /gotcha/shell/runtime/latest`) and hands the answer to the shell before
+  a command needs it. The companion still checks the bundle against a SHA-256
+  compiled into its own APK: this chooses where the bytes come from, never which
+  bytes they are.
+- **Third-party notices** in the Legal screen, including the Apache Commons
+  Compress licence and notice it had been missing.
+- **A Linux shell for the assistant** (#181). Samosa AI Pro and Influencer
+  accounts can install Gotcha Shell, a separate app that gives the assistant a
+  full Ubuntu system (`run_shell`, `pull_from_shell`). It runs under its own
+  Android user, so nothing a command does can change Gotcha's settings, chats or
+  memory, and what a command prints reaches the model marked as untrusted.
+  Settings > Linux shell shows its state and offers Repair, Reset and Uninstall.
+  Termux stays as the fallback.
+- **A terminal of your own** (Settings > Linux shell > Open terminal). Type
+  commands in that Linux system yourself, with the full screen of programs like
+  vim, an Esc, Tab, Ctrl and Alt bar and arrow keys, pinch to zoom, and the
+  terminal resizing with the keyboard and with rotation. The session keeps
+  running when you rotate the phone or leave the screen; "End the session" or
+  `exit` ends it. The assistant does not see what you type there. Built on
+  Termux's terminal emulator and view (Apache-2.0, see
+  `third_party/termux-terminal`).
 - **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
   about you, the people in your life, your plans and preferences in plain
   Markdown files in `Gotcha/memory/` on your phone, which you can read any
@@ -65,8 +130,20 @@ All notable changes to Gotcha are documented here.
   `/mcp` with or without a trailing slash, now connect. Plain http is
   allowed, with a warning when a token would travel unencrypted outside your
   home network.
+- **Gotcha Shell interface 6.** The AIDL copy now includes `SessionHandle`
+  (interface 3, which had never been taken), `installRuntime` with progress,
+  `offerRuntime`, and the runtime fields on `ShellInfo`. Interface changes are
+  additive, so as before a newer companion is accepted.
+- When the shell's runtime is missing, Gotcha fetches the download source and the
+  command proceeds so the companion installs it; only a failed fetch reports the
+  miss, saying it needs a connection and an account that includes the shell,
+  rather than failing with a version or rootfs error.
 
 ### Fixed
+- **Companion state no longer shares a settings file with the Pro tier.** Both
+  wrote to `companion_shell`, so a state write could race the entitlement record
+  and lose it, which would look like a Pro account signing itself out. Companion
+  state now has its own file.
 - **Signing in on the account website no longer gets stuck when your default
   browser is not Chrome.** Gotcha now opens the sign-in page in Chrome when it
   is installed. Some browsers (seen with Aloha) left Google's account chooser

@@ -77,6 +77,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- In-app APK updater permission for launching PackageInstaller -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <!-- Tier 4: run_shell. Declared by Termux with protectionLevel="dangerous", so it
          still needs a runtime grant; Termux additionally requires allow-external-apps=true. -->
@@ -277,6 +278,16 @@
             android:name=".tools.ScheduledSmsReceiver"
             android:exported="false" />
 
+        <!-- The system installer's answer for a Gotcha Shell APK install. Not exported: the
+             PendingIntent names this component explicitly, so nothing else can deliver here. -->
+        <receiver
+            android:name=".tools.InstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.gotcha.shell.INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
+
         <!-- Alarm and timer firing receiver -->
         <receiver
             android:name=".tools.AlarmReceiver"
@@ -353,6 +364,23 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
+
+        <!--
+          ML Kit (text and barcode recognition, all on-device) reports its own
+          usage to Google through the datatransport library, whose only upload
+          backend is CCT (firebaselogging.googleapis.com). Removing that backend's
+          registration leaves datatransport nothing to upload with, so it drops
+          ML Kit's log events instead of sending them; recognition is unaffected.
+          The job service and alarm receiver stay: datatransport still schedules
+          its upload job, and a missing service would crash it.
+        -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="merge">
+            <meta-data
+                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+                tools:node="remove" />
+        </service>
     </application>
 
 </manifest>

@@ -263,10 +263,16 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
                 )
+                SettingsPage.PRIVACY -> PrivacyScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange
+                )
                 SettingsPage.LINUX_SHELL -> LinuxShellScreen(
                     onBack = backToHome,
-                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
+                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) },
+                    onOpenTerminal = { onPageChange(SettingsPage.LINUX_TERMINAL) }
                 )
+                SettingsPage.LINUX_TERMINAL -> TerminalScreen(onBack = backToHome)
                 SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
                 SettingsPage.SKILLS -> SkillsScreen(
                     load = load,
