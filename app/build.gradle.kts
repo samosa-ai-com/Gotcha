@@ -1,5 +1,6 @@
 import java.util.Properties
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     id("com.android.application")
@@ -353,6 +354,40 @@ android {
         }
     }
 }
+
+val telemetryVocabularyFile = layout.projectDirectory.file(
+    "src/main/telemetry/schema-1/vocab.v${android.defaultConfig.versionCode}.json"
+)
+
+fun Test.configureTelemetryVocabulary(output: String, expected: String? = null) {
+    val unitTest = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTest.testClassesDirs
+    classpath = unitTest.classpath
+    dependsOn("compileDebugUnitTestKotlin")
+    filter.includeTestsMatching("com.gotcha.telemetry.TelemetryVocabularyTest")
+    systemProperty("gotcha.telemetry.output", output)
+    if (expected != null) systemProperty("gotcha.telemetry.expected", expected)
+    outputs.upToDateWhen { false }
+}
+
+tasks.register<Test>("exportTelemetryVocabulary") {
+    description = "Export the telemetry vocabulary from the app's schema and bundled assets."
+    group = "verification"
+    configureTelemetryVocabulary(telemetryVocabularyFile.asFile.absolutePath)
+}
+
+tasks.register<Test>("verifyTelemetryVocabulary") {
+    description = "Fail if the committed telemetry vocabulary differs from the app schema."
+    group = "verification"
+    val temporaryExport = layout.buildDirectory.file("telemetry-verification/vocab.json")
+    configureTelemetryVocabulary(
+        temporaryExport.get().asFile.absolutePath,
+        telemetryVocabularyFile.asFile.absolutePath
+    )
+    inputs.file(telemetryVocabularyFile).withPropertyName("committedTelemetryVocabulary")
+}
+
+tasks.named("check") { dependsOn("verifyTelemetryVocabulary") }
 
 /**
  * Coverage reporting only — deliberately no `koverVerify` thresholds.

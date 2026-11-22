@@ -1,8 +1,12 @@
 package com.gotcha.telemetry
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.put
 
 /**
  * The closed schema for opt-in usage data.
@@ -63,19 +67,27 @@ data class Prop(val vocab: Vocab, val optional: Boolean = false)
 /** The values a property may take. */
 sealed interface Vocab {
     fun accepts(value: JsonPrimitive): Boolean
+    fun describe(): JsonObject
 
     data object Bool : Vocab {
         override fun accepts(value: JsonPrimitive) = !value.isString && value.booleanOrNull != null
+        override fun describe() = buildJsonObject { put("kind", "bool") }
     }
 
     /** A whole number in [range]: version codes and similar small counters. */
     data class Count(val range: IntRange) : Vocab {
         override fun accepts(value: JsonPrimitive) = !value.isString && value.intOrNull?.let { it in range } == true
+        override fun describe() = buildJsonObject {
+            put("kind", "count")
+            put("min", range.first)
+            put("max", range.last)
+        }
     }
 
     /** One of a fixed list of words. */
     data class Words(val words: Set<String>) : Vocab {
         override fun accepts(value: JsonPrimitive) = value.isString && value.content in words
+        override fun describe() = wordsDescription(words)
     }
 
     /**
@@ -85,6 +97,7 @@ sealed interface Vocab {
      */
     class Dynamic(private val words: () -> Set<String>) : Vocab {
         override fun accepts(value: JsonPrimitive) = value.isString && value.content in words()
+        override fun describe() = wordsDescription(words())
     }
 
     /**
@@ -94,6 +107,11 @@ sealed interface Vocab {
     data class CodeName(val maxLength: Int) : Vocab {
         override fun accepts(value: JsonPrimitive) =
             value.isString && value.content.length in 1..maxLength && CODE_NAME.matches(value.content)
+        override fun describe() = buildJsonObject {
+            put("kind", "regex")
+            put("pattern", CODE_NAME.pattern)
+            put("max_length", maxLength)
+        }
 
         private companion object {
             val CODE_NAME = Regex("[A-Za-z0-9_.$]+")
@@ -107,6 +125,17 @@ sealed interface Vocab {
     data object ModelId : Vocab {
         private val MODEL_ID = Regex("[A-Za-z0-9._:/-]{1,64}")
         override fun accepts(value: JsonPrimitive) = value.isString && MODEL_ID.matches(value.content)
+        override fun describe() = buildJsonObject {
+            put("kind", "regex")
+            put("pattern", MODEL_ID.pattern)
+        }
+    }
+
+    companion object {
+        private fun wordsDescription(words: Set<String>) = buildJsonObject {
+            put("kind", "words")
+            put("words", JsonArray(words.sorted().map(::JsonPrimitive)))
+        }
     }
 }
 
