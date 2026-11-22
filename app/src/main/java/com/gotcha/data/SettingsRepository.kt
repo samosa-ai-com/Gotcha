@@ -576,6 +576,7 @@ interface SettingsStore {
 }
 
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
+@Suppress("TooManyFunctions")
 class SettingsRepository(context: Context) : SettingsStore {
 
     private val appContext: Context = context.applicationContext ?: context
