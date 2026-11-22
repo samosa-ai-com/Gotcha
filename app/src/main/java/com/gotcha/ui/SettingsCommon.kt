@@ -820,7 +820,9 @@ fun SamosaAuthSection(
         }
         // A plan without Pro's features: what Pro adds, one tap from the pitch.
         val tier = user?.tier
-        if (signedIn && tier != null && tier.id.lowercase() !in com.gotcha.tools.ShellEntitlement.SHELL_TIERS) {
+        if (tier != null &&
+            com.gotcha.upsell.Upsell.audience(signedIn, tier.id) == com.gotcha.upsell.UpsellAudience.PRO
+        ) {
             val openUpsell = LocalUpsell.current
             Surface(
                 shape = MaterialTheme.shapes.medium,
