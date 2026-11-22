@@ -80,13 +80,12 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ShellEntitlement
 import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
+import com.gotcha.ui.AccountScreen
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatAssetsScreen
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ChatTransferDialogs
-import com.gotcha.ui.AccountScreen
 import com.gotcha.ui.ConnectorsScreen
-import com.gotcha.ui.accountDisplayName
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.GITHUB_REPO_URL
 import com.gotcha.ui.InboxScreen
@@ -106,6 +105,7 @@ import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.SplashVideoOverlay
 import com.gotcha.ui.StarPromptDialog
 import com.gotcha.ui.UpsellDialog
+import com.gotcha.ui.accountDisplayName
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.starPromptDueAt

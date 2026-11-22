@@ -182,7 +182,9 @@ fun AccountScreen(
                 )
             },
             onSignInWithGoogle = onSignInWithGoogle?.let { google ->
-                { runSignIn(R.string.samosa_signing_in_google, google) }
+                {
+                    runSignIn(R.string.samosa_signing_in_google, google)
+                }
             },
             onSignOut = {
                 busy = true
