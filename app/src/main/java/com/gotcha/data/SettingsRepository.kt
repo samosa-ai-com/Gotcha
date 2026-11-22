@@ -942,12 +942,12 @@ class SettingsRepository(context: Context) : SettingsStore {
             .apply()
     }
 
-    /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
     /** Caches the signed-in user's name for the drawer; see [Settings.samosaDisplayName]. */
     fun saveSamosaDisplayName(name: String) {
         prefs.edit().putString(KEY_SAMOSA_DISPLAY_NAME, name).apply()
     }
 
+    /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
     fun clearSamosaSession() {
         prefs.edit()
             .remove(KEY_SAMOSA_TOKEN)
