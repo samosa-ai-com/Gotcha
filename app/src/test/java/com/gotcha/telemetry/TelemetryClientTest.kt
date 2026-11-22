@@ -331,4 +331,55 @@ class TelemetryClientTest {
         assertEquals("other", crash.props["thread"]!!.content)
         assertFalse(crash.toJson().toString().contains("user typed this"))
     }
+
+    @Test
+    fun `the regional default follows the registered region`() {
+        val c = client()
+
+        fun region(value: String, consentRequired: Boolean) {
+            prefs.edit()
+                .putString(TelemetryClient.KEY_REGION, value)
+                .putBoolean(TelemetryClient.KEY_CONSENT_REQUIRED, consentRequired)
+                .commit()
+        }
+
+        region("eea", consentRequired = true)
+        assertFalse(c.defaultUsageData)
+        assertFalse(c.status().enabled)
+
+        region("uk", consentRequired = true)
+        assertFalse(c.defaultUsageData)
+        assertFalse(c.status().enabled)
+
+        region("other", consentRequired = true)
+        assertFalse(c.defaultUsageData)
+        assertFalse(c.status().enabled)
+
+        region("other", consentRequired = false)
+        assertTrue(c.defaultUsageData)
+        assertTrue(c.status().enabled)
+    }
+
+    @Test
+    fun `a choice from settings is recorded with the settings surface`() {
+        val c = client()
+        c.recordConsent(true, ConsentSurface.SETTINGS)
+        val event = queue.peek(10).last()
+        assertEquals(TelemetryEvents.CONSENT, event.name)
+        assertEquals("settings", event.props["surface"]!!.content)
+        assertEquals("accepted", event.props["usage_data"]!!.content)
+        assertEquals("accepted", event.props["terms"]!!.content)
+        assertTrue(c.hasConsent)
+        assertTrue(c.status().enabled)
+    }
+
+    @Test
+    fun `a later choice flips the reported state`() {
+        val c = client()
+        ready(c)
+        c.setEnabled(false)
+        assertFalse(c.status().enabled)
+        c.setEnabled(true)
+        assertTrue(c.status().enabled)
+    }
 }

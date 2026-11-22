@@ -9,6 +9,8 @@
     <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
     <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
     <string name="legal_consent_age_label" translatable="false">I confirm that I am at least 18 years old.</string>
+    <string name="legal_consent_usage_data_label">Share usage data</string>
+    <string name="legal_consent_usage_data_hint">Counts and outcomes only — never your messages, screen contents, files or commands. It helps keep Gotcha improving, and you can change this any time in Settings ▸ Privacy.</string>
     <string name="legal_consent_agree" translatable="false">I agree</string>
     <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
@@ -18,7 +20,7 @@
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
-        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. Optional usage data, off unless you turn it on, sends counts and outcomes only and can be deleted from Settings → Privacy.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. An install registration runs on first launch regardless of your choice and identifies no one. Usage data — counts and outcomes only — is on by default where prior consent is not required and can be changed any time in Settings → Privacy.</item>
         <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
@@ -181,25 +183,16 @@
     <string name="privacy_where_data_goes_body">Your chats, calls and settings are stored on this phone. Gotcha goes online only for what you use: the AI backend you chose, the accounts you connect, web pages and searches the assistant fetches, and the update check on GitHub. The data retention policy has the details.</string>
     <string name="privacy_open_policy">Read the data retention policy</string>
     <string name="privacy_usage_data_title">Usage data</string>
-    <string name="privacy_usage_data_intro">Help improve Gotcha by sending counts and outcomes, such as how long the app was open or what kind of crash happened. Off unless you turn it on.</string>
+    <string name="privacy_usage_data_intro">Help improve Gotcha by sending counts and outcomes, such as how long the app was open or what kind of crash happened. On by default where prior consent is not required; off until you choose where it is. You can change it here at any time.</string>
     <string name="privacy_usage_data_switch">Share usage data</string>
     <string name="privacy_usage_data_mobile">Also send on mobile data</string>
     <string name="privacy_usage_data_status_off">Off. Nothing is sent.</string>
     <string name="privacy_usage_data_status_waiting">On. Nothing sent yet; it goes out in batches over Wi-Fi.</string>
     <string name="privacy_usage_data_status_sent">On. Last sent %1$s.</string>
     <string name="privacy_usage_data_status_paused">On, but paused by the server. Gotcha will try again later.</string>
+    <string name="privacy_usage_data_status_not_configured">Not configured. This build sends no usage data.</string>
     <string name="privacy_what_we_send">What we send</string>
     <string name="privacy_never_sent">Never sent: your messages or the assistant\'s replies, what is on your screen, your files, contacts, texts, calendar or location, shell commands, the names of your apps, your API key or your Samosa account.</string>
-    <string name="privacy_enable_dialog_title">Share usage data?</string>
-    <string name="privacy_enable_dialog_body">Gotcha will send counts and outcomes to a server run by Samosa AI, tied to a random id that is not linked to your account or your phone. Never your messages, screen, files, contacts, commands or app names. Kept for 90 days. You can turn it off, or delete what was sent, here at any time.</string>
-    <string name="privacy_enable_dialog_confirm">Turn on</string>
-    <string name="privacy_enable_dialog_dismiss">Not now</string>
-    <string name="privacy_delete_usage_data">Delete my usage data</string>
-    <string name="privacy_delete_dialog_title">Delete usage data?</string>
-    <string name="privacy_delete_dialog_body">This asks the server to delete everything sent from this phone, and turns usage data off.</string>
-    <string name="privacy_delete_dialog_confirm">Delete</string>
-    <string name="privacy_delete_done">Deleted. Usage data is off.</string>
-    <string name="privacy_delete_failed">Could not reach the server. Try again later.</string>
     <string name="telemetry_event_app_open">That Gotcha was opened, and for a cold start roughly how long it took</string>
     <string name="telemetry_event_consent">Your terms and usage data choice</string>
     <string name="telemetry_event_session_profile">A bucketed summary of session activity, reliability and performance</string>

@@ -12,7 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,11 +28,11 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.data.UsageOverview
 import com.gotcha.data.loadUsageOverview
+import com.gotcha.telemetry.ConsentSurface
 import com.gotcha.telemetry.Telemetry
 import com.gotcha.telemetry.TelemetryEvents
 import com.gotcha.telemetry.TelemetrySchema
 import com.gotcha.telemetry.TelemetryStatus
-import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,10 +78,10 @@ fun PrivacyScreen(
             UsageCard(loaded)
         }
 
-        if (Telemetry.isConfigured) {
-            HorizontalDivider(thickness = 1.dp)
-            UsageDataSection(overlay)
-        }
+        // Shown in builds without an endpoint too, so the page can say plainly
+        // that this build sends nothing rather than hiding the question.
+        HorizontalDivider(thickness = 1.dp)
+        UsageDataSection()
 
         HorizontalDivider(thickness = 1.dp)
 
@@ -179,17 +178,42 @@ private fun UsageCard(overview: UsageOverview) {
     }
 }
 
+/** What the Privacy page says about usage data, independent of how it is worded. */
+internal enum class UsageDataState { NOT_CONFIGURED, OFF, PAUSED, WAITING, SENT }
+
 /**
- * The opt-in switch for usage data, what it sends, and the way to delete it.
- * Only composed when the build has an endpoint ([Telemetry.isConfigured]).
+ * The switch's honest states. [TelemetryStatus.enabled] already reflects
+ * the regional default before the first decision, so "on" here can mean that
+ * default rather than a stored choice.
  */
+internal fun usageDataState(status: TelemetryStatus?): UsageDataState = when {
+    status == null || !status.configured -> UsageDataState.NOT_CONFIGURED
+    !status.enabled -> UsageDataState.OFF
+    status.paused -> UsageDataState.PAUSED
+    status.lastSentAt == 0L -> UsageDataState.WAITING
+    else -> UsageDataState.SENT
+}
+
+/**
+ * The switch's write path. A choice made after the first decision only changes
+ * the stored value, which records a Settings consent event; on a build whose
+ * install predates the first-run choice, the switch is itself the first
+ * decision, so it records one directly.
+ */
+internal fun applyUsageDataChoice(
+    on: Boolean,
+    hasConsent: Boolean,
+    setEnabled: (Boolean) -> Unit,
+    recordConsent: (Boolean, ConsentSurface) -> Unit
+) {
+    if (hasConsent) setEnabled(on) else recordConsent(on, ConsentSurface.SETTINGS)
+}
+
+/** The usage-data switch, what it sends, and what is never sent. */
 @Composable
-private fun UsageDataSection(overlay: SettingsOverlayState) {
+private fun UsageDataSection() {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<TelemetryStatus?>(null) }
-    var askingToEnable by remember { mutableStateOf(false) }
-    var askingToDelete by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
     suspend fun refresh() {
         status = withContext(Dispatchers.IO) { Telemetry.status() }
     }
@@ -205,21 +229,32 @@ private fun UsageDataSection(overlay: SettingsOverlayState) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    val current = status ?: return
+    val current = status
+    val available = current?.configured == true
     SettingsToggleRow(
         label = stringResource(R.string.privacy_usage_data_switch),
-        checked = current.enabled,
+        checked = current?.enabled == true,
         onCheckedChange = { on ->
-            if (on) {
-                askingToEnable = true
-            } else {
-                scope.launch {
-                    withContext(Dispatchers.IO) { Telemetry.setEnabled(false) }
-                    refresh()
+            // Move the switch at once. A first choice is written from a
+            // background coroutine, so re-reading status() immediately could
+            // race it; a later choice is written synchronously and can be
+            // re-read straight away.
+            val chosenBefore = Telemetry.hasConsent
+            status = current?.copy(enabled = on) ?: status
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    applyUsageDataChoice(
+                        on = on,
+                        hasConsent = chosenBefore,
+                        setEnabled = Telemetry::setEnabled,
+                        recordConsent = Telemetry::recordConsent
+                    )
                 }
+                if (chosenBefore) refresh()
             }
         },
         isLarge = true,
+        enabled = available,
         switchTestTag = "privacy_usage_data_switch",
         switchContentDescription = stringResource(R.string.privacy_usage_data_switch)
     )
@@ -231,12 +266,12 @@ private fun UsageDataSection(overlay: SettingsOverlayState) {
     )
     SettingsToggleRow(
         label = stringResource(R.string.privacy_usage_data_mobile),
-        checked = current.mobileData,
+        checked = current?.mobileData == true,
         onCheckedChange = { on ->
             Telemetry.setMobileData(on)
             scope.launch { refresh() }
         },
-        enabled = current.enabled,
+        enabled = available && current?.enabled == true,
         switchTestTag = "privacy_usage_data_mobile"
     )
 
@@ -246,85 +281,25 @@ private fun UsageDataSection(overlay: SettingsOverlayState) {
     ) {
         WhatWeSendList()
     }
-
-    if (current.hasInstallId) {
-        OutlinedButton(
-            onClick = { askingToDelete = true },
-            enabled = !deleting,
-            modifier = Modifier.fillMaxWidth().testTag("privacy_delete_usage_data")
-        ) { Text(stringResource(R.string.privacy_delete_usage_data)) }
-    }
-
-    if (askingToEnable) {
-        SkinAlertDialog(
-            onDismissRequest = { askingToEnable = false },
-            title = { Text(stringResource(R.string.privacy_enable_dialog_title)) },
-            text = { Text(stringResource(R.string.privacy_enable_dialog_body)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        askingToEnable = false
-                        scope.launch {
-                            withContext(Dispatchers.IO) { Telemetry.setEnabled(true) }
-                            refresh()
-                        }
-                    },
-                    modifier = Modifier.testTag("privacy_enable_confirm")
-                ) { Text(stringResource(R.string.privacy_enable_dialog_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { askingToEnable = false }) {
-                    Text(stringResource(R.string.privacy_enable_dialog_dismiss))
-                }
-            }
-        )
-    }
-
-    if (askingToDelete) {
-        val deleted = stringResource(R.string.privacy_delete_done)
-        val failed = stringResource(R.string.privacy_delete_failed)
-        SkinAlertDialog(
-            onDismissRequest = { askingToDelete = false },
-            title = { Text(stringResource(R.string.privacy_delete_dialog_title)) },
-            text = { Text(stringResource(R.string.privacy_delete_dialog_body)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        askingToDelete = false
-                        deleting = true
-                        scope.launch {
-                            val ok = Telemetry.deleteMyData()
-                            deleting = false
-                            overlay.show(if (ok) deleted else failed)
-                            refresh()
-                        }
-                    },
-                    modifier = Modifier.testTag("privacy_delete_confirm")
-                ) { Text(stringResource(R.string.privacy_delete_dialog_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { askingToDelete = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            }
-        )
-    }
 }
 
 @Composable
-private fun statusLine(status: TelemetryStatus): String = when {
-    !status.enabled -> stringResource(R.string.privacy_usage_data_status_off)
-    status.paused -> stringResource(R.string.privacy_usage_data_status_paused)
-    status.lastSentAt == 0L -> stringResource(R.string.privacy_usage_data_status_waiting)
-    else -> stringResource(
-        R.string.privacy_usage_data_status_sent,
-        DateUtils.getRelativeTimeSpanString(
-            status.lastSentAt,
-            System.currentTimeMillis(),
-            DateUtils.MINUTE_IN_MILLIS
-        ).toString()
-    )
-}
+private fun statusLine(status: TelemetryStatus?): String =
+    when (usageDataState(status)) {
+        UsageDataState.NOT_CONFIGURED ->
+            stringResource(R.string.privacy_usage_data_status_not_configured)
+        UsageDataState.OFF -> stringResource(R.string.privacy_usage_data_status_off)
+        UsageDataState.PAUSED -> stringResource(R.string.privacy_usage_data_status_paused)
+        UsageDataState.WAITING -> stringResource(R.string.privacy_usage_data_status_waiting)
+        UsageDataState.SENT -> stringResource(
+            R.string.privacy_usage_data_status_sent,
+            DateUtils.getRelativeTimeSpanString(
+                status?.lastSentAt ?: 0L,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS
+            ).toString()
+        )
+    }
 
 /** One line per event in the schema, then what is never sent. */
 @Composable

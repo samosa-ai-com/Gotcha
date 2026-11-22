@@ -6,9 +6,11 @@ This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short
 version: the App itself does not collect or retain your content on
 our servers — everything stays on your device unless you choose to use
-a backend that transmits data to a third-party AI provider. If you turn
-on optional usage data (off by default), the App sends us counts and
-outcomes only, never your content; see Section 11.
+a backend that transmits data to a third-party AI provider. On first
+launch the App registers the install with us; that registration
+describes the build and the device in broad terms and identifies no
+one. Usage data, which is counts and outcomes only, is on by default
+and can be turned off; see Section 11.
 
 1. WHAT THE APP STORES, AND WHERE
 
@@ -25,18 +27,20 @@ outcomes only, never your content; see Section 11.
    1.3 Settings (preferences, model selections, permission choices,
        legal acceptance) are stored in Android's encrypted
        SharedPreferences on your device. They are never uploaded to us.
-   1.4 The App does not ship any analytics, crash-reporting or tracking
-       SDK. By default we have no server-side record of your activity in
-       the App. The only exception is optional usage data, which is off
-       unless you turn it on and is described in Section 11.
+   1.4 The App does not ship any third-party analytics,
+       crash-reporting or tracking SDK. The only server-side records we
+       keep are the install registration made on first launch and the
+       usage data described in Section 11. Neither contains your
+       content.
 
 2. WHAT IS TRANSMITTED, AND WHEN
 
-   2.1 The App does not transmit data unless you send a request to an
-       AI backend, or you have turned on optional usage data (Section
-       11). A request is sent only when you (or the agent you have
-       configured) initiate one — for example, by typing a message,
-       starting a voice call, or invoking a tool that needs vision.
+   2.1 The App transmits data when it registers an install on first
+       launch (Section 11), when you send a request to an AI backend, or
+       when usage data is on (also Section 11). An AI request is sent
+       only when you (or the agent you have configured) initiate one —
+       for example, by typing a message, starting a voice call, or
+       invoking a tool that needs vision.
 
    2.2 If you choose to use Samosa AI as your backend, requests are
        transmitted to Samosa AI over HTTPS, authenticated with the
@@ -48,15 +52,16 @@ outcomes only, never your content; see Section 11.
        authenticated with the API key you supplied. The App does not
        proxy or store that key on any server we operate.
 
-3. ZERO COLLECTION / ZERO RETENTION BY US
+3. WHAT WE KEEP ON OUR SIDE
 
    3.1 We do not operate a server that retains your chats, calls,
        screenshots, prompts, completions, or credentials, and the App
-       never sends them to us. With usage data off, which is the
-       default, nothing about your use of the App is kept on our side.
-       With it on, we keep only the counts and outcomes described in
-       Section 11, for 90 days, and you can delete them from the App at
-       any time.
+       never sends them to us. We keep the install registration and,
+       when usage data is on, the counts and outcomes described in
+       Section 11. That data is kept indefinitely in anonymised form;
+       recent data sits in a rolling 30-day working window used for
+       day-to-day analysis. Nothing in it identifies you, so there is
+       no per-person record to delete.
    3.2 If you want to remove local data, uninstall the App, or use the
        in-app controls (e.g. "Clear chat," "Clear LLM cache").
 
@@ -113,8 +118,9 @@ outcomes only, never your content; see Section 11.
          (c) clear debug screenshots (Settings → AI Configuration);
          (d) uninstall the App, which removes all app-private data,
              including settings, caches, and history.
-       Uninstalling does not reach usage data already sent to us; use
-       "Delete my usage data" (Section 11) first if you want it gone.
+       Uninstalling does not withdraw the install registration or usage
+       data already sent; neither contains anything that identifies
+       you, so there is nothing to delete on request (Section 11.9).
    5.2 Android may retain app-private data in backups (e.g. Auto Backup
        to Google Drive) depending on the user's Android settings. We
        do not control backup behavior; please review your device
@@ -187,48 +193,87 @@ outcomes only, never your content; see Section 11.
    10.6 You can turn the wake-word feature off at any time; when off, the
         App does not retain or process any audio for wake-word purposes.
 
-11. OPTIONAL USAGE DATA
+11. INSTALL REGISTRATION AND USAGE DATA
 
-   11.1 Usage data is off unless you turn it on in Settings → Privacy →
-        "Share usage data". Nothing in the App depends on it, and you
-        will not be asked again if you leave it off.
+    11.1 Install registration. On first launch, whether usage data is
+         on or off, the App registers the install with a server
+         operated by Samosa AI over HTTPS. The registration contains:
+           (a) the App's version, build number and build type, and
+               whether it came from a store or was sideloaded;
+           (b) the Android version, API level and security patch level;
+           (c) the device's primary CPU ABI, manufacturer and model,
+               and the manufacturer's software skin as a broad kind;
+           (d) memory, storage, screen size, screen density and refresh
+               rate as broad buckets;
+           (e) the language setting and the country derived from the
+               connection;
+           (f) the install time and the time-zone offset at install;
+               and
+           (g) whether the device looks like an emulator or shows root
+               signals.
+         It contains no name, email address, account, phone number,
+         advertising ID or other device identifier, and it identifies
+         no one. We use it to operate the service — for example, to
+         know which Android versions and screen sizes to support and
+         which builds are in use — and to protect the service from
+         abuse.
 
-   11.2 Purpose: to learn which features are used and where the App
-        fails or crashes, so we can fix and improve it. It is never
-        sold, and never used for advertising.
+    11.2 Usage data is on by default in regions where prior consent is
+         not required. In regions where it is required, it stays off
+         until you turn it on; the switch is on the first screen in
+         either case. It is always in Settings → Privacy → "Share
+         usage data". Nothing in the App depends on it.
 
-   11.3 What is sent: counts and outcomes only. Each event is one of a
-        fixed list, and each of its values is a yes/no, a range (for
-        example "6–30 seconds"), or a word from a fixed list. The full
-        list of events is shown in the App under Settings → Privacy →
-        "What we send". With each batch the App also sends its version,
-        the Android version, the language setting and whether the
-        device is a phone or a tablet.
+    11.3 Purpose: to learn which features are used and where the App
+         fails or crashes, so we can fix and improve it. It is never
+         sold, and never used for advertising.
 
-   11.4 What is never sent: your messages or the assistant's replies,
-        what is on your screen, files or file names, contacts, text
-        messages, call logs, calendar entries, notifications, location,
-        health data, shell commands or their output, the names of your
-        apps, web addresses, your API key, your Samosa AI account or
-        email, and any device identifier (Android ID, IMEI, serial
-        number or advertising ID). The text of an error is never sent;
-        for a crash, only the type of error and the name of the method
-        it came from.
+    11.4 What is sent: counts and outcomes only. Each event is one of a
+         fixed list, and each of its values is a yes/no, a range (for
+         example "6–30 seconds"), or a word from a fixed list. The full
+         list of events is shown in the App under Settings → Privacy →
+         "What we send". With each batch the App also sends its version,
+         the Android version, the language setting and whether the
+         device is a phone or a tablet.
 
-   11.5 Identifier: the App creates a random id the first time you turn
-        usage data on. It is not derived from your device or your
-        account, and it is not linked to your Samosa AI account.
+    11.5 What is never sent: your messages or the assistant's replies,
+         what is on your screen, files or file names, contacts, text
+         messages, call logs, calendar entries, notifications, location,
+         health data, shell commands or their output, the names of your
+         apps, web addresses, your API key, your Samosa AI account or
+         email, and any device identifier (Android ID, IMEI, serial
+         number or advertising ID). The text of an error is never sent;
+         for a crash, only the type of error and the name of the method
+         it came from. Usage data never carries your content, and none
+         of the content you type, say, see, save or run leaves the
+         phone as part of it.
 
-   11.6 Where it goes and how long it is kept: to a server operated by
-        Samosa AI, over HTTPS. Events are kept for 90 days and then
-        deleted. Your IP address is not stored with them.
+    11.6 Identifier: the install registration gives the App a random
+         install id and a token. They are not derived from your device
+         or your account, and they are not linked to your Samosa AI
+         account. Nothing else is needed to send usage data.
 
-   11.7 Your choices: turning usage data off stops sending at once and
-        deletes anything waiting on the phone. "Delete my usage data"
-        asks the server to delete everything sent under your id, then
-        forgets the id. You can also email contact@samosa-ai.com.
+    11.7 Where it goes and how long it is kept: to a server operated by
+         Samosa AI, over HTTPS. Data is kept indefinitely in anonymised
+         form. Recent data sits in a rolling 30-day working window used
+         for day-to-day analysis, and older data is retained in
+         anonymised aggregate for longer-term product decisions. Your
+         IP address is not stored with it.
 
-   11.8 Builds of the App that you compile yourself from the public
-        source code send no usage data at all.
+    11.8 Consent record. The App records your choice — whether you
+         accept or decline usage data — as evidence of that choice,
+         together with the surface it was made on (first run or
+         Settings) and the policy version. This record is kept whether
+         you accept or decline, and it is kept if you later change the
+         choice.
+
+    11.9 Your choices: turning usage data off stops collection at once
+         and deletes anything waiting on the phone. Turning it back on
+         records the new choice. There is no "delete my data" request,
+         because there is nothing in what we hold that identifies you
+         to delete. Questions can go to contact@samosa-ai.com.
+
+    11.10 Builds of the App that you compile yourself from the public
+          source code send no usage data at all.
 
 — END OF DATA RETENTION POLICY —

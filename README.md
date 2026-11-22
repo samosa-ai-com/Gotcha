@@ -40,7 +40,7 @@ Grab the latest `.apk` from [**GitHub Releases**](https://github.com/samosa-ai-c
 
 Once installed, Gotcha tells you when a new version is out. About twice a day it downloads [`update.json`](update.json) from GitHub; the request carries no account or device identifier, though GitHub sees your IP address as with any download. Tapping the notification opens **Settings ▸ About**, which downloads the APK, checks its SHA-256 and hands it to Android's installer. Turn it off under **Settings ▸ Notifications ▸ App updates**.
 
-Gotcha sends no usage data unless you turn it on under **Settings ▸ Privacy ▸ Share usage data**. If you do, it sends counts and outcomes only, never your messages, screen, files, contacts, commands or app names, tied to a random id you can delete from the same page. Builds you compile yourself send nothing.
+On first launch Gotcha registers the install (app and Android version, ABI, manufacturer and model, memory/storage/screen buckets, locale, country from the connection, install time, emulator/root signals) — it identifies no one and is used to run and protect the service. Usage data is on by default where prior consent is not required: counts and outcomes only, never your messages, screen, files, contacts, commands or app names, changeable under **Settings ▸ Privacy ▸ Share usage data**. Where prior consent is required it stays off until you choose. Builds you compile yourself send nothing.
 
 Building from source instead? 👇
 

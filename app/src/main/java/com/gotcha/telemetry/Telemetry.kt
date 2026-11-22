@@ -43,8 +43,6 @@ data class TelemetryStatus(
     val configured: Boolean,
     val enabled: Boolean,
     val mobileData: Boolean,
-    /** Transitional Privacy UI compatibility; removed with that screen. */
-    val hasInstallId: Boolean,
     /** The server asked for a pause, or refused this install token. */
     val paused: Boolean,
     /** Epoch millis of the last accepted batch, 0 if none. */
@@ -110,7 +108,6 @@ class TelemetryClient internal constructor(
         configured = isConfigured,
         enabled = if (hasConsent) enabled else defaultUsageData,
         mobileData = prefs.getBoolean(KEY_MOBILE_DATA, false),
-        hasInstallId = false,
         paused = paused(),
         lastSentAt = prefs.getLong(KEY_LAST_SENT_AT, 0L),
         queued = queue.size()
@@ -414,11 +411,6 @@ object Telemetry {
     fun setMobileData(on: Boolean) {
         client?.setMobileData(on)
     }
-
-    /** Compatibility until the Privacy UI removes its delete call. */
-    @Deprecated("Remove with Privacy UI")
-    @Suppress("FunctionOnlyReturningConstant")
-    suspend fun deleteMyData(): Boolean = false
 
     /**
      * Compares the permissions granted now with the last look and records the

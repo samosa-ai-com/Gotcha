@@ -1078,4 +1078,4 @@ class SettingsRepository(context: Context) : SettingsStore {
  * data) and no longer says the app has no telemetry endpoint. A material
  * change, so everyone accepts again, and with it confirms their age.
  */
-const val LEGAL_VERSION: String = "3"
+const val LEGAL_VERSION: String = "4"
