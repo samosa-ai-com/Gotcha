@@ -1397,6 +1397,7 @@ class MainActivity : ComponentActivity() {
                                 client.listModels()
                             }
                         },
+                        onFetchAllowedModels = { samosaAuthManager.fetchAllowedModels() },
                         onSamosaSignIn = {
                             toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity))
                         },

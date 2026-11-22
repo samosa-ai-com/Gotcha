@@ -299,6 +299,8 @@
     <string name="ai_config_select_model">(اختر نموذجًا)</string>
     <string name="ai_config_no_models_found">لم يتم العثور على نماذج</string>
     <string name="ai_config_custom_model">✏️ نموذج مخصص…</string>
+    <string name="ai_config_model_locked">غير مشمول في خطتك</string>
+    <string name="ai_config_model_not_in_plan">‏%1$s غير مشمول في خطتك، لذا تم اختيار %2$s بدلًا منه. احفظ للإبقاء عليه.</string>
     <string name="ai_config_sub_agent_model">نموذج الوكيل الفرعي</string>
     <string name="ai_config_same_as_main_agent">نفس الوكيل الرئيسي</string>
     <string name="ai_config_navigator_model">نموذج المتصفح</string>

@@ -83,6 +83,8 @@ fun SettingsScreen(
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = {
         Result.failure(Exception("Not available"))
     },
+    /** The Samosa AI plan's models, or null when nothing is locked; see [com.gotcha.auth.ModelAccess]. */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     /** Runs the Samosa Google Sign-In flow; returns (email, sessionToken) or an error. */
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
@@ -227,6 +229,7 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onTestConnection = onTestConnection,
                     onRefreshChatModels = onRefreshChatModels,
+                    onFetchAllowedModels = onFetchAllowedModels,
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,
@@ -238,6 +241,7 @@ fun SettingsScreen(
                     onSave = onSave,
                     onBack = backToHome,
                     onRefreshAudioModels = onRefreshAudioModels,
+                    onFetchAllowedModels = onFetchAllowedModels,
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,

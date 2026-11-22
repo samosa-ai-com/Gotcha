@@ -13,6 +13,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.gotcha.auth.ModelAccess
+import com.gotcha.upsell.UpsellReason
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +70,11 @@ fun AiConfigScreen(
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = {
         Result.failure(Exception("Not available"))
     },
+    /**
+     * The models the Samosa AI plan may call, or null when nothing is locked
+     * (see [com.gotcha.auth.ModelAccess]). Only asked while Samosa AI is the provider.
+     */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
@@ -94,6 +107,9 @@ fun AiConfigScreen(
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
 
     var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Null: nothing locked (another provider, a plan without a list, or not known yet).
+    var allowedModels by remember { mutableStateOf<Set<String>?>(null) }
+    val openUpsell = LocalUpsell.current
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     val localContext = LocalContext.current
@@ -166,20 +182,52 @@ fun AiConfigScreen(
      */
     fun draftAiConfig(): Settings = applyAiConfig(load())
 
+    fun isLocked(m: String) = provider == LlmProvider.SAMOSA_AI && ModelAccess.isLocked(m, allowedModels)
+
+    /**
+     * Reads the model list and, for Samosa AI, which of them the plan allows. A
+     * chosen model the plan does not allow is swapped for one it does, so Save
+     * cannot store a model every chat would then be refused (HTTP 403).
+     */
+    suspend fun loadModels(announce: Boolean) {
+        if (announce) status = localContext.getString(R.string.ai_config_refreshing_models)
+        val result = onRefreshChatModels(draftAiConfig())
+        result.onSuccess { models ->
+            availableChatModels = models
+            if (announce) status = localContext.getString(R.string.models_found, models.size)
+        }.onFailure { e ->
+            if (announce) status = localContext.getString(R.string.models_failed, e.message.orEmpty())
+        }
+        allowedModels = if (provider == LlmProvider.SAMOSA_AI) onFetchAllowedModels() else null
+        if (isLocked(subAgentModel)) subAgentModel = ""
+        if (isLocked(navigatorModel)) navigatorModel = ""
+        if (isLocked(model)) {
+            availableChatModels.firstOrNull { !isLocked(it) }?.let { replacement ->
+                status = localContext.getString(R.string.ai_config_model_not_in_plan, model, replacement)
+                model = replacement
+            }
+        }
+    }
+
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {
             refreshingChatModels = true
-            status = localContext.getString(R.string.ai_config_refreshing_models)
             scope.launch {
-                val result = onRefreshChatModels(draftAiConfig())
-                result.onSuccess { models ->
-                    availableChatModels = models
-                    status = localContext.getString(R.string.models_found, models.size)
-                }.onFailure { e ->
-                    status = localContext.getString(R.string.models_failed, e.message.orEmpty())
-                }
+                loadModels(announce = true)
                 refreshingChatModels = false
             }
+        }
+    }
+
+    // Samosa AI's list is checked on opening too, not only when a menu opens:
+    // a model saved before the plan changed must be caught before the next chat.
+    LaunchedEffect(provider, samosaToken) {
+        if (provider == LlmProvider.SAMOSA_AI && samosaToken.isNotBlank() && !refreshingChatModels) {
+            refreshingChatModels = true
+            loadModels(announce = false)
+            refreshingChatModels = false
+        } else if (provider != LlmProvider.SAMOSA_AI) {
+            allowedModels = null
         }
     }
 
@@ -297,7 +345,9 @@ fun AiConfigScreen(
             OutlinedTextField(
                 value = model,
                 onValueChange = { model = it },
-                readOnly = false,
+                // Samosa AI serves a fixed list: pick from it. Typing a name is
+                // for OpenAI-compatible servers, whose models Gotcha cannot know.
+                readOnly = provider == LlmProvider.SAMOSA_AI,
                 label = { Text(stringResource(R.string.ai_config_main_model)) },
                 placeholder = { Text(stringResource(R.string.ai_config_select_model)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
@@ -324,22 +374,29 @@ fun AiConfigScreen(
                     )
                 } else {
                     availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
+                        ModelMenuItem(
+                            model = m,
+                            locked = isLocked(m),
+                            onPick = {
                                 model = m
                                 modelExpanded = false
+                            },
+                            onLocked = {
+                                modelExpanded = false
+                                openUpsell(UpsellReason.GENERAL)
                             }
                         )
                     }
                 }
-                // Always allow manual text input
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ai_config_custom_model)) },
-                    onClick = {
-                        modelExpanded = false
-                    }
-                )
+                if (provider != LlmProvider.SAMOSA_AI) {
+                    // Closes the menu so the field can be typed in.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_config_custom_model)) },
+                        onClick = {
+                            modelExpanded = false
+                        }
+                    )
+                }
             }
         }
         // ---- Advanced: model overrides, agent-loop limits, maintenance ----
@@ -390,11 +447,16 @@ fun AiConfigScreen(
                     )
                     if (availableChatModels.isNotEmpty()) {
                         availableChatModels.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
+                            ModelMenuItem(
+                                model = m,
+                                locked = isLocked(m),
+                                onPick = {
                                     subAgentModel = m
                                     subAgentModelExpanded = false
+                                },
+                                onLocked = {
+                                    subAgentModelExpanded = false
+                                    openUpsell(UpsellReason.GENERAL)
                                 }
                             )
                         }
@@ -444,11 +506,16 @@ fun AiConfigScreen(
                     )
                     if (availableChatModels.isNotEmpty()) {
                         availableChatModels.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
+                            ModelMenuItem(
+                                model = m,
+                                locked = isLocked(m),
+                                onPick = {
                                     navigatorModel = m
                                     navigatorModelExpanded = false
+                                },
+                                onLocked = {
+                                    navigatorModelExpanded = false
+                                    openUpsell(UpsellReason.GENERAL)
                                 }
                             )
                         }
@@ -586,4 +653,34 @@ fun AiConfigScreen(
             style = MaterialTheme.typography.bodySmall
         )
     }
+}
+
+/**
+ * One model in a model menu. A model outside the user's Samosa AI plan keeps
+ * its place in the list, dimmed with a lock, and opens the Pro offer instead of
+ * being chosen.
+ */
+@Composable
+internal fun ModelMenuItem(
+    model: String,
+    locked: Boolean,
+    onPick: () -> Unit,
+    onLocked: () -> Unit
+) {
+    val lockedLabel = stringResource(R.string.ai_config_model_locked)
+    DropdownMenuItem(
+        text = {
+            Text(
+                model,
+                color = if (locked) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified
+            )
+        },
+        trailingIcon = if (locked) {
+            { Icon(Icons.Outlined.Lock, contentDescription = lockedLabel) }
+        } else {
+            null
+        },
+        onClick = if (locked) onLocked else onPick,
+        modifier = if (locked) Modifier.semantics { stateDescription = lockedLabel } else Modifier
+    )
 }

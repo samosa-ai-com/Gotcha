@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">（选择模型）</string>
     <string name="ai_config_no_models_found">未找到模型</string>
     <string name="ai_config_custom_model">✏️ 自定义模型…</string>
+    <string name="ai_config_model_locked">不在你的套餐内</string>
+    <string name="ai_config_model_not_in_plan">%1$s 不在你的套餐内，因此已改选 %2$s。保存后生效。</string>
     <string name="ai_config_sub_agent_model">子代理模型</string>
     <string name="ai_config_same_as_main_agent">与主代理相同</string>
     <string name="ai_config_navigator_model">导航模型</string>

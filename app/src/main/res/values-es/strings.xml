@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">(elige un modelo)</string>
     <string name="ai_config_no_models_found">No se encontraron modelos</string>
     <string name="ai_config_custom_model">✏️ Modelo personalizado…</string>
+    <string name="ai_config_model_locked">No incluido en tu plan</string>
+    <string name="ai_config_model_not_in_plan">%1$s no está incluido en tu plan, así que se seleccionó %2$s. Guarda para conservarlo.</string>
     <string name="ai_config_sub_agent_model">Modelo del subagente</string>
     <string name="ai_config_same_as_main_agent">Igual que el agente principal</string>
     <string name="ai_config_navigator_model">Modelo del navegador</string>

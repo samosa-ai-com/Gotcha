@@ -196,6 +196,8 @@
     <string name="ai_config_select_model">(choisir un modèle)</string>
     <string name="ai_config_no_models_found">Aucun modèle trouvé</string>
     <string name="ai_config_custom_model">✏️ Modèle personnalisé…</string>
+    <string name="ai_config_model_locked">Pas inclus dans votre forfait</string>
+    <string name="ai_config_model_not_in_plan">%1$s n\'est pas inclus dans votre forfait, %2$s est donc sélectionné à la place. Enregistrez pour le conserver.</string>
     <string name="ai_config_sub_agent_model">Modèle du sous-agent</string>
     <string name="ai_config_same_as_main_agent">Identique à l\'agent principal</string>
     <string name="ai_config_navigator_model">Modèle du navigateur</string>

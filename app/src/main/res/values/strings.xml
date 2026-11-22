@@ -346,6 +346,8 @@
     <string name="ai_config_select_model">(select model)</string>
     <string name="ai_config_no_models_found">No models found</string>
     <string name="ai_config_custom_model">✏️ Custom model…</string>
+    <string name="ai_config_model_locked">Not in your plan</string>
+    <string name="ai_config_model_not_in_plan">%1$s is not in your plan, so %2$s is selected instead. Save to keep it.</string>
     <string name="ai_config_sub_agent_model">Sub-agent model</string>
     <string name="ai_config_same_as_main_agent">Same as main agent</string>
     <string name="ai_config_navigator_model">Navigator model</string>

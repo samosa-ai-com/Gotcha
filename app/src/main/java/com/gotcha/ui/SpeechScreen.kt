@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.gotcha.auth.ModelAccess
+import com.gotcha.upsell.UpsellReason
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -63,6 +65,8 @@ fun SpeechScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
+    /** The Samosa AI plan's models, or null when nothing is locked; see [com.gotcha.auth.ModelAccess]. */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(emptyList(), emptyList())
     },
@@ -106,6 +110,9 @@ fun SpeechScreen(
 
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    // Null: nothing locked (no Samosa AI provider, a plan without a list, or not known yet).
+    var allowedModels by remember { mutableStateOf<Set<String>?>(null) }
+    val openUpsell = LocalUpsell.current
     var refreshingModels by remember { mutableStateOf(false) }
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
@@ -204,6 +211,28 @@ fun SpeechScreen(
                 availableTtsModels = tts
                 availableSttModels = stt
                 status = localContext.getString(R.string.speech_models_found, tts.size, stt.size)
+                val samosa = ttsProvider == AudioProvider.SAMOSA_AI || sttProvider == AudioProvider.SAMOSA_AI
+                allowedModels = if (samosa) onFetchAllowedModels() else null
+                // A chosen Samosa AI model outside the plan would be refused on
+                // every use: switch to one the plan allows before it is saved.
+                fun replacement(current: String, models: List<AudioModel>): String? =
+                    if (ModelAccess.isLocked(current, allowedModels)) {
+                        models.firstOrNull { !ModelAccess.isLocked(it.id, allowedModels) }?.id
+                    } else {
+                        null
+                    }
+                if (ttsProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(ttsApiModel, tts)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, ttsApiModel, it)
+                        ttsApiModel = it
+                    }
+                }
+                if (sttProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(sttApiModel, stt)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, sttApiModel, it)
+                        sttApiModel = it
+                    }
+                }
                 refreshingModels = false
             }
         }
@@ -318,6 +347,11 @@ fun SpeechScreen(
                     onSelect = {
                         ttsApiModel = it
                         ttsModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        ttsModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
                 )
                 TtsVoicePicker(
@@ -482,6 +516,11 @@ fun SpeechScreen(
                     onSelect = {
                         sttApiModel = it
                         sttModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        sttModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
                 )
                 TranscriptionLanguageSummary(
@@ -607,7 +646,10 @@ private fun TtsModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -647,9 +689,11 @@ private fun TtsModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }
@@ -750,7 +794,10 @@ private fun SttModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -790,9 +837,11 @@ private fun SttModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }
