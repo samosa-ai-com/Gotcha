@@ -110,6 +110,14 @@ class ShellEntitlementTest {
     }
 
     @Test
+    fun `a tier id spelled with capitals still counts as Pro`() = runTest {
+        refresh(Source(TierAnswer.Tier("Pro")), force = true)
+        assertEquals(Access.ALLOWED, remembered())
+        refresh(Source(TierAnswer.Tier("INFLUENCER")), force = true)
+        assertEquals(Access.ALLOWED, remembered())
+    }
+
+    @Test
     fun `asking by hand ignores the rest after an unanswered ask`() = runTest {
         val source = Source(TierAnswer.Unavailable)
         refresh(source)

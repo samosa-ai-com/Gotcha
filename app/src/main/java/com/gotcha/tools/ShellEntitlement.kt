@@ -62,6 +62,9 @@ object ShellEntitlement {
 
     /** Tiers that include the shell: Pro, and Influencer, which carries Pro's features. */
     val SHELL_TIERS = setOf("pro", "influencer")
+
+    /** Whether the tier [id], as the backend spells it, includes the shell. */
+    fun includesShell(id: String): Boolean = id.trim().lowercase() in SHELL_TIERS
     const val OFFLINE_WINDOW_MILLIS = 72L * 60 * 60 * 1000
     const val RECHECK_AFTER_MILLIS = 24L * 60 * 60 * 1000
 
@@ -145,7 +148,7 @@ object ShellEntitlement {
             val asked = now()
             when (val answer = source.fetch()) {
                 is TierAnswer.Tier -> {
-                    write(app, if (answer.id in SHELL_TIERS) STATE_PRO else STATE_NOT_PRO, now())
+                    write(app, if (includesShell(answer.id)) STATE_PRO else STATE_NOT_PRO, now())
                     prefs(app).edit().putString(KEY_TIER, answer.id).apply()
                 }
                 TierAnswer.SignedOut -> write(app, STATE_SIGNED_OUT, now())

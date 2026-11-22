@@ -62,7 +62,7 @@ object Upsell {
     fun audience(signedIn: Boolean, tierId: String?): UpsellAudience = when {
         !signedIn -> UpsellAudience.DISCOVER_SAMOSA
         tierId == null -> UpsellAudience.NONE
-        tierId.lowercase() in ShellEntitlement.SHELL_TIERS -> UpsellAudience.NONE
+        ShellEntitlement.includesShell(tierId) -> UpsellAudience.NONE
         else -> UpsellAudience.PRO
     }
 
