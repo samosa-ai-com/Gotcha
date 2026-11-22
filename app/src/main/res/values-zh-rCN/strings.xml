@@ -1654,7 +1654,7 @@
     <string name="legal_consent_usage_data_hint">仅发送次数和结果，绝不包含你的消息、屏幕内容、文件或命令。它帮助 Gotcha 持续改进，你可以随时在 设置 ▸ 隐私 中更改。</string>
     <string name="privacy_usage_data_status_not_configured">未配置。此版本不发送任何使用数据。</string>
     <string name="privacy_usage_data_title">使用数据</string>
-    <string name="privacy_usage_data_intro">发送次数和结果来帮助改进 Gotcha，例如应用打开了多久或发生了哪种崩溃。在无需事先同意的地区默认开启；在需要事先同意的地区，在你选择前保持关闭。你可以随时在这里更改。</string>
+    <string name="privacy_usage_data_intro">发送次数和结果来帮助改进 Gotcha，例如应用打开了多久或发生了哪种崩溃。默认开启。你可以随时在这里关闭。</string>
     <string name="privacy_usage_data_switch">分享使用数据</string>
     <string name="privacy_usage_data_mobile">也通过移动数据发送</string>
     <string name="privacy_usage_data_status_off">已关闭。不会发送任何内容。</string>
@@ -1667,7 +1667,6 @@
     <string name="telemetry_event_session_profile">按区间汇总的会话活动、可靠性和性能</string>
     <string name="telemetry_event_app_open">Gotcha 被打开，以及冷启动时大约用了多久</string>
     <string name="telemetry_event_session_end">Gotcha 大约打开了多久</string>
-    <string name="telemetry_event_opt_in">使用数据已开启</string>
     <string name="telemetry_event_agent_run">每个请求：来自哪里（聊天、通话或定时任务）、观察还是操作模式、Samosa AI 还是你自己的服务器、是否完成、大约用时以及执行了多少操作</string>
     <string name="telemetry_event_ai_request">每次调用 AI 模型：用途、Samosa AI 还是你自己的服务器（只按类型标明，如 \"local\" 或 \"other\"）、如果使用 Samosa AI 则为其模型、是否成功及错误类型、大约用时以及使用了多少 token</string>
     <string name="telemetry_event_tool_call">每个操作：是 Gotcha 哪个内置操作（MCP 服务器或已连接账号的操作只计数，不写名称）、是否成功以及大约用时</string>

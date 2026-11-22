@@ -9,6 +9,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.ui.theme.GotchaTheme
@@ -26,16 +29,16 @@ class LegalConsentDialogTest {
     val composeRule = createComposeRule()
 
     private var agreed = 0
+    private var region by mutableStateOf<String?>(null)
 
     @Before
     fun setUp() {
-        // No stored region, so the optional usage-data box starts off and the
-        // toggle assertions below do not depend on where this device ran.
+        region = null
         ApplicationProvider.getApplicationContext<Context>()
             .getSharedPreferences("telemetry", Context.MODE_PRIVATE)
             .edit().clear().commit()
         composeRule.setContent {
-            GotchaTheme { LegalConsentDialog(onAgree = { agreed++ }) }
+            GotchaTheme { LegalConsentDialogContent(onAgree = { agreed++ }, region = region) }
         }
     }
 
@@ -65,12 +68,12 @@ class LegalConsentDialogTest {
     fun tappingARowTogglesItsOwnCheckbox() {
         composeRule.onNodeWithTag("legal_consent_toggle_row").assertIsOff()
         composeRule.onNodeWithTag("legal_consent_age_row").assertIsOff()
-        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOff()
+        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOn()
 
         tap("legal_consent_age_row")
         composeRule.onNodeWithTag("legal_consent_age_row").assertIsOn()
         composeRule.onNodeWithTag("legal_consent_toggle_row").assertIsOff()
-        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOff()
+        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOn()
 
         tap("legal_consent_age_row")
         composeRule.onNodeWithTag("legal_consent_age_row").assertIsOff()
@@ -91,8 +94,18 @@ class LegalConsentDialogTest {
         agreeButton().assertIsEnabled()
 
         tap("legal_consent_usage_row")
-        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOff()
+        composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOn()
         agreeButton().assertIsEnabled().performClick()
         composeRule.runOnIdle { assertEquals(1, agreed) }
+    }
+
+    @Test
+    fun usageDataRowFollowsRegionAndStartsTicked() {
+        listOf(null, "eea", "uk").forEach { value ->
+            composeRule.runOnIdle { region = value }
+            composeRule.onNodeWithTag("legal_consent_usage_row").assertIsOn()
+        }
+        composeRule.runOnIdle { region = "other" }
+        composeRule.onNodeWithTag("legal_consent_usage_row").assertDoesNotExist()
     }
 }

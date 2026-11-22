@@ -1677,7 +1677,7 @@
     <string name="legal_consent_usage_data_hint">सिर्फ़ गिनती और नतीजे — कभी भी आपके संदेश, स्क्रीन की सामग्री, फ़ाइलें या कमांड नहीं। यह Gotcha को लगातार बेहतर बनाने में मदद करता है, और आप इसे कभी भी Settings ▸ Privacy में बदल सकते हैं।</string>
     <string name="privacy_usage_data_status_not_configured">कॉन्फ़िगर नहीं है। यह बिल्ड कोई उपयोग डेटा नहीं भेजता।</string>
     <string name="privacy_usage_data_title">इस्तेमाल का डेटा</string>
-    <string name="privacy_usage_data_intro">गिनती और नतीजे भेजकर Gotcha को बेहतर बनाने में मदद करें, जैसे ऐप कितनी देर खुला रहा या किस तरह का क्रैश हुआ। जहाँ पहले से सहमति ज़रूरी नहीं है वहाँ डिफ़ॉल्ट रूप से चालू; जहाँ ज़रूरी है वहाँ आपके चुनने तक बंद। आप इसे यहाँ कभी भी बदल सकते हैं।</string>
+    <string name="privacy_usage_data_intro">गिनती और नतीजे भेजकर Gotcha को बेहतर बनाने में मदद करें, जैसे ऐप कितनी देर खुला रहा या किस तरह का क्रैश हुआ। यह डिफ़ॉल्ट रूप से चालू है। आप इसे यहाँ कभी भी बंद कर सकते हैं।</string>
     <string name="privacy_usage_data_switch">इस्तेमाल का डेटा शेयर करें</string>
     <string name="privacy_usage_data_mobile">मोबाइल डेटा पर भी भेजें</string>
     <string name="privacy_usage_data_status_off">बंद। कुछ नहीं भेजा जाता।</string>
@@ -1690,7 +1690,6 @@
     <string name="telemetry_event_session_profile">सेशन की गतिविधि, विश्वसनीयता और प्रदर्शन का श्रेणीबद्ध सारांश</string>
     <string name="telemetry_event_app_open">कि Gotcha खोला गया, और कोल्ड स्टार्ट पर लगभग कितना समय लगा</string>
     <string name="telemetry_event_session_end">Gotcha लगभग कितनी देर खुला रहा</string>
-    <string name="telemetry_event_opt_in">कि इस्तेमाल का डेटा चालू किया गया</string>
     <string name="telemetry_event_agent_run">हर अनुरोध के लिए: वह कहाँ से आया (चैट, कॉल या शेड्यूल किया गया काम), मॉनिटर या ऑपरेटर, Samosa AI या आपका अपना सर्वर, क्या वह पूरा हुआ, लगभग कितना समय लगा और कितने काम किए गए</string>
     <string name="telemetry_event_ai_request">AI मॉडल की हर कॉल के लिए: वह किसलिए थी, Samosa AI या आपका अपना सर्वर (सिर्फ़ प्रकार से, जैसे \"local\" या \"other\"), अगर आप Samosa AI इस्तेमाल करते हैं तो उसका मॉडल, क्या वह सफल रही और त्रुटि का प्रकार, लगभग कितना समय लगा और कितने टोकन इस्तेमाल हुए</string>
     <string name="telemetry_event_tool_call">हर काम के लिए: Gotcha के बिल्ट-इन कामों में से कौन-सा था (MCP सर्वर या जोड़े गए खातों के काम सिर्फ़ गिने जाते हैं, उनका नाम नहीं भेजा जाता), क्या वह सफल रहा और लगभग कितना समय लगा</string>

@@ -197,14 +197,13 @@ class TelemetryClient internal constructor(
             if (registered) return@withLock true
             val sent = sender ?: return@withLock false
             val installedAt = prefs.getLong(KEY_INSTALLED_AT, 0L).takeIf { it > 0L }
-                ?: clock().also { prefs.edit().putLong(KEY_INSTALLED_AT, it).apply() }
+                ?: (clock() / DAY_MS * DAY_MS).also { prefs.edit().putLong(KEY_INSTALLED_AT, it).apply() }
             when (val result = runCatching { sent.register(appInfo(), installedAt) }.getOrNull()) {
                 is RegisterResult.Registered -> {
                     prefs.edit().putString(KEY_INSTALL_ID, result.installId)
                         .putString(KEY_TOKEN, result.token).putString(KEY_REGION, result.region)
-                        .putBoolean(KEY_CONSENT_REQUIRED, result.consentRequired)
                         .putFloat(KEY_SAMPLE, (result.sample ?: 1.0).coerceIn(0.0, 1.0).toFloat())
-                        .remove(KEY_REREG_ATTEMPTS).apply()
+                        .remove(KEY_REREG_ATTEMPTS).remove(KEY_RETRY_AFTER).apply()
                     _regionFlow.value = result.region
                     if (!result.enabled) {
                         prefs.edit().putLong(KEY_PAUSED_UNTIL, clock() + SERVER_PAUSE_MS).apply()
@@ -218,15 +217,10 @@ class TelemetryClient internal constructor(
                     false
                 }
                 else -> {
-                    val attempts = prefs.getInt(KEY_REREG_ATTEMPTS, 0)
-                    if (attempts > 0) {
-                        val next = attempts + 1
-                        val edit = prefs.edit().putInt(KEY_REREG_ATTEMPTS, next)
-                        if (next >= MAX_REREG_ATTEMPTS) {
-                            edit.putInt(KEY_PAUSED_FOR_VERSION, BuildConfig.VERSION_CODE)
-                        }
-                        edit.apply()
-                    }
+                    val next = (prefs.getInt(KEY_REREG_ATTEMPTS, 0) + 1).coerceAtMost(MAX_REREG_ATTEMPTS)
+                    val delay = REGISTRATION_RETRY_MS * (1L shl (next - 1))
+                    prefs.edit().putInt(KEY_REREG_ATTEMPTS, next)
+                        .putLong(KEY_RETRY_AFTER, clock() + delay).apply()
                     GotchaLog.w(TAG) { "registration: FAILED" }
                     false
                 }
@@ -263,7 +257,8 @@ class TelemetryClient internal constructor(
         val sent = sender ?: return FlushOutcome.NOT_CONFIGURED
         if (paused()) return FlushOutcome.PAUSED
         if (!registered) {
-            if (prefs.getInt(KEY_REREG_ATTEMPTS, 0) == 0) return FlushOutcome.OFF
+            if (clock() < prefs.getLong(KEY_RETRY_AFTER, 0L)) return FlushOutcome.NOT_DUE
+            if (!network().connected) return FlushOutcome.OFFLINE
             if (!ensureRegistered()) return if (paused()) FlushOutcome.PAUSED else FlushOutcome.FAILED
         }
         if (!enabled && queue.peek(1).none { it.name == TelemetryEvents.CONSENT }) return FlushOutcome.OFF
@@ -286,15 +281,23 @@ class TelemetryClient internal constructor(
             when (val result = sent.send(installId, token, appInfo(), batch, clock())) {
                 is SendResult.Accepted -> {
                     queue.remove(ids)
-                    val edit = prefs.edit().putLong(KEY_LAST_SENT_AT, clock())
+                    val edit = prefs.edit()
+                    if (result.accepted > 0) edit.putLong(KEY_LAST_SENT_AT, clock())
                     result.sample?.let { edit.putFloat(KEY_SAMPLE, it.coerceIn(0.0, 1.0).toFloat()) }
+                    if (result.rejected > 0) {
+                        GotchaLog.w(TAG) {
+                            "flush partial rejection: accepted=${result.accepted} rejected=${result.rejected}"
+                        }
+                        outcome = FlushOutcome.REJECTED
+                    } else if (outcome != FlushOutcome.REJECTED) {
+                        outcome = FlushOutcome.SENT
+                    }
                     if (!result.enabled) {
                         edit.putLong(KEY_PAUSED_UNTIL, clock() + SERVER_PAUSE_MS).apply()
                         queue.retainConsent()
                         return FlushOutcome.PAUSED
                     }
                     edit.apply()
-                    outcome = FlushOutcome.SENT
                 }
                 SendResult.Rejected -> {
                     GotchaLog.w(TAG) {
@@ -305,7 +308,12 @@ class TelemetryClient internal constructor(
                 }
                 SendResult.Unauthorized -> {
                     GotchaLog.w(TAG) { "flush failure: token_unauthorized" }
+                    val previousDay = prefs.getLong(KEY_INSTALLED_AT, 0L) / DAY_MS * DAY_MS
+                    val currentDay = clock() / DAY_MS * DAY_MS
+                    val freshDay = if (currentDay == previousDay) currentDay - DAY_MS else currentDay
                     prefs.edit().remove(KEY_INSTALL_ID).remove(KEY_TOKEN)
+                        .putLong(KEY_INSTALLED_AT, freshDay)
+                        .remove(KEY_RETRY_AFTER)
                         .putInt(KEY_REREG_ATTEMPTS, 1).apply()
                     return if (ensureRegistered()) {
                         FlushOutcome.FAILED
@@ -350,7 +358,6 @@ class TelemetryClient internal constructor(
         internal const val KEY_INSTALLED_AT = "installed_at"
         internal const val KEY_TOKEN = "token"
         internal const val KEY_REGION = "region"
-        internal const val KEY_CONSENT_REQUIRED = "consent_required"
         internal const val KEY_INSTALL_ID = "install_id"
         internal const val KEY_MOBILE_DATA = "mobile_data"
         internal const val KEY_LAST_FLUSH_AT = "last_flush_at"
@@ -366,6 +373,8 @@ class TelemetryClient internal constructor(
         const val MAX_BATCH_BYTES = 64 * 1024
         const val MAX_BATCHES_PER_FLUSH = 3
         private const val MAX_REREG_ATTEMPTS = 3
+        private const val REGISTRATION_RETRY_MS = 15_000L
+        private const val DAY_MS = 86_400_000L
 
         /** How long the server's enabled:false holds before the app tries again. */
         const val SERVER_PAUSE_MS = 24L * 60L * 60L * 1000L

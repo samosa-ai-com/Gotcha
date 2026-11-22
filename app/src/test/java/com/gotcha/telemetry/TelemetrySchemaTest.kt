@@ -16,7 +16,6 @@ class TelemetrySchemaTest {
         TelemetryEvents.sessionEnd(lengthMs = 95_000),
         TelemetryEvents.consent(false, ConsentSurface.FIRST_RUN),
         SessionRules.profileOf(SessionSnapshot(), 95_000),
-        TelemetryEvents.optIn(OptInSurface.SETTINGS),
         TelemetryEvents.crash("java.lang.IllegalStateException", "ChatRunner.start", CrashThread.MAIN, true),
         TelemetryEvents.crash("kotlin.KotlinNullPointerException", null, CrashThread.OTHER, false),
         TelemetryEvents.agentRun(
@@ -69,7 +68,7 @@ class TelemetrySchemaTest {
 
     @Test
     fun `a property the schema does not list is refused`() {
-        val event = TelemetryEvents.optIn(OptInSurface.SETTINGS)
+        val event = TelemetryEvents.consent(true, ConsentSurface.SETTINGS)
         val extra = event.copy(props = event.props + ("email" to JsonPrimitive("someone@example.com")))
         assertFalse(TelemetrySchema.accepts(extra))
     }
@@ -82,8 +81,9 @@ class TelemetrySchemaTest {
     @Test
     fun `free text in a word property is refused`() {
         val event = TelemetryEvent(
-            TelemetryEvents.TELEMETRY_OPT_IN,
-            mapOf("surface" to JsonPrimitive("turned it on because my boss asked"))
+            TelemetryEvents.CONSENT,
+            TelemetryEvents.consent(true, ConsentSurface.SETTINGS).props +
+                ("surface" to JsonPrimitive("turned it on because my boss asked"))
         )
         assertFalse(TelemetrySchema.accepts(event))
     }

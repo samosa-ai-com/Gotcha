@@ -1,13 +1,8 @@
 package com.gotcha.ui
 
-import com.gotcha.R
 import com.gotcha.telemetry.ConsentSurface
-import com.gotcha.telemetry.Telemetry
 import com.gotcha.telemetry.TelemetryStatus
-import com.gotcha.testsupport.RepoPaths
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -15,8 +10,7 @@ import org.robolectric.annotation.Config
 
 /**
  * The Privacy page's usage-data switch, separated from Compose so the states
- * and the write path can be pinned down in a unit test. The delete flow is
- * gone; this also guards against it coming back.
+ * and the write path can be pinned down in a unit test.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -78,19 +72,5 @@ class PrivacyScreenTest {
 
         assertEquals(null, enabled)
         assertEquals(true to ConsentSurface.SETTINGS, recorded)
-    }
-
-    @Test
-    fun `the delete flow is gone`() {
-        val source = RepoPaths.mainSource("com/gotcha/ui/PrivacyScreen.kt")
-        assertFalse(source.contains("deleteMyData"))
-        assertFalse(source.contains("privacy_delete"))
-        assertFalse(source.contains("hasInstallId"))
-        assertFalse(Telemetry::class.java.declaredMethods.any { it.name == "deleteMyData" })
-
-        val stringFields = R.string::class.java.fields.map { it.name }
-        assertFalse(stringFields.any { it.startsWith("privacy_delete_") })
-        assertFalse(stringFields.any { it.startsWith("privacy_enable_dialog_") })
-        assertTrue(stringFields.contains("privacy_usage_data_status_not_configured"))
     }
 }

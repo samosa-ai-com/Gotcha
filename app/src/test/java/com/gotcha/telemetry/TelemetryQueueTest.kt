@@ -62,9 +62,30 @@ class TelemetryQueueTest {
     }
 
     @Test
-    fun `size counts lines without parsing queued JSON`() {
+    fun `size counts only readable events`() {
         val file = File(tmp.root, "queue.ndjson")
         file.writeText("not json\n\n{broken}\n")
-        assertEquals(2, TelemetryQueue(file).size())
+        assertEquals(0, TelemetryQueue(file).size())
+    }
+
+    @Test
+    fun `append after a truncated line keeps the new event readable`() {
+        val file = File(tmp.root, "queue.ndjson")
+        val q = TelemetryQueue(file)
+        q.append(event(1))
+        file.appendText("{\"id\":\"broken\"")
+        q.append(event(2))
+        assertEquals(listOf("id-1", "id-2"), q.peek(10).map { it.id })
+        assertEquals(2, q.size())
+    }
+
+    @Test
+    fun `removing a batch also clears corrupt lines`() {
+        val file = File(tmp.root, "queue.ndjson")
+        val q = TelemetryQueue(file)
+        q.append(event(1))
+        file.appendText("bad line\n")
+        q.remove(setOf("id-1"))
+        assertEquals(0, q.size())
     }
 }

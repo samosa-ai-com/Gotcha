@@ -29,10 +29,6 @@ enum class ConsentSurface(override val wire: String) : WireWord {
     FIRST_RUN("first_run"), SETTINGS("settings")
 }
 
-enum class OptInSurface(override val wire: String) : WireWord {
-    SETTINGS("settings")
-}
-
 /** Which thread a crash happened on. */
 enum class CrashThread(override val wire: String) : WireWord {
     MAIN("main"),
@@ -160,7 +156,6 @@ object TelemetryEvents {
     const val SESSION_END = "session_end"
     const val CONSENT = "consent"
     const val SESSION_PROFILE = "session_profile"
-    const val TELEMETRY_OPT_IN = "telemetry_opt_in"
     const val CRASH = "crash"
     const val AGENT_RUN = "agent_run"
     const val AI_REQUEST = "ai_request"
@@ -206,10 +201,6 @@ object TelemetryEvents {
             "anr_last_session" to Prop(Vocab.Bool),
             "permission_denied" to Prop(Vocab.Bool),
             "rules_version" to Prop(Vocab.Count(1..999))
-        )
-        schema.define(
-            TELEMETRY_OPT_IN,
-            "surface" to Prop(words<OptInSurface>())
         )
         schema.define(
             CRASH,
@@ -412,11 +403,6 @@ object TelemetryEvents {
         )
     )
 
-    fun optIn(surface: OptInSurface) = TelemetryEvent(
-        TELEMETRY_OPT_IN,
-        mapOf("surface" to word(surface))
-    )
-
     /**
      * An uncaught exception: its class and the method it was thrown from, never
      * its message, which can quote anything the app was handling.
@@ -441,7 +427,6 @@ object TelemetryEvents {
         SESSION_END -> R.string.telemetry_event_session_end
         CONSENT -> R.string.telemetry_event_consent
         SESSION_PROFILE -> R.string.telemetry_event_session_profile
-        TELEMETRY_OPT_IN -> R.string.telemetry_event_opt_in
         CRASH -> R.string.telemetry_event_crash
         AGENT_RUN -> R.string.telemetry_event_agent_run
         AI_REQUEST -> R.string.telemetry_event_ai_request

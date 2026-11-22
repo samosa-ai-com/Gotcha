@@ -62,8 +62,13 @@ import com.gotcha.ui.theme.SkinAlertDialog
 fun LegalConsentDialog(
     onAgree: () -> Unit
 ) {
-    val context = LocalContext.current
     val region by Telemetry.regionFlow.collectAsState()
+    LegalConsentDialogContent(onAgree, region)
+}
+
+@Composable
+internal fun LegalConsentDialogContent(onAgree: () -> Unit, region: String?) {
+    val context = LocalContext.current
     // Usage data is on by default everywhere; the row is shown only where the
     // region asks for it, so the state is simply true until the user unticks it.
     var choices by remember { mutableStateOf(LegalConsentChoices()) }

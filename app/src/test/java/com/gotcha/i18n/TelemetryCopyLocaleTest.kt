@@ -36,7 +36,8 @@ class TelemetryCopyLocaleTest {
         "privacy_delete_dialog_body",
         "privacy_delete_dialog_confirm",
         "privacy_delete_done",
-        "privacy_delete_failed"
+        "privacy_delete_failed",
+        "telemetry_event_opt_in"
     )
 
     private val files: List<File> =
@@ -78,7 +79,9 @@ class TelemetryCopyLocaleTest {
             "Aus, solange du es nicht einschaltest",
             "Kept for 90 days",
             "Aufbewahrung 90 Tage",
-            "90 Tage"
+            "90 Tage",
+            "On by default where prior consent is not required",
+            "Standardmäßig an, wo keine vorherige Einwilligung nötig ist"
         )
         val problems = files.flatMap { file ->
             val present = keys(file)

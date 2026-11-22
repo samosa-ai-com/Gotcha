@@ -821,19 +821,6 @@
         }
       }
     },
-    "telemetry_opt_in": {
-      "props": {
-        "surface": {
-          "optional": false,
-          "vocab": {
-            "kind": "words",
-            "words": [
-              "settings"
-            ]
-          }
-        }
-      }
-    },
     "tool_call": {
       "props": {
         "ms": {

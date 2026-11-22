@@ -83,6 +83,47 @@ class TelemetryClientTest {
     private fun accepted(body: String = """{"ok":true,"enabled":true,"sample":1.0}""") =
         MockResponse().setResponseCode(202).setBody(body)
 
+    @Test
+    fun `failed first registration recovers on a later flush`() {
+        val c = client()
+        c.recordConsent(true, ConsentSurface.FIRST_RUN)
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(runBlocking { c.ensureRegistered() })
+        now += 60_000
+        server.enqueue(registration())
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
+        assertEquals(
+            listOf("/v1/install", "/v1/install", "/v1/events"),
+            (1..3).map { server.takeRequest(1, TimeUnit.SECONDS)!!.path }
+        )
+        assertEquals(0, queue.size())
+    }
+
+    @Test
+    fun `accepted response with rejected events is distinguishable and dropped`() {
+        val c = client()
+        ready(c)
+        server.enqueue(accepted("""{"accepted":0,"rejected":1,"enabled":true}"""))
+        assertEquals(FlushOutcome.REJECTED, runBlocking { c.flush(force = true) })
+        assertEquals(0, queue.size())
+    }
+
+    @Test
+    fun `transient registration failures back off without pausing this version`() {
+        val c = client()
+        c.recordConsent(true, ConsentSurface.FIRST_RUN)
+        repeat(4) {
+            server.enqueue(MockResponse().setResponseCode(503))
+            assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
+            assertFalse(c.status().paused)
+            now += 60L * 60L * 1000L
+        }
+        server.enqueue(registration())
+        server.enqueue(accepted())
+        assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
+    }
+
     private fun RecordedRequest.json(): JsonObject {
         val bytes = GZIPInputStream(body.inputStream()).readBytes()
         return Json.parseToJsonElement(String(bytes)).jsonObject
@@ -251,16 +292,40 @@ class TelemetryClientTest {
     fun `revoked install token re-registers and sends on next flush`() {
         val c = client()
         ready(c)
+        prefs.edit().putLong(TelemetryClient.KEY_INSTALLED_AT, now / 86_400_000L * 86_400_000L).commit()
+        val oldInstalledAt = prefs.getLong(TelemetryClient.KEY_INSTALLED_AT, 0)
+        now += 2L * 86_400_000L
         server.enqueue(MockResponse().setResponseCode(401))
         server.enqueue(registration())
         assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
         assertEquals(1, queue.size())
         assertFalse(c.status().paused)
         assertEquals("/v1/events", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
-        assertEquals("/v1/install", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
+        val registrationRequest = server.takeRequest(1, TimeUnit.SECONDS)!!
+        assertEquals("/v1/install", registrationRequest.path)
+        val newInstalledAt = Json.parseToJsonElement(registrationRequest.body.readUtf8())
+            .jsonObject["installed_at"]!!.jsonPrimitive.content.toLong()
+        assertTrue(newInstalledAt != oldInstalledAt)
+        assertEquals(0L, newInstalledAt % 86_400_000L)
         server.enqueue(accepted())
         assertEquals(FlushOutcome.SENT, runBlocking { c.flush(force = true) })
         assertEquals("Bearer replacement-token", server.takeRequest().getHeader("Authorization"))
+    }
+
+    @Test
+    fun `same-day token revocation changes the registration day`() {
+        val c = client()
+        ready(c)
+        val today = now / 86_400_000L * 86_400_000L
+        prefs.edit().putLong(TelemetryClient.KEY_INSTALLED_AT, today).commit()
+        server.enqueue(MockResponse().setResponseCode(401))
+        server.enqueue(registration())
+        assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
+        server.takeRequest(1, TimeUnit.SECONDS)
+        val fresh = Json.parseToJsonElement(server.takeRequest(1, TimeUnit.SECONDS)!!.body.readUtf8())
+            .jsonObject["installed_at"]!!.jsonPrimitive.content.toLong()
+        assertTrue(fresh != today)
+        assertEquals(0L, fresh % 86_400_000L)
     }
 
     @Test
@@ -277,7 +342,7 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `repeated re-registration failures pause this version`() {
+    fun `repeated re-registration failures back off without pausing this version`() {
         val c = client()
         ready(c)
         server.enqueue(MockResponse().setResponseCode(401))
@@ -285,8 +350,9 @@ class TelemetryClientTest {
         assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
         assertFalse(c.status().paused)
         server.enqueue(MockResponse().setResponseCode(503))
-        assertEquals(FlushOutcome.PAUSED, runBlocking { c.flush(force = true) })
-        assertTrue(c.status().paused)
+        now += 60L * 60L * 1000L
+        assertEquals(FlushOutcome.FAILED, runBlocking { c.flush(force = true) })
+        assertFalse(c.status().paused)
         assertEquals(1, queue.size())
         val paths = (1..3).map { server.takeRequest(1, TimeUnit.SECONDS)!!.path }
         assertEquals(listOf("/v1/events", "/v1/install", "/v1/install"), paths)
@@ -391,24 +457,23 @@ class TelemetryClientTest {
     fun `the regional default follows the registered region`() {
         val c = client()
 
-        fun region(value: String, consentRequired: Boolean) {
+        fun region(value: String) {
             prefs.edit()
                 .putString(TelemetryClient.KEY_REGION, value)
-                .putBoolean(TelemetryClient.KEY_CONSENT_REQUIRED, consentRequired)
                 .commit()
         }
 
         // Usage data is on by default in every region; the region only decides
         // whether the row is shown on the first screen.
-        region("eea", consentRequired = true)
+        region("eea")
         assertTrue(c.defaultUsageData)
         assertTrue(c.status().enabled)
 
-        region("uk", consentRequired = true)
+        region("uk")
         assertTrue(c.defaultUsageData)
         assertTrue(c.status().enabled)
 
-        region("other", consentRequired = false)
+        region("other")
         assertTrue(c.defaultUsageData)
         assertTrue(c.status().enabled)
     }

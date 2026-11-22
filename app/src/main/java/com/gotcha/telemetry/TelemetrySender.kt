@@ -8,6 +8,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
@@ -46,7 +47,6 @@ sealed interface RegisterResult {
         val installId: String,
         val token: String,
         val region: String,
-        val consentRequired: Boolean,
         val enabled: Boolean,
         val sample: Double?
     ) : RegisterResult
@@ -57,7 +57,7 @@ sealed interface RegisterResult {
 /** What one POST came to, as far as the queue and the switch are concerned. */
 sealed interface SendResult {
     /** Accepted. [enabled] false is the server asking the app to stop sending for now. */
-    data class Accepted(val enabled: Boolean, val sample: Double?) : SendResult
+    data class Accepted(val enabled: Boolean, val sample: Double?, val accepted: Int, val rejected: Int) : SendResult
 
     /** The server will never take this batch (400, 413): drop it rather than retry forever. */
     data object Rejected : SendResult
@@ -173,7 +173,6 @@ class TelemetrySender(
                         id,
                         token,
                         region,
-                        (obj["consent_required"] as? JsonPrimitive)?.booleanOrNull ?: true,
                         (config?.get("enabled") as? JsonPrimitive)?.booleanOrNull ?: true,
                         (config?.get("sample") as? JsonPrimitive)?.doubleOrNull
                     )
@@ -188,7 +187,9 @@ class TelemetrySender(
         val obj = runCatching { Json.parseToJsonElement(text) as JsonObject }.getOrNull()
         return SendResult.Accepted(
             enabled = (obj?.get("enabled") as? JsonPrimitive)?.booleanOrNull ?: true,
-            sample = (obj?.get("sample") as? JsonPrimitive)?.doubleOrNull
+            sample = (obj?.get("sample") as? JsonPrimitive)?.doubleOrNull,
+            accepted = (obj?.get("accepted") as? JsonPrimitive)?.intOrNull ?: 1,
+            rejected = (obj?.get("rejected") as? JsonPrimitive)?.intOrNull ?: 0
         )
     }
 

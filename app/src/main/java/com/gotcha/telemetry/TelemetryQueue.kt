@@ -53,8 +53,14 @@ class TelemetryQueue(
     @Synchronized
     fun append(event: QueuedEvent) {
         file.parentFile?.mkdirs()
+        if (file.isFile && file.length() > 0L) {
+            java.io.RandomAccessFile(file, "r").use { tail ->
+                tail.seek(tail.length() - 1)
+                if (tail.read() != '\n'.code) file.appendText("\n")
+            }
+        }
         file.appendText(event.toJson().toString() + "\n")
-        if (lineCount() > maxEvents) {
+        if (size() > maxEvents) {
             val all = readAll()
             val consent = all.filter { it.name == TelemetryEvents.CONSENT }.takeLast(maxEvents)
             val ordinary = all.filter { it.name != TelemetryEvents.CONSENT }
@@ -76,7 +82,7 @@ class TelemetryQueue(
     }
 
     @Synchronized
-    fun size(): Int = lineCount()
+    fun size(): Int = readAll().size
 
     @Synchronized
     fun retainConsent() {
@@ -87,9 +93,6 @@ class TelemetryQueue(
     fun clear() {
         file.delete()
     }
-
-    private fun lineCount(): Int =
-        if (file.isFile) file.useLines { lines -> lines.count { it.isNotBlank() } } else 0
 
     private fun readAll(): List<QueuedEvent> =
         if (file.isFile) file.readLines().mapNotNull { QueuedEvent.parse(it) } else emptyList()

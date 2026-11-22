@@ -1699,7 +1699,7 @@
     <string name="legal_consent_usage_data_hint">Uniquement des comptages et des résultats — jamais vos messages, le contenu de l\'écran, vos fichiers ni vos commandes. Cela aide à améliorer Gotcha, et vous pouvez le modifier à tout moment dans Paramètres ▸ Confidentialité.</string>
     <string name="privacy_usage_data_status_not_configured">Non configuré. Cette version n\'envoie aucune donnée d\'utilisation.</string>
     <string name="privacy_usage_data_title">Données d\'utilisation</string>
-    <string name="privacy_usage_data_intro">Aidez à améliorer Gotcha en envoyant des comptages et des résultats, comme la durée d\'ouverture de l\'app ou le type de plantage survenu. Activé par défaut là où aucun consentement préalable n\'est requis ; désactivé jusqu\'à votre choix là où il l\'est. Vous pouvez le modifier ici à tout moment.</string>
+    <string name="privacy_usage_data_intro">Aidez à améliorer Gotcha en envoyant des comptages et des résultats, comme la durée d\'ouverture de l\'app ou le type de plantage survenu. Activé par défaut. Vous pouvez le désactiver ici à tout moment.</string>
     <string name="privacy_usage_data_switch">Partager les données d\'utilisation</string>
     <string name="privacy_usage_data_mobile">Envoyer aussi sur les données mobiles</string>
     <string name="privacy_usage_data_status_off">Désactivé. Rien n\'est envoyé.</string>
@@ -1712,7 +1712,6 @@
     <string name="telemetry_event_session_profile">Un résumé par tranches de l\'activité, de la fiabilité et des performances de la session</string>
     <string name="telemetry_event_app_open">Que Gotcha a été ouvert et, pour un démarrage à froid, le temps que cela a pris environ</string>
     <string name="telemetry_event_session_end">Combien de temps Gotcha est resté ouvert, environ</string>
-    <string name="telemetry_event_opt_in">Que les données d\'utilisation ont été activées</string>
     <string name="telemetry_event_agent_run">Pour chaque demande : d\'où elle venait (discussion, appel ou tâche planifiée), Observateur ou Opérateur, Samosa AI ou votre propre serveur, si elle a abouti, sa durée approximative et le nombre d\'actions effectuées</string>
     <string name="telemetry_event_ai_request">Pour chaque appel au modèle d\'IA : à quoi il servait, Samosa AI ou votre propre serveur (désigné seulement par un type, comme \"local\" ou \"other\"), le modèle Samosa AI si vous en utilisez un, s\'il a fonctionné et le type d\'erreur, sa durée approximative et le nombre de tokens utilisés</string>
     <string name="telemetry_event_tool_call">Pour chaque action : laquelle des actions intégrées de Gotcha c\'était (les actions des serveurs MCP ou des comptes connectés sont seulement comptées, pas nommées), si elle a fonctionné et sa durée approximative</string>

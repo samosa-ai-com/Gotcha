@@ -25,6 +25,7 @@ class TelemetryVocabularyTest {
 
         val vocabulary = TelemetryVocabulary.build(BuildConfig.VERSION_CODE)
         val events = vocabulary["events"] as JsonObject
+        assertFalse("retired opt-in event is still exported", "telemetry_opt_in" in events)
         assertEquals(TelemetrySchema.eventNames.toSet(), events.keys)
         TelemetrySchema.eventNames.forEach { event ->
             TelemetrySchema.propsOf(event).orEmpty().forEach { (name, prop) ->
