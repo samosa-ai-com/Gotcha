@@ -5,7 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The system installer's answer, delivered as a broadcast.
@@ -72,21 +76,29 @@ internal object CompanionInstalls {
 
     enum class Outcome { SUCCESS, FAILED }
 
-    @Volatile
-    var last: Outcome? = null
-        private set
+    data class Notice(val outcome: Outcome, val reason: String?, val at: Long)
 
-    @Volatile
-    var lastReason: String? = null
-        private set
+    private const val NOTICE_LIFETIME_MS = 5L * 60 * 1000
+    private val pending = MutableStateFlow<Notice?>(null)
+    val notices = pending.asStateFlow()
 
+    @Synchronized
     fun publish(outcome: Outcome, reason: String? = null) {
-        last = outcome
-        lastReason = reason
+        val notice = Notice(outcome, reason, System.currentTimeMillis())
+        pending.value = notice
+        Handler(Looper.getMainLooper()).postDelayed({ consume(notice) }, NOTICE_LIFETIME_MS)
     }
 
+    /** Consume only the notice that caused the refresh; a newer broadcast stays visible. */
+    @Synchronized
+    fun consume(notice: Notice): Notice? {
+        if (pending.value !== notice) return null
+        pending.value = null
+        return notice.takeIf { System.currentTimeMillis() - it.at < NOTICE_LIFETIME_MS }
+    }
+
+    @Synchronized
     fun clear() {
-        last = null
-        lastReason = null
+        pending.value = null
     }
 }

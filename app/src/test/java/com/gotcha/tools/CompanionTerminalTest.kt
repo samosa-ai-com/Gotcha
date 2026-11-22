@@ -132,6 +132,13 @@ class CompanionTerminalTest {
     }
 
     @Test
+    fun `an installing system refuses a session even if the previous system is ready`() = runTest {
+        service.shellInfo.installing = true
+        assertEquals(Refusal.NoLinuxSystem(installing = true), refusal())
+        assertTrue(service.opened.isEmpty())
+    }
+
+    @Test
     fun `a runtime being downloaded is reported without a new offer`() = runTest {
         service.shellInfo.runtimeReady = false
         service.shellInfo.runtimeInstalling = true

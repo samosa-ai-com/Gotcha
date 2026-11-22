@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +73,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
     var progress by remember { mutableStateOf<InstallProgress?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
     var showInstallPrep by remember { mutableStateOf(false) }
+    val installNotice by CompanionInstalls.notices.collectAsState()
 
     // Re-read on every resume: the companion may have been installed, updated or removed
     // while the user was away from this page.
@@ -85,6 +87,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     suspend fun refresh() {
+        val notice = installNotice
         // Asked afresh every time the page opens, so subscribing or signing in shows at once.
         access = ShellEntitlement.refresh(context, force = true)
         identity = manager.identity()
@@ -92,21 +95,19 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
         // The system installer answers by broadcast, which may arrive while this screen is
         // gone. Without this the user who declined the prompt, or was blocked by Play Protect,
         // returned to a page that simply still said "not installed" and no explanation.
-        CompanionInstalls.last?.let { outcome ->
-            val reason = CompanionInstalls.lastReason
-            CompanionInstalls.clear()
-            if (outcome == CompanionInstalls.Outcome.FAILED) {
+        notice?.let { CompanionInstalls.consume(it) }?.let { received ->
+            if (received.outcome == CompanionInstalls.Outcome.FAILED) {
                 overlay.show(
-                    if (reason.isNullOrBlank()) {
+                    if (received.reason.isNullOrBlank()) {
                         context.getString(R.string.linux_shell_get_app_install_failed)
                     } else {
-                        reason
+                        received.reason
                     }
                 )
             }
         }
     }
-    LaunchedEffect(resumeSignal) { refresh() }
+    LaunchedEffect(resumeSignal, installNotice) { refresh() }
 
     fun perform(action: ShellAction, doneMessage: Int, work: suspend () -> String?) {
         if (running != null) return
@@ -220,7 +221,8 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
                 // Also refuse while the companion is downloading its runtime on its own: the
                 // screen's `running` only covers work it started itself, and opening a session
                 // mid-download can only fail.
-                enabled = allowed && terminalSupported && running == null && !current.runtimeInstalling,
+                enabled = allowed && terminalSupported && running == null &&
+                    !current.installing && !current.runtimeInstalling,
                 modifier = Modifier.fillMaxWidth().testTag("linux_shell_open_terminal")
             ) { Text(stringResource(R.string.linux_shell_action_open_terminal)) }
             if (!terminalSupported) {
@@ -318,6 +320,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
                 TextButton(
                     onClick = {
                         showInstallPrep = false
+                        CompanionInstalls.clear()
                         perform(ShellAction.GET_APP, R.string.linux_shell_get_app_started) {
                             manager.installFromBackend { phase, done, total ->
                                 // The download reports from Dispatchers.IO; a snapshot write

@@ -5,6 +5,7 @@ import com.gotcha.auth.SamosaAuthApi
 import com.gotcha.auth.ShellApkRelease
 import com.gotcha.data.SettingsRepository
 import kotlinx.coroutines.CancellationException
+import java.security.MessageDigest
 
 /**
  * Where the Gotcha Shell companion APK comes from.
@@ -15,8 +16,8 @@ import kotlinx.coroutines.CancellationException
  *
  * A refusal here is an answer, not an outage: a free account gets 403 and must not be retried,
  * while a network failure is worth one retry later. The distinction is the same one
- * [CompanionRuntimeSource] draws, and the cooldown is keyed the same way — by a hash of the
- * session token, so one account's cooldown cannot leak into another's.
+ * [CompanionRuntimeSource] draws, and the cooldown is keyed by a digest of the session token,
+ * so one account's cooldown cannot leak into another's and the token itself is never held.
  */
 internal object CompanionApkSource {
 
@@ -27,10 +28,10 @@ internal object CompanionApkSource {
     private var lastFailureAt = 0L
 
     @Volatile
-    private var lastFailureKey: Int? = null
+    private var lastFailureKey: String? = null
 
     /** A fetched release bound to the account it was fetched for. */
-    internal class ResolvedRelease(val release: ShellApkRelease, private val key: Int) {
+    internal class ResolvedRelease(val release: ShellApkRelease, private val key: String) {
         fun noteRejected() = noteFailure(key)
     }
 
@@ -44,7 +45,7 @@ internal object CompanionApkSource {
     suspend fun fetchResolved(context: Context, baseUrl: String? = null): ResolvedRelease? {
         val token = SettingsRepository(context).load().samosaSessionToken
         if (token.isBlank()) return null
-        val key = token.hashCode()
+        val key = keyFor(token)
         if (lastFailureKey == key && System.currentTimeMillis() - lastFailureAt < FAILURE_COOLDOWN_MS) {
             return null
         }
@@ -67,17 +68,36 @@ internal object CompanionApkSource {
         }
     }
 
-    internal fun noteFailure(key: Int) {
+    /**
+     * The cooldown key: a digest, never the token itself.
+     *
+     * The sibling [CompanionRuntimeSource] keeps only a hash for the same reason, and it is the
+     * right reason. A 32-bit `hashCode` was too weak, though: two different session tokens can
+     * collide, and then one account's cooldown suppresses another's first attempt. SHA-256 keeps
+     * the token out of memory while making that collision practically impossible.
+     */
+    private fun keyFor(token: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(token.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
+    internal fun noteFailure(key: String) {
         lastFailureKey = key
         lastFailureAt = System.currentTimeMillis()
     }
 
     /** Whether *key* is inside its post-failure window. Exposed so the binding is testable. */
-    internal fun isCoolingDownFor(key: Int): Boolean =
+    internal fun isCoolingDownFor(key: String): Boolean =
         lastFailureKey == key && System.currentTimeMillis() - lastFailureAt < FAILURE_COOLDOWN_MS
 
     /** Forgets failures and cooldowns, so tests do not depend on wall-clock timing. */
     internal fun resetForTest() {
+        lastFailureAt = 0L
+        lastFailureKey = null
+    }
+
+    /** A new sign-in may carry a fresh entitlement, even when it reuses a session token. */
+    fun onSignedIn() {
         lastFailureAt = 0L
         lastFailureKey = null
     }

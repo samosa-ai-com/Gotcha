@@ -153,6 +153,16 @@ class ShellEntitlementTest {
     }
 
     @Test
+    fun `a missing token during a backend refresh keeps the remembered Pro answer`() = runTest {
+        FakeAndroidKeyStore.setUp()
+        SettingsRepository(context).clearSamosaSession()
+        ShellEntitlement.onSignedIn(context)
+        refresh(Source(TierAnswer.Tier("pro")), force = true)
+        ShellEntitlement.refresh(context, force = true) { now }
+        assertEquals(Access.ALLOWED, remembered())
+    }
+
+    @Test
     fun `signing out turns the shell off at once and signing in asks again`() {
         FakeAndroidKeyStore.setUp()
         val settings = SettingsRepository(context)

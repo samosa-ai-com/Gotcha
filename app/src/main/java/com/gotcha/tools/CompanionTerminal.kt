@@ -76,7 +76,7 @@ class CompanionTerminal internal constructor(
             when {
                 info.interfaceVersion < CompanionShellBackend.INTERFACE_VERSION ->
                     refused(Refusal.TooOld(info.interfaceVersion, CompanionShellBackend.INTERFACE_VERSION))
-                !info.rootfsReady -> refused(Refusal.NoLinuxSystem(info.installing))
+                info.installing || !info.rootfsReady -> refused(Refusal.NoLinuxSystem(info.installing))
                 info.runtimeInstalling -> refused(Refusal.NoRuntime(installing = true))
                 // As for commands: push a source, then open; the companion installs the runtime
                 // before it starts the session. Only a failed push is a refusal.

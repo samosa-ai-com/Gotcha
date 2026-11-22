@@ -186,7 +186,9 @@ object ShellEntitlement {
     private class BackendTierSource(private val context: Context) : TierSource {
         override suspend fun fetch(): TierAnswer = withContext(Dispatchers.IO) {
             val token = SettingsRepository(context).load().samosaSessionToken
-            if (token.isBlank()) return@withContext TierAnswer.SignedOut
+            // A missing token during startup is not proof of an explicit sign-out. Keep the
+            // remembered answer; clearSamosaSession() records an actual sign-out separately.
+            if (token.isBlank()) return@withContext TierAnswer.Unavailable
             try {
                 withTimeoutOrNull(FETCH_TIMEOUT_MILLIS) {
                     TierAnswer.Tier(SamosaAuthApi.create().me("Bearer $token").user.tier.id)

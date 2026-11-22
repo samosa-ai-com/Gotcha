@@ -883,6 +883,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .apply()
         // What was known about the previous session's plan does not carry over.
         com.gotcha.tools.ShellEntitlement.onSignedIn(appContext)
+        com.gotcha.tools.CompanionApkSource.onSignedIn()
     }
 
     /** The session's tokens, read on their own: two decrypts where [load] does one per setting. */

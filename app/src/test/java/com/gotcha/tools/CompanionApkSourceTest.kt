@@ -22,17 +22,17 @@ class CompanionApkSourceTest {
 
     @Test
     fun `a failure cools down only the account that failed`() {
-        CompanionApkSource.noteFailure("token-a".hashCode())
+        CompanionApkSource.noteFailure("token-a")
 
-        assertTrue(CompanionApkSource.isCoolingDownFor("token-a".hashCode()))
-        assertFalse(CompanionApkSource.isCoolingDownFor("token-b".hashCode()))
+        assertTrue(CompanionApkSource.isCoolingDownFor("token-a"))
+        assertFalse(CompanionApkSource.isCoolingDownFor("token-b"))
     }
 
     @Test
-    fun `clearing state lets the next attempt through`() {
-        CompanionApkSource.noteFailure("token-a".hashCode())
-        CompanionApkSource.resetForTest()
-        assertFalse(CompanionApkSource.isCoolingDownFor("token-a".hashCode()))
+    fun `signing in lets the next attempt through`() {
+        CompanionApkSource.noteFailure("token-a")
+        CompanionApkSource.onSignedIn()
+        assertFalse(CompanionApkSource.isCoolingDownFor("token-a"))
     }
 
     @Test
@@ -44,15 +44,15 @@ class CompanionApkSourceTest {
             downloadPath = "/gotcha/shell/download/${"T".repeat(43)}",
             expiresInSeconds = 3600
         )
-        val resolved = CompanionApkSource.ResolvedRelease(release, "token-a".hashCode())
+        val resolved = CompanionApkSource.ResolvedRelease(release, "token-a")
         resolved.noteRejected()
 
-        assertTrue(CompanionApkSource.isCoolingDownFor("token-a".hashCode()))
-        assertFalse(CompanionApkSource.isCoolingDownFor("token-b".hashCode()))
+        assertTrue(CompanionApkSource.isCoolingDownFor("token-a"))
+        assertFalse(CompanionApkSource.isCoolingDownFor("token-b"))
     }
 
     @Test
     fun `no failure means no cooldown`() {
-        assertFalse(CompanionApkSource.isCoolingDownFor("anything".hashCode()))
+        assertFalse(CompanionApkSource.isCoolingDownFor("anything"))
     }
 }
