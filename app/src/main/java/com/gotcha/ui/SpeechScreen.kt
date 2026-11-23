@@ -204,7 +204,7 @@ fun SpeechScreen(
         baseline = applySpeech(baseline)
     }
 
-    /** Switches save as they flip, like every other settings switch; [baseline] follows. */
+    /** Switches and the language pickers save as they change, like every other settings switch; [baseline] follows. */
     fun saveSwitch(change: (Settings) -> Settings) {
         onSave(change)
         baseline = change(baseline)
@@ -624,10 +624,18 @@ fun SpeechScreen(
         HorizontalDivider(thickness = 1.dp)
         VoiceLanguageSection(
             voiceLanguage = voiceLanguage,
-            onVoiceLanguage = { voiceLanguage = it },
+            // Pickers save as they change, like the switches: their Save button
+            // waits on the provider setup, which a language has nothing to do with.
+            onVoiceLanguage = { lang ->
+                voiceLanguage = lang
+                saveSwitch { it.copy(voiceLanguage = lang) }
+            },
             replyLanguage = initial.preferredLanguage,
             sttLanguage = sttLanguage,
-            onSttLanguage = { sttLanguage = it },
+            onSttLanguage = { lang ->
+                sttLanguage = lang
+                saveSwitch { it.copy(sttLanguage = lang.trim()) }
+            },
             sttProvider = sttProvider,
             sttModel = sttApiModel,
             sttModels = availableSttModels,

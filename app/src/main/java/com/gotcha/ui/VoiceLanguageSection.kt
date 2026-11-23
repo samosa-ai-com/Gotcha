@@ -42,8 +42,9 @@ import kotlinx.coroutines.launch
  * language is warned about on the same screen it is picked on.
  *
  * [voiceLanguage] blank follows [replyLanguage]; [sttLanguage] blank follows the
- * voice language. Both are form state: the page saves them with its other
- * fields. Test voice speaks the language picked here, saved or not.
+ * voice language. The page saves each one as soon as it is picked, apart from
+ * its Save button, which waits on the provider setup. Test voice speaks the
+ * language picked here.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
