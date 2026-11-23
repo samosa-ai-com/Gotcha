@@ -62,14 +62,18 @@ mid-conversation.
 - **Web** — search and fetch pages.
 - **Health** — on-device, read-only summaries and records via Health Connect.
 - **Connectors** — Email (IMAP), Google (BYO OAuth), Microsoft (Outlook,
-  Calendar, To Do), Notion, and Home Assistant.
+  Calendar, To Do), Notion, Home Assistant, and the user's own MCP servers.
 - **Skills** — bundled and community operational guidance, searchable and
   injected automatically when the matching app is in front.
-- **Its own settings** — in Operator, change notification, language, read-aloud,
-  skin, proactive-assistance and wake-word listening settings, and switch
-  connectors and skills on or off, with `update_gotcha_settings`. API keys,
-  sign-in, the model, run limits and permissions are not reachable this way; the
-  user changes those in Settings.
+- **Its own settings** — in Operator, change notification (including the tip
+  time and quiet hours), language, read-aloud, on-device speech recognition,
+  currency, skin, proactive-assistance, wake-word listening and connector
+  auto-sync settings, and switch connectors and skills on or off, with
+  `update_gotcha_settings`. API keys, sign-in, the model, run limits and
+  permissions are not reachable this way; the user changes those in Settings.
+- **MCP servers** — list the user's MCP servers with `list_mcp_servers`, and, in
+  Operator, add, edit, remove, switch on or off and refresh them with
+  `manage_mcp_servers`. The user approves every change; tokens are never shown.
 
 ## Where the settings are
 

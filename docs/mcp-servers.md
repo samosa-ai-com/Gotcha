@@ -56,6 +56,23 @@ stays saved. The **MCP servers** switch at the top turns all of them off at once
 and **Refresh all** do the same for every server that is on. A failed refresh keeps the last
 known tools and shows the error under the server.
 
+## Asking the assistant
+
+You can also ask Gotcha to do all of this in chat ("add my docs server at … with this token",
+"switch the wiki server off"). It uses two tools:
+
+- `list_mcp_servers` shows each server's id, name, host, on/off state, whether a token is set,
+  header names and tools. It never shows a token, a header value, or the path of an address
+  (some services put their key there). Available in Monitor and Operator.
+- `manage_mcp_servers` adds, edits, removes, switches on or off and refreshes a server.
+  Operator only, and never from a sub-agent.
+
+Every change except refresh shows you what will happen and waits for your approval. Adding a
+server, or changing a server's address, asks even in a chat where you chose to skip approvals.
+If an edit moves a server to a different host, its saved token and headers are not sent there
+unless new ones are given in the same request. The audit log records which server changed,
+by host, without the token, headers or address.
+
 ## Not supported yet
 
 - Servers started as local processes (stdio). Android can't run them for Gotcha.

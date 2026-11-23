@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 35 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 37 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **123** | |
+| **Total** | **125** | |
 
-**59 of 123** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**61 of 125** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -136,9 +136,11 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_emails` | `UNIT` | `EmailToolsTest` — backend routing, unread filter, result limits |
 | `list_files` | `ROBOLECTRIC` | `FileToolsTest` — flat and recursive listings |
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
+| `list_mcp_servers` | `ROBOLECTRIC` | `McpServerLoopTest` — lists ids, on/off, header names and tools; never a token, a header value or an address path |
 | `list_scheduled_tasks` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest` — each task with its id, schedule and prompt; the one schedule tool Monitor is offered |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `manage_mcp_servers` | `ROBOLECTRIC` | `McpServerToolTest`, `McpServerLoopTest` — validation per action, secrets dropped on a host change, add asks even when approvals are skipped, decline saves nothing, the audit log holds no token or path, Operator only |
 | `notion_delete_item` | `UNIT` | `NotionToolsMutationTest` — page trash patch vs block delete request shapes |
 | `notion_mark_todo` | `UNIT` | `NotionToolsMutationTest` — checked-state patch request shape and id-prefix stripping |
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |

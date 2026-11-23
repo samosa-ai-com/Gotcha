@@ -24,6 +24,23 @@
       "notes": "the allowlist (credentials refused), per-key validation, all-or-nothing rejection, and the loop: a prompt on every change, denial leaves settings untouched, approval saves through SettingsRepository, both audited"
     },
     {
+      "tool": "list_mcp_servers",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.agent.McpServerLoopTest"
+      ],
+      "notes": "lists ids, on/off, header names and tools; never a token, a header value or an address path"
+    },
+    {
+      "tool": "manage_mcp_servers",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.McpServerToolTest",
+        "com.gotcha.agent.McpServerLoopTest"
+      ],
+      "notes": "validation per action, secrets dropped on a host change, add asks even when approvals are skipped, decline saves nothing, the audit log holds no token or path, Operator only"
+    },
+    {
       "tool": "about_samosa_ai",
       "tier": "ROBOLECTRIC",
       "tests": [

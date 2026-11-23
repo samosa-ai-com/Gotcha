@@ -120,7 +120,7 @@ object ToolRegistry {
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks",
+        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks", McpServerTool.LIST,
         "question",
         "sleep",
         "finish_task",
@@ -152,6 +152,7 @@ object ToolRegistry {
         "finish_task",
         "update_user_profile",
         "update_gotcha_settings",
+        McpServerTool.MANAGE,
         "schedule_agent_task",
         "edit_scheduled_task",
         "delete_scheduled_task"
@@ -162,7 +163,7 @@ object ToolRegistry {
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
      * reports back with ask_final_answer instead — minus update_user_profile,
      * whose modify-and-extend directive lives only in the top-level Operator prompt,
-     * and minus update_gotcha_settings and the scheduled-task writes, whose approval
+     * and minus update_gotcha_settings, manage_mcp_servers and the scheduled-task writes, whose approval
      * prompts belong to the run the user is watching, not to a delegated one.
      * Dynamic tools are included while registered; they are hidden by the
      * hidden-tools mechanism when their connector is not active.

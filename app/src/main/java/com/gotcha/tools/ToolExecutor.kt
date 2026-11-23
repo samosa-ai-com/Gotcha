@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorCatalog
+import com.gotcha.i18n.stringLookup
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -118,6 +119,9 @@ class ToolExecutor(
     /** The audit log; the engine also writes the answers to its confirmation prompts here. */
     val actionLog = ActionLog(appContext)
 
+    /** `manage_mcp_servers` writes awaiting the user's answer; the engine takes them by id. */
+    val mcpRequests = McpServerTool.PendingRequests()
+
     init {
         com.gotcha.connectors.ConnectorRegistry.init(appContext)
     }
@@ -158,7 +162,7 @@ class ToolExecutor(
             )
         }
         onBeforeTool?.invoke(tool, args)?.let { refused ->
-            actionLog.record(tool, args.redactedForAudit(), refused)
+            actionLog.record(tool, args.redactedForAudit(tool), refused)
             return refused
         }
         val result = try {
@@ -173,7 +177,7 @@ class ToolExecutor(
         GotchaLog.d(TAG) {
             "execute: $tool -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
         }
-        actionLog.record(tool, args.redactedForAudit(), result)
+        actionLog.record(tool, args.redactedForAudit(tool), result)
         return result
     }
 
@@ -186,16 +190,23 @@ class ToolExecutor(
      * are passwords, passphrases and tokens. Logging the argument name still leaves the audit
      * trail intact — what ran, and that something was piped to it.
      */
-    private fun JsonObject.redactedForAudit(): String =
-        if (keys.none { it in REDACTED_AUDIT_KEYS }) {
+    private fun JsonObject.redactedForAudit(tool: String): String {
+        // An MCP server's token, headers and address (which may hold a key) never reach the log.
+        val redacted = if (tool == McpServerTool.MANAGE) {
+            REDACTED_AUDIT_KEYS + McpServerTool.AUDIT_REDACTED_KEYS
+        } else {
+            REDACTED_AUDIT_KEYS
+        }
+        return if (keys.none { it in redacted }) {
             toString()
         } else {
             JsonObject(
                 mapValues { (key, value) ->
-                    if (key in REDACTED_AUDIT_KEYS) JsonPrimitive("(redacted)") else value
+                    if (key in redacted) JsonPrimitive("(redacted)") else value
                 }
             ).toString()
         }
+    }
 
     /**
      * Execute an uninstall that was already confirmed by the user.
@@ -559,6 +570,12 @@ class ToolExecutor(
                         GotchaSettingsUpdate.encodePayload(changes, args.requireString("reason"))
                 )
             }
+            "list_mcp_servers" -> {
+                val connector = McpServerTool.connector()
+                    ?: return ToolResult.error("MCP servers are not available here.")
+                ToolResult.ok(McpServerTool.list(connector, McpServerTool.connectorOn(appContext)))
+            }
+            "manage_mcp_servers" -> McpServerTool.manage(args, mcpRequests, appContext.stringLookup())
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")

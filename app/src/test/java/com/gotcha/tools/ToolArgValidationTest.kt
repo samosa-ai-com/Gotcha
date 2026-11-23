@@ -134,6 +134,7 @@ class ToolArgValidationTest {
          *   `SettingsUpdateLoopTest` cover its argument checks at the top level.
          * - the scheduled-task writes are refused to sub-agents for the same reason;
          *   `ScheduledTaskToolTest` covers their argument checks.
+         * - `manage_mcp_servers` too; `McpServerToolTest` and `McpServerLoopTest` cover it.
          */
         val NOT_PARAMETER_NAMED = setOf(
             "create_task",
@@ -148,7 +149,8 @@ class ToolArgValidationTest {
             "update_gotcha_settings",
             "schedule_agent_task",
             "edit_scheduled_task",
-            "delete_scheduled_task"
+            "delete_scheduled_task",
+            "manage_mcp_servers"
         )
     }
 }
