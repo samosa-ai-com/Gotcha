@@ -6,7 +6,8 @@ This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short
 version: the App itself does not collect or retain your content on
 our servers — everything stays on your device unless you choose to use
-a backend that transmits data to a third-party AI provider. On first
+a backend that transmits it, such as Samosa AI (Section 4.2) or an AI
+provider you configure yourself. On first
 launch the App registers the install with us; that registration
 describes the build and the device in broad terms and identifies no
 one. Usage data, which is counts and outcomes only, is on by default
@@ -54,14 +55,15 @@ and can be turned off; see Section 11.
 
 3. WHAT WE KEEP ON OUR SIDE
 
-   3.1 We do not operate a server that retains your chats, calls,
-       screenshots, prompts, completions, or credentials, and the App
-       never sends them to us. We keep the install registration and,
-       when usage data is on, the counts and outcomes described in
-       Section 11. That data is kept indefinitely in anonymised form;
-       recent data sits in a rolling 30-day working window used for
-       day-to-day analysis. Nothing in it identifies you, so there is
-       no per-person record to delete.
+   3.1 The App never sends your chats, calls, screenshots, prompts,
+       completions, or credentials to Gotcha. The one exception is when
+       you choose Samosa AI as your backend: the requests you send it
+       are handled by Samosa AIR as described in Section 4.2. We keep
+       the install registration and, when usage data is on, the counts
+       and outcomes described in Section 11. That data is kept
+       indefinitely in anonymised form; recent data sits in a rolling
+       30-day working window used for day-to-day analysis. Nothing in
+       it identifies you, so there is no per-person record to delete.
    3.2 If you want to remove local data, uninstall the App, or use the
        in-app controls (e.g. "Clear chat," "Clear LLM cache").
 
@@ -72,29 +74,31 @@ and can be turned off; see Section 11.
        practices. Once a request leaves your device, the backend's
        terms apply.
 
-   4.2 Samosa AI (the Samosa AIR proxy):
-         (a) Samosa AI is operated independently of Gotcha. By
-             using Samosa AI as your backend, you accept Samosa AI's
-             own terms and privacy policy, in addition to these.
-         (b) Samosa AI routes requests to underlying model providers.
-             Samosa AI is designed to minimize what is forwarded:
-             identifying metadata such as your IP address is not
-             included in the prompt payload sent to the underlying
-             model provider.
-         (c) However, Samosa AI cannot fully eliminate provider-side
+   4.2 Samosa AI (the Samosa AIR service):
+         (a) Samosa AIR is a separate service, operated by Samosa AI,
+             with its own Samosa AIR Terms of Service, shown in the
+             App under Settings ▸ About ▸ Legal. When you sign in to
+             Samosa AI, you accept those terms in addition to these.
+             They are the authoritative description of what Samosa AIR
+             keeps.
+         (b) In short: Samosa AIR keeps the requests you send and the
+             responses it returns, encrypted, for 30 days, to run and
+             bill the service and to prevent abuse. It never uses them
+             to train AI models and does not sell them. It also keeps
+             your account details (email, name, profile picture), your
+             plan and credit records, and usage and sign-in records
+             with IP addresses, for the periods its terms set out.
+         (c) Samosa AIR routes requests to underlying model providers.
+             Before forwarding, it removes your account details and IP
+             address from the request.
+         (d) However, Samosa AIR cannot fully eliminate provider-side
              exposure. The underlying model provider will receive the
              contents of your prompt and may receive provider-managed
              identifiers (request IDs, abuse-prevention tokens) for the
              purpose of operating the service.
-         (d) Underlying model providers may, under their own policies,
-             retain prompts and completions, and may use them to train
-             and improve their models. Samosa AI uses providers that
-             commit not to train on inputs delivered via the Samosa
-             AIR proxy, but those commitments are governed by the
-             provider's terms and may change.
-         (e) You should review Samosa AI's privacy policy directly for
-             the current, authoritative description of how Samosa AI
-             and its underlying providers handle your data.
+         (e) Samosa AI chooses providers that commit not to train on
+             requests sent through Samosa AIR, but those commitments
+             are governed by the provider's terms and may change.
 
    4.3 User-Provided Providers (your own OpenAI-compatible endpoint):
          (a) When you supply your own API key and base URL, requests

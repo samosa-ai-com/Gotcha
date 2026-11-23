@@ -24,7 +24,9 @@ do not install or use the App.
    2.2 The App supports two classes of backends:
          (a) "Samosa AI" — a managed AI service accessed by signing in
              through Google and routing requests through Samosa AI's
-             proxy endpoint ("Samosa AIR"); and
+             proxy endpoint ("Samosa AIR"). Your use of Samosa AI is
+             also governed by the Samosa AIR Terms of Service, shown
+             alongside these Terms; and
          (b) any "User-Provided Provider" — an OpenAI-compatible endpoint
              configured by you (your own key, your own endpoint).
    2.3 The user is responsible for selecting which backend to use and for
@@ -140,9 +142,10 @@ do not install or use the App.
    9.1 The App itself is provided free of charge unless explicitly stated
        otherwise.
    9.2 You are responsible for all fees charged by your chosen backend:
-       Samosa AI's pricing, the pricing of any User-Provided Provider, and
-       any data, messaging, or carrier charges incurred by actions the
-       agent takes on your behalf.
+       Samosa AI's pricing (including Samosa Pro and credit purchases,
+       which the Samosa AIR Terms of Service govern), the pricing of any
+       User-Provided Provider, and any data, messaging, or carrier
+       charges incurred by actions the agent takes on your behalf.
 
 10. INTELLECTUAL PROPERTY
 
