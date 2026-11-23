@@ -74,12 +74,16 @@ Terms. If you do not agree, do not sign in.
        already been spent, we may suspend the account until the balance
        is settled.
    4.8 Credits have no cash value, cannot be transferred, sold or
-       exchanged, and are not redeemable for money. Credits granted for
-       free (daily top-ups, referral rewards, promotions) may be removed
-       if they were obtained in breach of these AIR Terms.
-   4.9 Price changes. We may change prices and plan contents. Changes
-       to a subscription price take effect from the next renewal after
-       we tell you about them, and you may cancel before then.
+       exchanged, and are not redeemable for money.
+   4.9 Our rights over credits and plans. We decide whether to grant
+       credits to an account and how many. At any time, we may change
+       the prices of credits and plans, the rate at which money converts
+       to credits, the number of credits each plan grants, and the
+       contents of any plan. At our discretion, including where we
+       suspect misuse or a breach of these AIR Terms, we may cancel or
+       remove credits from an account, and suspend or ban the account.
+   4.10 A new Samosa Pro price applies from your next renewal. You
+        can cancel before then.
 
 5. REFERRALS
 
