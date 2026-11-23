@@ -1681,9 +1681,9 @@
     <string name="linux_terminal_key_down">Seta para baixo</string>
     <string name="linux_terminal_key_left">Seta para a esquerda</string>
     <string name="linux_terminal_key_right">Seta para a direita</string>
-    <string name="linux_terminal_refused_signed_out">O shell Linux faz parte do Samosa AI Pro. Entre no Samosa AI para usá-lo.</string>
-    <string name="linux_terminal_refused_not_pro">O shell Linux faz parte do Samosa AI Pro, e esta conta está em outro plano.</string>
-    <string name="linux_terminal_refused_needs_check">O Gotcha não conseguiu confirmar seu plano Samosa AI Pro recentemente. Conecte-se à internet e tente novamente.</string>
+    <string name="linux_terminal_refused_signed_out">O shell Linux faz parte do Samosa Pro. Entre no Samosa AI para usá-lo.</string>
+    <string name="linux_terminal_refused_not_pro">O shell Linux faz parte do Samosa Pro, e esta conta está em outro plano.</string>
+    <string name="linux_terminal_refused_needs_check">O Gotcha não conseguiu confirmar seu plano Samosa Pro recentemente. Conecte-se à internet e tente novamente.</string>
     <string name="linux_terminal_refused_not_installed">O Gotcha Shell não está instalado neste celular.</string>
     <string name="linux_terminal_refused_untrusted">O Gotcha Shell deste celular não está assinado com a mesma chave do Gotcha, então o Gotcha não vai usá-lo.</string>
     <string name="linux_terminal_refused_no_answer">O Gotcha Shell não respondeu. Tente novamente em instantes.</string>
@@ -1752,10 +1752,10 @@
     <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Um sistema Linux completo em um app próprio</string>
     <string name="linux_shell_intro">O Gotcha Shell é um app separado que dá ao assistente um sistema Linux completo: instalar pacotes, executar scripts e ferramentas que nenhum celular traz. Ele funciona separado do Gotcha, então nada que um comando faça pode mudar as configurações, as conversas ou a memória do Gotcha, e ele não vê seus arquivos a menos que o Gotcha entregue um.</string>
-    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
     <string name="linux_shell_plan_active">Seu plano Pro está ativo.</string>
-    <string name="linux_shell_plan_signed_out">O shell Linux faz parte do Samosa AI Pro. Entre no Samosa AI para usá-lo.</string>
-    <string name="linux_shell_plan_not_pro">O shell Linux faz parte do Samosa AI Pro, e sua conta está em outro plano. Seu sistema Linux e os arquivos dele são mantidos; você ainda pode redefini-lo ou desinstalá-lo abaixo.</string>
+    <string name="linux_shell_plan_signed_out">O shell Linux faz parte do Samosa Pro. Entre no Samosa AI para usá-lo.</string>
+    <string name="linux_shell_plan_not_pro">O shell Linux faz parte do Samosa Pro, e sua conta está em outro plano. Seu sistema Linux e os arquivos dele são mantidos; você ainda pode redefini-lo ou desinstalá-lo abaixo.</string>
     <string name="linux_shell_plan_needs_check">O Gotcha não conseguiu confirmar seu plano Pro. Conecte-se à internet e abra esta página de novo.</string>
     <string name="linux_shell_app_title">App Gotcha Shell</string>
     <string name="linux_shell_app_not_installed">O Gotcha Shell não está instalado. Ele faz parte do Pro, e o Gotcha pode baixá-lo e instalá-lo para você.</string>
@@ -1811,11 +1811,11 @@
     <string name="linux_shell_phase_install_runtime">Instalando o ambiente de execução…</string>
 
     <!-- Samosa AI and Pro nudges -->
-    <string name="upsell_pro_title">Samosa AI Pro</string>
-    <string name="upsell_pro_lead_shell">Para rodar comandos Linux é preciso o shell Linux integrado do Gotcha, que vem com o Samosa AI Pro.</string>
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">Para rodar comandos Linux é preciso o shell Linux integrado do Gotcha, que vem com o Samosa Pro.</string>
     <string name="upsell_pro_lead_limits">Você atingiu o limite do seu plano por enquanto. O Pro oferece limites maiores para você continuar.</string>
     <string name="upsell_pro_lead_value">Você está fazendo muito com o Gotcha. O Pro dá a ele ainda mais recursos.</string>
-    <string name="upsell_pro_lead_general">Aproveite mais o Gotcha com o Samosa AI Pro.</string>
+    <string name="upsell_pro_lead_general">Aproveite mais o Gotcha com o Samosa Pro.</string>
     <string name="upsell_pro_feature_shell">Um shell Linux integrado: comandos Linux de verdade, pelo chat ou pelo terminal</string>
     <string name="upsell_pro_feature_models">Modelos mais capazes</string>
     <string name="upsell_pro_feature_limits">Limites maiores</string>
@@ -1824,7 +1824,7 @@
     <string name="upsell_pro_action">Assinar o Pro</string>
     <string name="upsell_pro_see">Ver o Pro</string>
     <string name="upsell_samosa_title">Conheça o Samosa AI</string>
-    <string name="upsell_samosa_lead_shell">O shell Linux integrado do Gotcha vem com o Samosa AI Pro. Tudo começa com uma conta Samosa AI.</string>
+    <string name="upsell_samosa_lead_shell">O shell Linux integrado do Gotcha vem com o Samosa Pro. Tudo começa com uma conta Samosa AI.</string>
     <string name="upsell_samosa_lead_limits">Seu provedor de IA parou de responder por enquanto. O Samosa AI funciona sem uma chave de API própria.</string>
     <string name="upsell_samosa_lead_general">O Samosa AI é o serviço de IA feito para o Gotcha, pela mesma equipe que o desenvolve.</string>
     <string name="upsell_samosa_feature_no_key">Nenhuma chave de API para gerenciar: entre e comece</string>
@@ -1837,9 +1837,9 @@
     <string name="upsell_not_now">Agora não</string>
     <string name="upsell_settings_plan">Você está no plano %1$s. O Pro adiciona o shell Linux, modelos mais capazes e limites maiores.</string>
     <string name="upsell_settings_switch">Mudar para o Samosa AI</string>
-    <string name="upsell_drawer_pro">Assinar o Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">Assinar o Samosa Pro</string>
     <string name="upsell_welcome_title">Boas-vindas ao Pro</string>
-    <string name="upsell_welcome_text">Seu plano Samosa AI Pro está ativo: o shell Linux, modelos mais capazes e limites maiores estão prontos para você.</string>
+    <string name="upsell_welcome_text">Seu plano Samosa Pro está ativo: o shell Linux, modelos mais capazes e limites maiores estão prontos para você.</string>
     <string name="upsell_welcome_shell">Configurar o shell Linux</string>
     <string name="upsell_welcome_later">Depois</string>
     <string name="settings_page_chats">Conversas e armazenamento</string>

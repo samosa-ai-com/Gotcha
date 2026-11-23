@@ -98,7 +98,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | Scheduled tasks | Prompts Gotcha runs by itself at set times: add, edit, pause, delete or run one now; the history of each one's runs, failures included, with a link to the chat each run went into. Without "Alarms & reminders" allowed for Gotcha, a task cannot start on its own and asks for a tap on a notification instead; the page links to that permission |
 | Floating ball and wake word | The floating ball over other apps, hands-free voice calls, turning Night Light off for screenshots, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
 | Shell | Hub for the two ways the assistant runs Linux commands for `run_shell`: Gotcha Shell and Termux |
-| Shell > Gotcha Shell | Gotcha Shell, the companion app that gives the assistant a Linux system for `run_shell`: plan, install, Repair, Reset, Uninstall (needs Samosa AI Pro) |
+| Shell > Gotcha Shell | Gotcha Shell, the companion app that gives the assistant a Linux system for `run_shell`: plan, install, Repair, Reset, Uninstall (needs Samosa Pro) |
 | Shell > Gotcha Shell > Terminal | A terminal in that Linux system for the user to type commands in. It keeps running while the user rotates the phone or leaves the screen, and ends with "End the session" or `exit`. The assistant does not see what the user types there |
 | Shell > Termux | Guided setup for Termux, the other Linux shell `run_shell` and audio conversion can use |
 | **App** | |
@@ -206,9 +206,9 @@ model's context and could carry an injected instruction.
 (including `/v1/`), and model name. Any OpenAI-compatible `/chat/completions`
 endpoint with tool calling works, or sign in to Samosa AI for starter credits.
 
-**"What is Samosa AI Pro?"** A paid Samosa AI plan. It adds Gotcha's built-in
+**"What is Samosa Pro?"** A paid Samosa AI plan. It adds Gotcha's built-in
 Linux shell, more capable models, higher limits and early access to new
-features. "Get Samosa AI Pro" in the side menu, or "See Pro" on the Samosa AI
+features. "Get Samosa Pro" in the side menu, or "See Pro" on the Samosa AI
 account page (tap your name in the side menu), shows what it includes and opens
 the account website where it is bought.
 

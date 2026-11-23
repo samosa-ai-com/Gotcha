@@ -1977,10 +1977,10 @@
         <item quantity="other">Every %1$d days at %2$s</item>
     </plurals>
     <string name="linux_shell_intro">Gotcha Shell is a separate app that gives the assistant a full Linux system: installing packages, running scripts and tools no phone ships with. It runs apart from Gotcha, so nothing a command does can change Gotcha\'s settings, chats or memory, and it cannot see your files unless Gotcha hands one over.</string>
-    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
     <string name="linux_shell_plan_active">Your Pro plan is active.</string>
-    <string name="linux_shell_plan_signed_out">The Linux shell is part of Samosa AI Pro. Sign in to Samosa AI to use it.</string>
-    <string name="linux_shell_plan_not_pro">The Linux shell is part of Samosa AI Pro, and your account is on another plan. Your Linux system and its files are kept; you can still reset or uninstall it below.</string>
+    <string name="linux_shell_plan_signed_out">The Linux shell is part of Samosa Pro. Sign in to Samosa AI to use it.</string>
+    <string name="linux_shell_plan_not_pro">The Linux shell is part of Samosa Pro, and your account is on another plan. Your Linux system and its files are kept; you can still reset or uninstall it below.</string>
     <string name="linux_shell_plan_needs_check">Gotcha could not confirm your Pro plan. Connect to the internet and open this page again.</string>
     <string name="linux_shell_app_title">Gotcha Shell app</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell is not installed. It is part of Pro, and Gotcha can download and install it for you.</string>
@@ -2081,9 +2081,9 @@
     <string name="linux_terminal_key_down">Down arrow</string>
     <string name="linux_terminal_key_left">Left arrow</string>
     <string name="linux_terminal_key_right">Right arrow</string>
-    <string name="linux_terminal_refused_signed_out">The Linux shell is part of Samosa AI Pro. Sign in to Samosa AI to use it.</string>
-    <string name="linux_terminal_refused_not_pro">The Linux shell is part of Samosa AI Pro, and this account is on another plan.</string>
-    <string name="linux_terminal_refused_needs_check">Gotcha could not confirm your Samosa AI Pro plan recently. Connect to the internet and try again.</string>
+    <string name="linux_terminal_refused_signed_out">The Linux shell is part of Samosa Pro. Sign in to Samosa AI to use it.</string>
+    <string name="linux_terminal_refused_not_pro">The Linux shell is part of Samosa Pro, and this account is on another plan.</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha could not confirm your Samosa Pro plan recently. Connect to the internet and try again.</string>
     <string name="linux_terminal_refused_not_installed">Gotcha Shell is not installed on this phone.</string>
     <string name="linux_terminal_refused_untrusted">The Gotcha Shell on this phone is not signed with the same key as Gotcha, so Gotcha will not use it.</string>
     <string name="linux_terminal_refused_no_answer">Gotcha Shell did not answer. Try again in a moment.</string>
@@ -2098,11 +2098,11 @@
     <string name="linux_terminal_refused_failed_unknown">The terminal could not start.</string>
 
     <!-- Samosa AI and Pro nudges -->
-    <string name="upsell_pro_title">Samosa AI Pro</string>
-    <string name="upsell_pro_lead_shell">Running Linux commands needs Gotcha\'s built-in Linux shell, which comes with Samosa AI Pro.</string>
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">Running Linux commands needs Gotcha\'s built-in Linux shell, which comes with Samosa Pro.</string>
     <string name="upsell_pro_lead_limits">You\'ve reached your plan\'s limit for now. Pro gives you higher limits, so you can keep going.</string>
     <string name="upsell_pro_lead_value">You\'re getting a lot done with Gotcha. Pro gives it more to work with.</string>
-    <string name="upsell_pro_lead_general">Get more out of Gotcha with Samosa AI Pro.</string>
+    <string name="upsell_pro_lead_general">Get more out of Gotcha with Samosa Pro.</string>
     <string name="upsell_pro_feature_shell">A built-in Linux shell: real Linux commands, from chat or the terminal</string>
     <string name="upsell_pro_feature_models">More capable models</string>
     <string name="upsell_pro_feature_limits">Higher limits</string>
@@ -2111,7 +2111,7 @@
     <string name="upsell_pro_action">Get Pro</string>
     <string name="upsell_pro_see">See Pro</string>
     <string name="upsell_samosa_title">Discover Samosa AI</string>
-    <string name="upsell_samosa_lead_shell">Gotcha\'s built-in Linux shell comes with Samosa AI Pro. It starts with a Samosa AI account.</string>
+    <string name="upsell_samosa_lead_shell">Gotcha\'s built-in Linux shell comes with Samosa Pro. It starts with a Samosa AI account.</string>
     <string name="upsell_samosa_lead_limits">Your AI provider stopped answering for now. Samosa AI works without an API key of your own.</string>
     <string name="upsell_samosa_lead_general">Samosa AI is the AI service built for Gotcha, by the team that makes it.</string>
     <string name="upsell_samosa_feature_no_key">No API key to manage: sign in and go</string>
@@ -2124,9 +2124,9 @@
     <string name="upsell_not_now">Not now</string>
     <string name="upsell_settings_plan">You\'re on the %1$s plan. Pro adds the Linux shell, more capable models and higher limits.</string>
     <string name="upsell_settings_switch">Switch to Samosa AI</string>
-    <string name="upsell_drawer_pro">Get Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">Get Samosa Pro</string>
     <string name="upsell_welcome_title">Welcome to Pro</string>
-    <string name="upsell_welcome_text">Your Samosa AI Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
+    <string name="upsell_welcome_text">Your Samosa Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
     <string name="upsell_welcome_shell">Set up the Linux shell</string>
     <string name="upsell_welcome_later">Later</string>
     <plurals name="local_notifications_days">
