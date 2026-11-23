@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -384,6 +385,7 @@ fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
     overlay: SettingsOverlayState,
+    scrollState: ScrollState = rememberScrollState(),
     header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -415,7 +417,7 @@ fun SettingsScaffold(
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     content = content
                 )

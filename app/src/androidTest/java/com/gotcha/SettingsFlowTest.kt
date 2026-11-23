@@ -4,6 +4,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -249,6 +250,27 @@ class SettingsFlowTest {
         scenario?.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_skills_row").assertExists()
+    }
+
+    @Test
+    fun settingsHome_backFromAPageKeepsTheListScrolledWhereItWas() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        launchPastSplash()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // Scroll to the foot of the list, then open Appearance from down there.
+        composeRule.onNodeWithTag("settings_feature_tour_row").performScrollTo()
+        composeRule.onNodeWithTag("settings_appearance_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // No performScrollTo: the list came back where it was left.
+        composeRule.onNodeWithTag("settings_appearance_row").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_account_card").assertIsNotDisplayed()
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -171,6 +172,11 @@ fun SettingsScreen(
     // the home list otherwise. Only the list itself exits Settings.
     val backToHome = { onPageChange(page?.parentPage?.invoke()) }
 
+    // Kept out here, not in SettingsHome: the home list leaves composition while a
+    // page is open, and coming back should land on the row that was tapped rather
+    // than at the top of the list.
+    val homeScroll = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+
     if (page != null) BackHandler(onBack = backToHome)
 
     // A field the page never shows — the OTP switch while proactive offers are
@@ -321,6 +327,7 @@ fun SettingsScreen(
                     onBack = backToHome
                 )
                 null -> SettingsHome(
+                    scrollState = homeScroll,
                     accountName = accountName,
                     onOpenAccount = onOpenAccount,
                     onBack = onBack,
@@ -345,6 +352,7 @@ fun SettingsScreen(
  */
 @Composable
 private fun SettingsHome(
+    scrollState: ScrollState,
     accountName: String?,
     onOpenAccount: () -> Unit,
     onBack: () -> Unit,
@@ -371,6 +379,7 @@ private fun SettingsHome(
         title = stringResource(R.string.settings_title),
         onBack = onBack,
         overlay = overlay,
+        scrollState = scrollState,
         header = { SettingsSearchField(query = query, onQueryChange = { query = it }) }
     ) {
         if (query.isBlank()) {
