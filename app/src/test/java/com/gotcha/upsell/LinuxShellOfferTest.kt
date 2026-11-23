@@ -22,7 +22,9 @@ import org.robolectric.annotation.Config
 
 /** `offer_linux_shell`: who is offered it, and what it hands back to the engine. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// A plain Application: GotchaApp.onCreate starts its own plan check, which would race the plan
+// these tests store. See ShellEntitlementTest.
+@Config(sdk = [34], application = android.app.Application::class)
 class LinuxShellOfferTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

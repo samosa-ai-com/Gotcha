@@ -20,7 +20,9 @@ import org.robolectric.annotation.Config
  * the remembered answer through [ShellEntitlement.remembered].
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// A plain Application: GotchaApp.onCreate starts its own plan check on a background thread,
+// which raced these tests for the same stored answer and the same refresh lock.
+@Config(sdk = [34], application = android.app.Application::class)
 class ShellEntitlementTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
