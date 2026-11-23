@@ -256,5 +256,5 @@ private fun declaresAppLocales(context: Context): Boolean {
     }
 }
 
-/** How long Language waits after the last keystroke before saving a typed value. */
+/** How long Language waits after the reply language is picked before saving it, so a quick re-pick saves once. */
 private const val LANGUAGE_AUTOSAVE_DELAY_MS = 600L
