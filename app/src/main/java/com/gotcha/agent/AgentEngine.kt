@@ -848,6 +848,10 @@ class AgentEngine(
                         result.message.startsWith(GotchaSettingsUpdate.CONFIRM_PREFIX)
                     ) {
                         handleSettingsUpdateConfirm(call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(com.gotcha.tools.McpServerTool.CONFIRM_PREFIX)
+                    ) {
+                        handleMcpServerConfirm(call, result)
                     } else {
                         history += ChatMessage(
                             role = "tool",
@@ -1338,6 +1342,55 @@ class AgentEngine(
                     )
                     decided
                 }
+            }
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
+    }
+
+    /**
+     * Handles a `manage_mcp_servers` marker: CONFIRM_MCP_SERVER:<request id>.
+     *
+     * The request itself waits in the executor, so no token passes through the
+     * marker or the audit log. Adding a server, or moving one to a new address,
+     * asks even in a chat that skips its approvals: both hand Gotcha tools, and
+     * possibly a secret, from an address the user has not yet approved.
+     */
+    private suspend fun handleMcpServerConfirm(call: ToolCall, result: ToolResult) {
+        val tool = com.gotcha.tools.McpServerTool
+        val pending = toolExecutor.mcpRequests.take(result.message.removePrefix(tool.CONFIRM_PREFIX))
+        val connector = tool.connector()
+        var declined = false
+        val outcome = when {
+            pending == null || connector == null ->
+                ToolResult.error("Failed to read the MCP server request. Nothing was changed.")
+            else -> {
+                val description = tool.describe(pending, connector)
+                val (approved, skipped) = if (tool.alwaysAsk(pending.request)) {
+                    ConfirmOutcome(events.awaitConfirmation(listOf(tool.MANAGE), description), false)
+                } else {
+                    confirmOrSkip(listOf(tool.MANAGE), description, recordSkip = false, askAfterShellOutput = true)
+                }
+                val decided = if (approved) {
+                    tool.apply(pending.request, connector, tool.connectorOn(appContext), appContext.stringLookup())
+                } else {
+                    declined = true
+                    ToolResult.error(
+                        "The user declined the MCP server change; nothing was changed. " +
+                            "Do not retry unless the user asks again."
+                    )
+                }
+                toolExecutor.actionLog.record(
+                    tool.MANAGE,
+                    (if (skipped) "(pre-approved) " else if (approved) "(approved) " else "(denied) ") +
+                        tool.auditLine(pending.request),
+                    // The connector's messages name the server and its tools, never a secret.
+                    decided
+                )
+                decided
             }
         }
         history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)

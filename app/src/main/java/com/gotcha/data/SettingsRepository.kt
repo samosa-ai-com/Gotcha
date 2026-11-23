@@ -70,6 +70,25 @@ const val DEFAULT_INACTIVITY_DAYS = 4
 const val DEFAULT_QUIET_START_MINUTE = 22 * 60
 const val DEFAULT_QUIET_END_MINUTE = 8 * 60
 
+/** The currencies Personal Info offers, and `update_gotcha_settings` accepts. */
+val SUPPORTED_CURRENCIES: List<String> = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "RUB")
+
+/**
+ * The connector auto-sync intervals offered, in minutes, with the label shown
+ * for each. 1m is the floor: the loop driving auto-sync ticks every 60s, so
+ * anything finer would be a setting the app cannot honour.
+ */
+val CONNECTOR_AUTO_REFRESH_STEPS: List<Pair<Int, String>> = listOf(
+    0 to "Off",
+    1 to "1m",
+    2 to "2m",
+    5 to "5m",
+    10 to "10m",
+    15 to "15m",
+    30 to "30m",
+    120 to "2h"
+)
+
 /** Proactive notifications a day: room for the tip and one reminder. */
 const val DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY = 2
 

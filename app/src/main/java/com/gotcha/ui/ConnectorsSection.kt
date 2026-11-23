@@ -141,21 +141,7 @@ fun ConnectorsSection() {
     }
 }
 
-/**
- * The auto-sync intervals the slider offers, in minutes, with the label shown
- * for each. 1m is the floor: the loop driving auto-sync in [ConnectorsSection]
- * ticks every 60s, so anything finer would be a setting the app cannot honour.
- */
-private val AUTO_REFRESH_INTERVALS = listOf(
-    0 to "Off",
-    1 to "1m",
-    2 to "2m",
-    5 to "5m",
-    10 to "10m",
-    15 to "15m",
-    30 to "30m",
-    120 to "2h"
-)
+private val AUTO_REFRESH_INTERVALS = com.gotcha.data.CONNECTOR_AUTO_REFRESH_STEPS
 
 /**
  * Slider index for a stored interval. A value that is not one of the offered
