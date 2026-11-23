@@ -96,9 +96,6 @@ and can be turned off; see Section 11.
              contents of your prompt and may receive provider-managed
              identifiers (request IDs, abuse-prevention tokens) for the
              purpose of operating the service.
-         (e) Samosa AI chooses providers that commit not to train on
-             requests sent through Samosa AIR, but those commitments
-             are governed by the provider's terms and may change.
 
    4.3 User-Provided Providers (your own OpenAI-compatible endpoint):
          (a) When you supply your own API key and base URL, requests

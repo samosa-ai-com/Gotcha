@@ -155,9 +155,7 @@ Terms. If you do not agree, do not sign in.
    8.4 Before a request is forwarded to an underlying model provider,
        we remove your account details and IP address from it. The
        provider still receives the content of the request and processes
-       it under its own terms. We choose providers that commit not to
-       train on requests sent through Samosa AIR, but those commitments
-       are governed by the provider's terms.
+       it under its own terms.
    8.5 Our staff access stored request content only when needed for the
        purposes in Section 8.2, such as investigating a reported problem
        or suspected abuse.
