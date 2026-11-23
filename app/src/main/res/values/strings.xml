@@ -23,7 +23,7 @@
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
         <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. An install registration runs on first launch regardless of your choice and identifies no one. Usage data — counts and outcomes only — is on by default and can be turned off any time in Settings → Privacy.</item>
-        <item>If you sign in to Samosa AI, the Samosa AIR Terms of Service apply: requests are kept for 30 days to run the service and stop abuse, and are never used to train AI models. A User-Provided Provider you configure yourself has its own terms and data-retention practices, which apply once a request leaves your phone.</item>
+        <item>If you sign in to Samosa AI, the Samosa AIR Terms of Service apply, including how long Samosa AIR keeps your requests and account data. A User-Provided Provider you configure yourself has its own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
 

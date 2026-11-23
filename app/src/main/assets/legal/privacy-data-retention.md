@@ -81,13 +81,11 @@ and can be turned off; see Section 11.
              Samosa AI, you accept those terms in addition to these.
              They are the authoritative description of what Samosa AIR
              keeps.
-         (b) In short: Samosa AIR keeps the requests you send and the
-             responses it returns, encrypted, for 30 days, to run and
-             bill the service and to prevent abuse. It never uses them
-             to train AI models and does not sell them. It also keeps
-             your account details (email, name, profile picture), your
-             plan and credit records, and usage and sign-in records
-             with IP addresses, for the periods its terms set out.
+         (b) In short: Samosa AIR keeps logs of the requests you send
+             and the responses it returns on its live servers for up to
+             30 days. Your account details, plan, credits, and usage
+             and sign-in records are kept while your account exists,
+             and backups may hold data for longer.
          (c) Samosa AIR routes requests to underlying model providers.
              Before forwarding, it removes your account details and IP
              address from the request.

@@ -128,40 +128,25 @@ Terms. If you do not agree, do not sign in.
        as between you and us, of the AI Output it returns, subject to
        the rights of the underlying model providers and applicable law.
 
-8. YOUR DATA
+8. DATA WE KEEP
 
-   8.1 What we keep:
-         (a) Account data (Section 3.1), your plan, credit balance and
-             referral code, for as long as your account exists.
-         (b) The requests you send to the Service and the responses it
-             returns, including their content, together with the model,
-             token counts and timing. These are stored encrypted and
-             deleted automatically after 30 days.
-         (c) Usage records for each request (model, token counts,
-             credits charged, timing, IP address and app user agent,
-             but not the content), kept for 90 days.
-         (d) Sign-in session records, including the IP address and
-             device used to sign in, kept until the session has expired
-             and is at least 90 days old.
-         (e) Credit transactions and payment records (amount, date,
-             plan; never card details), kept for as long as needed for
-             accounting, tax and dispute purposes.
-         (f) Encrypted backups of the above, kept for up to 30 days.
-   8.2 Why we keep it: to run and bill the Service, to prevent abuse of
-       free credits and referrals, to investigate errors and security
-       incidents, and to meet legal obligations.
-   8.3 We never use your requests or responses to train AI models, and
-       we do not sell your data.
-   8.4 Before a request is forwarded to an underlying model provider,
+   8.1 Logs of the requests you send to the Service and the responses
+       it returns, including their content, are kept on our live
+       servers for up to 30 days and then deleted.
+   8.2 Your other account data (your account details from Section 3.1,
+       plan, credits, payments, and usage and sign-in records) is kept
+       for as long as your account exists.
+   8.3 We back up our systems regularly. Backups may hold any of the
+       data above, including request logs older than 30 days, for
+       longer than the periods in this section.
+   8.4 If your account is deleted, its data is removed from our live
+       servers within 30 days. A record of the account's history, such
+       as when it was created and its sign-in sessions, may be kept in
+       our internal records after that.
+   8.5 Before a request is forwarded to an underlying model provider,
        we remove your account details and IP address from it. The
        provider still receives the content of the request and processes
        it under its own terms.
-   8.5 Our staff access stored request content only when needed for the
-       purposes in Section 8.2, such as investigating a reported problem
-       or suspected abuse.
-   8.6 You can ask us for a copy of your data, or for its erasure, at
-       contact@samosa-ai.com. Erasure does not cover records we must
-       keep by law, such as payment records.
 
 9. SUSPENSION AND TERMINATION
 
