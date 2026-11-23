@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
+import com.gotcha.data.SettingsRepository
 import com.gotcha.shell.ShellInfo
 import com.gotcha.tools.CompanionConnection
 import com.gotcha.tools.CompanionIdentity
@@ -43,6 +44,9 @@ import com.gotcha.tools.CompanionShellManager
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ShellEntitlement
 import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.upsell.Upsell
+import com.gotcha.upsell.UpsellAudience
+import com.gotcha.upsell.UpsellReason
 import kotlinx.coroutines.launch
 
 /** What the page is doing right now; one action at a time. */
@@ -52,7 +56,7 @@ private enum class ShellAction { GET_APP, INSTALL, REPAIR, RESET }
 private data class InstallProgress(val phase: String, val done: Long, val total: Long)
 
 /**
- * Settings ▸ Linux shell: the state of the Gotcha Shell companion app and of the Linux system
+ * Settings ▸ Shell ▸ Gotcha Shell: the state of the Gotcha Shell companion app and of the Linux system
  * inside it, with the actions that manage it — Install, Repair, Reset and Uninstall. The Termux
  * setup page is linked from the bottom as the fallback.
  *
@@ -156,6 +160,18 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
             done = allowed,
             detail = planDetail(access)
         )
+        if (access == ShellEntitlement.Access.SIGNED_OUT || access == ShellEntitlement.Access.NOT_PRO) {
+            // Read with the access, which refresh() updates on every visit.
+            val audience = remember(access) { Upsell.audience(context, SettingsRepository(context).load()) }
+            if (audience != UpsellAudience.NONE) {
+                val openUpsell = LocalUpsell.current
+                UpsellCard(
+                    audience = audience,
+                    reason = UpsellReason.SHELL,
+                    onOpen = { openUpsell(UpsellReason.SHELL) }
+                )
+            }
+        }
 
         SetupCheck(
             title = stringResource(R.string.linux_shell_app_title),

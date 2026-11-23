@@ -84,6 +84,14 @@ data class SamosaUser(
     val referral: SamosaReferral = SamosaReferral()
 )
 
+/** Response from GET /v1/user/limits. Only the model allow-list is read. */
+@Serializable
+data class LimitsResponse(
+    val tier: String = "",
+    /** Null or empty: the plan has no model restriction. May contain "*" for every model. */
+    @SerialName("allowed_models") val allowedModels: List<String>? = null
+)
+
 /** Response from POST /register — the session JWT plus the user profile. */
 @Serializable
 data class RegisterResponse(
@@ -225,6 +233,13 @@ interface SamosaAuthApi {
 
     @GET("me")
     suspend fun me(@Header("Authorization") bearer: String): MeResponse
+
+    /** The plan's caps, including which models it may call: the list the proxy enforces. */
+    @GET("v1/user/limits")
+    suspend fun limits(
+        @Header("Authorization") bearer: String,
+        @retrofit2.http.Query("app") app: String = "gotcha-android"
+    ): LimitsResponse
 
     @POST("v1/referrals/claim")
     suspend fun claimReferral(

@@ -102,7 +102,7 @@ class SettingsSearchEntryTest {
         assertEquals("AI › ${SettingsPage.SPEECH.titleText}", speech.breadcrumb(text))
 
         val termux = settingsSearchIndex.first { it.page == SettingsPage.TERMUX }
-        assertEquals(SettingsPage.TERMUX.titleText, termux.breadcrumb(text))
+        assertEquals("Shell › ${SettingsPage.TERMUX.titleText}", termux.breadcrumb(text))
     }
 
     private fun fieldFor(query: String, page: SettingsPage) =

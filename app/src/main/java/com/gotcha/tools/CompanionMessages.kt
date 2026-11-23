@@ -3,7 +3,7 @@ package com.gotcha.tools
 /** What the model is told when the Gotcha Shell companion cannot run something, and what to do next. */
 internal object CompanionMessages {
 
-    private const val SETTINGS_PAGE = "Settings ▸ Linux shell"
+    private const val SETTINGS_PAGE = "Settings ▸ Shell ▸ Gotcha Shell"
 
     /** What is true of `run_shell` only when Gotcha Shell is the shell. See [ShellBackend.toolNotes]. */
     const val TOOL_NOTES =

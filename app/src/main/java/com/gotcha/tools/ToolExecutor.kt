@@ -680,6 +680,14 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
+            "offer_linux_shell" -> ToolResult(
+                success = true,
+                message = "The user is now being shown how to get Gotcha's built-in Linux shell. In one " +
+                    "short sentence, tell them their request needs it and that it comes with Samosa AI " +
+                    "Pro. Do not call ${ShellTools.OFFER} again in this chat. Do any part of the " +
+                    "request that does not need Linux.",
+                upsell = com.gotcha.upsell.UpsellReason.SHELL
+            )
             "run_shell" -> {
                 val backend = shell
                 backend.runCommand(

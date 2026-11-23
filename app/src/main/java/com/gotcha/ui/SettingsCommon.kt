@@ -110,9 +110,10 @@ import kotlin.math.round
  *
  * Most pages hang directly off the home list. The exceptions declare a [parent]:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. Two hubs exist: [AI], which collects
- * everything the assistant thinks, hears and speaks with, and [ABOUT], which
- * collects "who made this app and what did I agree to".
+ * that parent instead of from the home list. Three hubs exist: [AI], which collects
+ * everything the assistant thinks, hears and speaks with, [SHELL], which collects
+ * the two ways it can run Linux commands, and [ABOUT], which collects "who made
+ * this app and what did I agree to".
  */
 enum class SettingsPage(
     @StringRes val title: Int,
@@ -168,10 +169,16 @@ enum class SettingsPage(
         R.string.settings_page_privacy_summary,
         "settings_privacy_row"
     ),
+    SHELL(
+        R.string.settings_page_shell,
+        R.string.settings_page_shell_summary,
+        "settings_shell_row"
+    ),
     LINUX_SHELL(
         R.string.settings_page_linux_shell,
         R.string.settings_page_linux_shell_summary,
-        "settings_linux_shell_row"
+        "settings_linux_shell_row",
+        { SHELL }
     ),
     LINUX_TERMINAL(
         R.string.settings_page_linux_terminal,
@@ -182,7 +189,8 @@ enum class SettingsPage(
     TERMUX(
         R.string.settings_page_termux,
         R.string.settings_page_termux_summary,
-        "settings_termux_row"
+        "settings_termux_row",
+        { SHELL }
     ),
     SKILLS(
         R.string.settings_page_skills,
@@ -721,14 +729,20 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
     }
 }
 
-/** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
+/**
+ * Samosa AI sign-in block. The Account screen shows all of it; AI Configuration
+ * and Speech pass [modelsOnly] and show just the sign-in, or once signed in,
+ * a link to manage models: the account itself is reached from the drawer.
+ */
 @Composable
 fun SamosaAuthSection(
     email: String,
     signedIn: Boolean,
     busy: Boolean,
     onSignIn: () -> Unit,
-    onSignOut: () -> Unit,
+    onSignOut: () -> Unit = {},
+    /** Signed in, show only "Manage your Models": no credits, log out or referral cards. */
+    modelsOnly: Boolean = false,
     /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
     creditsRemaining: Double? = null,
     /** Full user profile containing tier, tags, and referral metadata. */
@@ -743,7 +757,9 @@ fun SamosaAuthSection(
      * Set when the account website is the main sign-in: shows a secondary
      * "Use Google instead" button that runs this.
      */
-    onSignInWithGoogle: (() -> Unit)? = null
+    onSignInWithGoogle: (() -> Unit)? = null,
+    /** False when the caller already shows [email]; it still pre-fills the influencer form. */
+    showEmail: Boolean = true
 ) {
     val websiteSignIn = onSignInWithGoogle != null
     val context = LocalContext.current
@@ -782,11 +798,18 @@ fun SamosaAuthSection(
             }
         }
 
-        if (signedIn && email.isNotBlank()) {
+        if (signedIn && showEmail && email.isNotBlank()) {
             Text(
                 text = email,
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+        if (signedIn && modelsOnly) {
+            OutlinedButton(
+                onClick = { openDashboard(SamosaDashboard.Section.OVERVIEW) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.samosa_manage_models)) }
+            return@Column
         }
         if (signedIn && creditsRemaining != null) {
             Row(
@@ -800,6 +823,33 @@ fun SamosaAuthSection(
                 )
                 TextButton(onClick = { openDashboard(SamosaDashboard.Section.BILLING) }) {
                     Text(stringResource(R.string.samosa_add_credits))
+                }
+            }
+        }
+        // A plan without Pro's features: what Pro adds, one tap from the pitch.
+        val tier = user?.tier
+        if (tier != null &&
+            com.gotcha.upsell.Upsell.audience(signedIn, tier.id) == com.gotcha.upsell.UpsellAudience.PRO
+        ) {
+            val openUpsell = LocalUpsell.current
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.fillMaxWidth().testTag("settings_upsell_pro")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.upsell_settings_plan, tier.displayName.ifBlank { tier.id }),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { openUpsell(com.gotcha.upsell.UpsellReason.GENERAL) }) {
+                        Text(stringResource(R.string.upsell_pro_see), fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }

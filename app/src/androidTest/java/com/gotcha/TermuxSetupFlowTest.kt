@@ -46,12 +46,14 @@ class TermuxSetupFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        // Chat home → drawer → Settings → Termux (Linux shell).
+        // Chat home → drawer → Settings → Shell → Termux.
         composeRule.onNodeWithContentDescription("Open menu").performClick()
         composeRule.onNodeWithText("Settings").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().performClick()
+        composeRule.onNodeWithTag("settings_shell_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_termux_row").performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("Install Termux").assertExists()

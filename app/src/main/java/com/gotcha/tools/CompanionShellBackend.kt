@@ -63,7 +63,7 @@ internal class CompanionShellBackend(
                         "with Gotcha's key, so run_shell will refuse to use it"
                 rootfsReady == false ->
                     "  Gotcha Shell installed: yes (version ${identity.versionName ?: "unknown"}) but its " +
-                        "Linux system is not installed yet — the user installs it from Settings ▸ Linux shell"
+                        "Linux system is not installed yet — the user installs it from Settings ▸ Shell ▸ Gotcha Shell"
                 else ->
                     "  Gotcha Shell installed: yes (version ${identity.versionName ?: "unknown"}, " +
                         "Ubuntu under PRoot; home is /root; it cannot see shared storage)"
@@ -324,9 +324,11 @@ internal class CompanionShellBackend(
     /** Silence would be wrong if this fails: without a source the companion has nothing to fetch. */
     private suspend fun offerRuntime(): Boolean = offerRuntimeSource(link, runtimeSource)
 
-    private fun proRequired(access: ShellEntitlement.Access) = ToolResult.error(
-        "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
-            "Settings ▸ Linux shell. Do not retry, and do not suggest a workaround that needs the Linux shell."
+    private fun proRequired(access: ShellEntitlement.Access) = ToolResult(
+        success = false,
+        message = "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
+            "Settings ▸ Shell ▸ Gotcha Shell. Do not retry, and do not suggest a workaround that needs the Linux shell.",
+        upsell = com.gotcha.upsell.UpsellReason.SHELL.takeIf { access != ShellEntitlement.Access.NEEDS_CHECK }
     )
 
     /**
@@ -339,7 +341,7 @@ internal class CompanionShellBackend(
     private fun runtimeMissing(installing: Boolean) = ToolResult.error(
         if (installing) {
             "Gotcha Shell is still downloading its Linux runtime. Wait for it to finish (progress is " +
-                "shown in Settings ▸ Linux shell), then try again. Do not retry in a loop."
+                "shown in Settings ▸ Shell ▸ Gotcha Shell), then try again. Do not retry in a loop."
         } else {
             "Gotcha Shell has its Linux system but not the runtime it runs on, which is downloaded " +
                 "on first use. Check the connection and that the account includes the shell, then " +

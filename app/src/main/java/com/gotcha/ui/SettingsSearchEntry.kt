@@ -162,7 +162,7 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.AI_CONFIG -> SettingsSearchEntry(
         page,
-        words("samosa sign in, sign in, login, credits, temperature"),
+        words("samosa sign in, sign in, login, temperature"),
         listOf(
             field("settings_llm_provider", R.string.settings_field_llm_provider, "provider, openai, samosa"),
             field("settings_api_key", R.string.settings_field_api_key),
@@ -225,6 +225,10 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             overlay, grant, allow
             """
         )
+    )
+    SettingsPage.SHELL -> SettingsSearchEntry(
+        page,
+        words("linux, shell, command, terminal, termux, gotcha shell")
     )
     SettingsPage.LINUX_SHELL -> SettingsSearchEntry(
         page,

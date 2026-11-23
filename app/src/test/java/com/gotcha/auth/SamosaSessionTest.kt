@@ -217,6 +217,7 @@ class SamosaSessionTest {
                 )
             }
             override suspend fun me(bearer: String) = MeResponse(SamosaUser(email = "user@example.com"))
+            override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()
@@ -241,6 +242,7 @@ class SamosaSessionTest {
             override suspend fun register(body: RegisterRequest) =
                 RegisterResponse(token = "seven-day-token", user = SamosaUser(email = "user@example.com"))
             override suspend fun me(bearer: String) = MeResponse(SamosaUser(email = "user@example.com"))
+            override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
             override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest) = ClaimReferralResponse()
             override suspend fun logout(bearer: String) = Unit
             override suspend fun exchangeCode(body: OAuthTokenRequest) = RegisterResponse()

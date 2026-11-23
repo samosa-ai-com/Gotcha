@@ -20,7 +20,9 @@ import org.robolectric.annotation.Config
  * the remembered answer through [ShellEntitlement.remembered].
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// A plain Application: GotchaApp.onCreate starts its own plan check on a background thread,
+// which raced these tests for the same stored answer and the same refresh lock.
+@Config(sdk = [34], application = android.app.Application::class)
 class ShellEntitlementTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -110,6 +112,14 @@ class ShellEntitlementTest {
     }
 
     @Test
+    fun `a tier id spelled with capitals still counts as Pro`() = runTest {
+        refresh(Source(TierAnswer.Tier("Pro")), force = true)
+        assertEquals(Access.ALLOWED, remembered())
+        refresh(Source(TierAnswer.Tier("INFLUENCER")), force = true)
+        assertEquals(Access.ALLOWED, remembered())
+    }
+
+    @Test
     fun `asking by hand ignores the rest after an unanswered ask`() = runTest {
         val source = Source(TierAnswer.Unavailable)
         refresh(source)
@@ -154,19 +164,18 @@ class ShellEntitlementTest {
 
     @Test
     fun `a missing token during a backend refresh keeps the remembered Pro answer`() = runTest {
-        FakeAndroidKeyStore.setUp()
-        SettingsRepository(context).clearSamosaSession()
-        ShellEntitlement.onSignedIn(context)
         refresh(Source(TierAnswer.Tier("pro")), force = true)
-        ShellEntitlement.refresh(context, force = true) { now }
+        // The real source with no stored session. Its token is given here rather than read from
+        // encrypted storage, which on a background thread could hang and hold the refresh lock.
+        ShellEntitlement.refresh(context, force = true, ShellEntitlement.BackendTierSource(context) { "" }) { now }
         assertEquals(Access.ALLOWED, remembered())
     }
 
     @Test
-    fun `signing out turns the shell off at once and signing in asks again`() {
+    fun `signing out turns the shell off at once and signing in asks again`() = runTest {
         FakeAndroidKeyStore.setUp()
         val settings = SettingsRepository(context)
-        kotlinx.coroutines.runBlocking { refresh(Source(TierAnswer.Tier("pro"))) }
+        refresh(Source(TierAnswer.Tier("pro")))
         assertEquals(Access.ALLOWED, remembered())
 
         settings.clearSamosaSession()
@@ -174,5 +183,24 @@ class ShellEntitlementTest {
 
         settings.saveSamosaSession("token", "user@example.com")
         assertEquals(Access.NEEDS_CHECK, remembered())
+    }
+
+    @Test
+    fun `the tier is remembered and forgotten with the session`() = runTest {
+        FakeAndroidKeyStore.setUp()
+        val settings = SettingsRepository(context)
+        assertNull(ShellEntitlement.knownTier(context))
+        refresh(Source(TierAnswer.Tier("free")))
+        assertEquals("free", ShellEntitlement.knownTier(context))
+
+        // An unanswered check keeps what was learnt.
+        refresh(Source(TierAnswer.Unavailable), force = true)
+        assertEquals("free", ShellEntitlement.knownTier(context))
+
+        settings.clearSamosaSession()
+        assertNull(ShellEntitlement.knownTier(context))
+
+        settings.saveSamosaSession("token", "user@example.com")
+        assertNull(ShellEntitlement.knownTier(context))
     }
 }

@@ -62,6 +62,9 @@ object ShellEntitlement {
 
     /** Tiers that include the shell: Pro, and Influencer, which carries Pro's features. */
     val SHELL_TIERS = setOf("pro", "influencer")
+
+    /** Whether the tier [id], as the backend spells it, includes the shell. */
+    fun includesShell(id: String): Boolean = id.trim().lowercase() in SHELL_TIERS
     const val OFFLINE_WINDOW_MILLIS = 72L * 60 * 60 * 1000
     const val RECHECK_AFTER_MILLIS = 24L * 60 * 60 * 1000
 
@@ -78,6 +81,7 @@ object ShellEntitlement {
     private const val KEY_CONFIRMED_AT = "access_confirmed_at"
     private const val KEY_CHECKED_AT = "access_checked_at"
     private const val KEY_ATTEMPTED_AT = "access_attempted_at"
+    private const val KEY_TIER = "account_tier"
     private const val STATE_PRO = "pro"
     private const val STATE_NOT_PRO = "not_pro"
     private const val STATE_SIGNED_OUT = "signed_out"
@@ -143,8 +147,10 @@ object ShellEntitlement {
         if (force || isDue(read(app), now())) {
             val asked = now()
             when (val answer = source.fetch()) {
-                is TierAnswer.Tier ->
-                    write(app, if (answer.id in SHELL_TIERS) STATE_PRO else STATE_NOT_PRO, now())
+                is TierAnswer.Tier -> {
+                    write(app, if (includesShell(answer.id)) STATE_PRO else STATE_NOT_PRO, now())
+                    prefs(app).edit().putString(KEY_TIER, answer.id).apply()
+                }
                 TierAnswer.SignedOut -> write(app, STATE_SIGNED_OUT, now())
                 TierAnswer.Unavailable -> prefs(app).edit().putLong(KEY_ATTEMPTED_AT, asked).apply()
             }
@@ -152,10 +158,18 @@ object ShellEntitlement {
         access(app, now())
     }
 
+    /**
+     * The signed-in account's tier id as the backend last gave it ("free", "pro", …), or null
+     * when it was never learnt or the account signed out since. Unlike [access] it has no
+     * offline window: it says which plan to talk about, not what may run.
+     */
+    fun knownTier(context: Context): String? =
+        if (read(context).state == STATE_SIGNED_OUT) null else prefs(context).getString(KEY_TIER, null)
+
     /** A new sign-in: whatever was remembered belonged to another session. */
     fun onSignedIn(context: Context) {
         prefs(context).edit().remove(KEY_STATE).remove(KEY_CONFIRMED_AT).remove(KEY_CHECKED_AT)
-            .remove(KEY_ATTEMPTED_AT).apply()
+            .remove(KEY_ATTEMPTED_AT).remove(KEY_TIER).apply()
     }
 
     /** Signing out turns the shell off without waiting for the next check. */
@@ -182,10 +196,16 @@ object ShellEntitlement {
     private fun prefs(context: Context) =
         (context.applicationContext ?: context).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** Reads the tier from `GET /me` with the stored Samosa session. */
-    private class BackendTierSource(private val context: Context) : TierSource {
+    /**
+     * Reads the tier from `GET /me` with the stored Samosa session. [token] reads that session;
+     * tests replace it, since the real read opens encrypted storage on a background thread.
+     */
+    internal class BackendTierSource(
+        private val context: Context,
+        private val token: () -> String = { SettingsRepository(context).load().samosaSessionToken }
+    ) : TierSource {
         override suspend fun fetch(): TierAnswer = withContext(Dispatchers.IO) {
-            val token = SettingsRepository(context).load().samosaSessionToken
+            val token = token()
             // A missing token during startup is not proof of an explicit sign-out. Keep the
             // remembered answer; clearSamosaSession() records an actual sign-out separately.
             if (token.isBlank()) return@withContext TierAnswer.Unavailable

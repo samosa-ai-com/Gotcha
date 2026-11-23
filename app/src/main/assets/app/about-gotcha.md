@@ -149,7 +149,7 @@ missing, where to turn it on, and offer to try again afterwards.
 | Device admin | Lock screen, disable camera, password policy | Settings > Permissions |
 | Root | Root commands and secure-settings writes | A rooted device; `check_root` reports the truth |
 | The secure-settings grant (or root) | Turning Night Light off for ball and Screen Lens screenshots, so they come out without its tint | Once, from a computer: `adb shell pm grant com.gotcha android.permission.WRITE_SECURE_SETTINGS`; Settings > Assistive Ball and Wake Word shows the command |
-| Termux | Termux commands, audio conversion, pulling files out of Termux | Install Termux from F-Droid, then Settings > Termux (Linux shell) |
+| Termux | Termux commands, audio conversion, pulling files out of Termux | Install Termux from F-Droid, then Settings > Shell > Termux |
 | Health Connect | Health summaries and records | Settings > Permissions > Health |
 | Display over other apps | The overlay tools and the Assistive Ball | Settings > Permissions |
 
@@ -191,13 +191,19 @@ model's context and could carry an injected instruction.
 (including `/v1/`), and model name. Any OpenAI-compatible `/chat/completions`
 endpoint with tool calling works, or sign in to Samosa AI for starter credits.
 
+**"What is Samosa AI Pro?"** A paid Samosa AI plan. It adds Gotcha's built-in
+Linux shell, more capable models, higher limits and early access to new
+features. "Get Samosa AI Pro" in the side menu, or "See Pro" on the Samosa AI
+account page (tap your name in the side menu), shows what it includes and opens
+the account website where it is bought.
+
 **"Enable the floating ball / wake word."** Settings > Assistive Ball and Wake
 Word. The ball needs the display-over-other-apps permission; the wake word
 listens from inside the ball's service, and "When to listen" controls whether
 that happens with the screen on, off, or always.
 
-**"Get Termux working."** Install Termux from F-Droid, then Settings > Termux
-(Linux shell) for the guided setup. Each command runs in a separate shell, so
+**"Get Termux working."** Install Termux from F-Droid, then Settings > Shell >
+Termux for the guided setup. Each command runs in a separate shell, so
 `cd` and `export` do not carry over between calls.
 
 **"Read replies aloud."** Settings > AI > Speech (TTS / STT) > Auto-read replies

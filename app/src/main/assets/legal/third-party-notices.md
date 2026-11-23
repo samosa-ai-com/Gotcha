@@ -16,7 +16,7 @@ app uses for wake-word detection.
 
 ## Termux terminal emulator and view
 
-The terminal in Settings ▸ Linux shell uses the terminal emulator and
+The terminal in Settings ▸ Shell ▸ Gotcha Shell uses the terminal emulator and
 terminal view libraries of the Termux project
 (https://github.com/termux/termux-app, tag v0.118.3), unchanged. They are
 licensed under the Apache License, Version 2.0.

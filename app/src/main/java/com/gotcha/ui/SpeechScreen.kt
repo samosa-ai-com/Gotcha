@@ -42,10 +42,12 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.audio.VoiceInfo
+import com.gotcha.auth.ModelAccess
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import com.gotcha.upsell.UpsellReason
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +65,8 @@ fun SpeechScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
+    /** The Samosa AI plan's models, or null when nothing is locked; see [com.gotcha.auth.ModelAccess]. */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(emptyList(), emptyList())
     },
@@ -76,13 +80,6 @@ fun SpeechScreen(
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside this screen; it re-reads it. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    onSamosaSignOut: suspend () -> Unit = {},
-    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
-    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Claims an invite code via the auth manager. */
-    onClaimReferral: suspend (String) -> Result<Unit> = {
-        Result.failure(Exception("Not supported"))
-    },
     /** Opens Settings → Language, where every language setting lives. */
     onOpenLanguage: () -> Unit = {},
     /** Android Built-in's engines and what they can do for a language; see [AndroidSpeechStatus]. */
@@ -110,13 +107,12 @@ fun SpeechScreen(
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
-    var samosaCredits by remember { mutableStateOf<Double?>(null) }
-    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
-    var referralBusy by remember { mutableStateOf(false) }
-    var referralError by remember { mutableStateOf<String?>(null) }
 
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    // Null: nothing locked (no Samosa AI provider, a plan without a list, or not known yet).
+    var allowedModels by remember { mutableStateOf<Set<String>?>(null) }
+    val openUpsell = LocalUpsell.current
     var refreshingModels by remember { mutableStateOf(false) }
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
@@ -134,18 +130,8 @@ fun SpeechScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the profile & credit balance when signed in, and whenever the token changes
-    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
-    LaunchedEffect(samosaToken) {
-        if (samosaToken.isBlank()) {
-            samosaCredits = null
-            samosaUser = null
-        } else {
-            val profile = onFetchSamosaProfile()
-            samosaUser = profile
-            samosaCredits = profile?.creditsRemaining
-        }
-    }
+    // The account, its credits and log out live on the Account screen (from
+    // the drawer); this page only needs to know whether the user is signed in.
     SamosaSessionSync(
         sessionChanges = samosaSessionChanges,
         onSessionChanged = {
@@ -153,16 +139,7 @@ fun SpeechScreen(
             samosaToken = current.samosaSessionToken
             samosaEmail = current.samosaEmail
         },
-        onResumed = {
-            if (samosaToken.isNotBlank()) {
-                scope.launch {
-                    onFetchSamosaProfile()?.let { profile ->
-                        samosaUser = profile
-                        samosaCredits = profile.creditsRemaining
-                    }
-                }
-            }
-        }
+        onResumed = {}
     )
 
     /** Runs one sign-in attempt and shows how it went. */
@@ -174,9 +151,6 @@ fun SpeechScreen(
             result.onSuccess { (email, token) ->
                 samosaEmail = email
                 samosaToken = token
-                val profile = onFetchSamosaProfile()
-                samosaUser = profile
-                samosaCredits = profile?.creditsRemaining
                 status = localContext.getString(R.string.samosa_signed_in_as, email)
             }.onFailure { e ->
                 status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
@@ -237,6 +211,28 @@ fun SpeechScreen(
                 availableTtsModels = tts
                 availableSttModels = stt
                 status = localContext.getString(R.string.speech_models_found, tts.size, stt.size)
+                val samosa = ttsProvider == AudioProvider.SAMOSA_AI || sttProvider == AudioProvider.SAMOSA_AI
+                allowedModels = if (samosa) onFetchAllowedModels() else null
+                // A chosen Samosa AI model outside the plan would be refused on
+                // every use: switch to one the plan allows before it is saved.
+                fun replacement(current: String, models: List<AudioModel>): String? =
+                    if (ModelAccess.isLocked(current, allowedModels)) {
+                        models.firstOrNull { !ModelAccess.isLocked(it.id, allowedModels) }?.id
+                    } else {
+                        null
+                    }
+                if (ttsProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(ttsApiModel, tts)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, ttsApiModel, it)
+                        ttsApiModel = it
+                    }
+                }
+                if (sttProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(sttApiModel, stt)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, sttApiModel, it)
+                        sttApiModel = it
+                    }
+                }
                 refreshingModels = false
             }
         }
@@ -290,32 +286,7 @@ fun SpeechScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
-                creditsRemaining = samosaCredits,
-                user = samosaUser,
-                referralBusy = referralBusy,
-                referralError = referralError,
-                onClaimReferral = { code ->
-                    referralBusy = true
-                    referralError = null
-                    scope.launch {
-                        val res = onClaimReferral(code)
-                        res.onSuccess {
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = (profile ?: samosaUser)?.let { u ->
-                                u.copy(
-                                    referral = u.referral.copy(canClaim = false),
-                                    creditsRemaining = profile?.creditsRemaining ?: samosaCredits
-                                )
-                            }
-                            samosaCredits = samosaUser?.creditsRemaining
-                            referralBusy = false
-                            status = localContext.getString(R.string.samosa_invite_applied)
-                        }.onFailure { e ->
-                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
-                            referralBusy = false
-                        }
-                    }
-                },
+                modelsOnly = true,
                 onSignIn = {
                     runSamosaSignIn(
                         if (onSamosaSignInWithGoogle != null) {
@@ -329,19 +300,6 @@ fun SpeechScreen(
                 onSignInWithGoogle = onSamosaSignInWithGoogle?.let { google ->
                     {
                         runSamosaSignIn(R.string.samosa_signing_in_google, google)
-                    }
-                },
-                onSignOut = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_out)
-                    scope.launch {
-                        onSamosaSignOut()
-                        samosaToken = ""
-                        samosaEmail = ""
-                        samosaCredits = null
-                        samosaUser = null
-                        status = localContext.getString(R.string.samosa_signed_out)
-                        samosaBusy = false
                     }
                 }
             )
@@ -389,6 +347,11 @@ fun SpeechScreen(
                     onSelect = {
                         ttsApiModel = it
                         ttsModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        ttsModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
                 )
                 TtsVoicePicker(
@@ -553,6 +516,11 @@ fun SpeechScreen(
                     onSelect = {
                         sttApiModel = it
                         sttModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        sttModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
                 )
                 TranscriptionLanguageSummary(
@@ -678,7 +646,10 @@ private fun TtsModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -718,9 +689,11 @@ private fun TtsModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }
@@ -821,7 +794,10 @@ private fun SttModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -861,9 +837,11 @@ private fun SttModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }

@@ -73,7 +73,10 @@
     <string name="settings_page_speech_summary">Stimmen, Transkription, Antworten vorlesen</string>
     <string name="settings_page_permissions">Berechtigungen</string>
     <string name="settings_page_permissions_summary">Was der Assistent darf</string>
-    <string name="settings_page_termux">Termux (Linux-Shell)</string>
+    <string name="settings_page_shell">Shell</string>
+    <string name="settings_page_shell_summary">Gotcha Shell oder Termux: wo der Assistent Linux-Befehle ausführt</string>
+    <string name="shell_hub_intro">Zwei Wege, wie der Assistent Linux-Befehle ausführen kann. Gotcha Shell ist ein vollständiges Linux-System in einer eigenen App; Termux nutzt die Termux-App, falls du sie schon hast. Richte eine davon ein, oder beide.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Befehle in einer echten Linux-Shell ausführen</string>
     <string name="settings_page_skills">Skills / Plugins</string>
     <string name="settings_page_skills_summary">Integrierte und Community-Skills</string>
@@ -196,6 +199,8 @@
     <string name="ai_config_select_model">(Modell wählen)</string>
     <string name="ai_config_no_models_found">Keine Modelle gefunden</string>
     <string name="ai_config_custom_model">✏️ Eigenes Modell…</string>
+    <string name="ai_config_model_locked">Nicht in deinem Tarif</string>
+    <string name="ai_config_model_not_in_plan">%1$s ist nicht in deinem Tarif, daher ist stattdessen %2$s ausgewählt. Speichere, um es zu behalten.</string>
     <string name="ai_config_sub_agent_model">Modell für Subagenten</string>
     <string name="ai_config_same_as_main_agent">Wie der Hauptagent</string>
     <string name="ai_config_navigator_model">Modell für Navigation</string>
@@ -1614,6 +1619,9 @@
     <string name="samosa_sign_in_hint_website">Melde dich auf der Samosa-AI-Website an, um Samosa AI zu nutzen. Deine OpenAI-kompatiblen Einstellungen werden getrennt gespeichert und bleiben unverändert.</string>
     <string name="samosa_opening_sign_in">Samosa-Anmeldung wird geöffnet…</string>
     <string name="samosa_manage_account">Konto verwalten</string>
+    <string name="samosa_manage_models">Deine Modelle verwalten</string>
+    <string name="account_title">Samosa AI-Konto</string>
+    <string name="account_fallback_name">Samosa-Konto</string>
     <string name="samosa_add_credits">Guthaben aufladen</string>
     <string name="samosa_sign_in_cancelled">Anmeldung abgebrochen.</string>
     <string name="samosa_session_ended">Du wurdest von Samosa AI abgemeldet. Melde dich erneut an, um es weiter zu nutzen.</string>
@@ -1705,7 +1713,7 @@
     <string name="telemetry_event_setup">Wenn du die KI-Einrichtung speicherst oder die Verbindung testest: Samosa AI oder dein eigener Server (nur als Art benannt), ob ein Schlüssel eingetragen ist und ob der Test geklappt hat, nie der Schlüssel, die Adresse oder das Modell</string>
     <string name="telemetry_event_lens">Wenn du Screen Lens oder einen Vorschlag von Screen Companion nutzt: welche Art von Aktion du angetippt hast, etwa Kopieren, Übersetzen oder Anrufen, nie was auf dem Bildschirm war</string>
     <string name="telemetry_event_crash">Wenn Gotcha abstürzt: die Art des Fehlers und die Methode, aus der er kam, nie seine Meldung</string>
-    <string name="settings_page_linux_shell">Linux-Shell</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: ein vollständiges Linux-System für den Assistenten</string>
     <string name="linux_shell_intro">Gotcha Shell ist eine eigene App, die dem Assistenten ein vollständiges Linux-System gibt: Pakete installieren, Skripte und Werkzeuge ausführen, die kein Handy mitbringt. Sie läuft getrennt von Gotcha, sodass kein Befehl Gotchas Einstellungen, Chats oder Erinnerungen ändern kann, und sie sieht deine Dateien nur, wenn Gotcha ihr eine übergibt.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
@@ -1766,4 +1774,37 @@
     <string name="linux_shell_phase_download_runtime">Laufzeit wird heruntergeladen…</string>
     <string name="linux_shell_phase_verify_runtime">Laufzeit wird geprüft…</string>
     <string name="linux_shell_phase_install_runtime">Laufzeit wird installiert…</string>
+
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa AI Pro</string>
+    <string name="upsell_pro_lead_shell">Für Linux-Befehle braucht es Gotchas integrierte Linux-Shell, die mit Samosa AI Pro kommt.</string>
+    <string name="upsell_pro_lead_limits">Du hast das Limit deines Tarifs vorerst erreicht. Pro bietet höhere Limits, damit du weitermachen kannst.</string>
+    <string name="upsell_pro_lead_value">Du erledigst viel mit Gotcha. Mit Pro hat es noch mehr zur Verfügung.</string>
+    <string name="upsell_pro_lead_general">Hol mehr aus Gotcha heraus – mit Samosa AI Pro.</string>
+    <string name="upsell_pro_feature_shell">Eine integrierte Linux-Shell: echte Linux-Befehle, aus dem Chat oder dem Terminal</string>
+    <string name="upsell_pro_feature_models">Leistungsfähigere Modelle</string>
+    <string name="upsell_pro_feature_limits">Höhere Limits</string>
+    <string name="upsell_pro_feature_early">Früher Zugang zu neuen Funktionen</string>
+    <string name="upsell_pro_footnote">Die Tarife findest du auf deiner Samosa-AI-Kontoseite. Komm danach zu Gotcha zurück, und Pro ist einsatzbereit.</string>
+    <string name="upsell_pro_action">Pro holen</string>
+    <string name="upsell_pro_see">Pro ansehen</string>
+    <string name="upsell_samosa_title">Samosa AI entdecken</string>
+    <string name="upsell_samosa_lead_shell">Gotchas integrierte Linux-Shell kommt mit Samosa AI Pro. Der erste Schritt ist ein Samosa-AI-Konto.</string>
+    <string name="upsell_samosa_lead_limits">Dein KI-Anbieter antwortet gerade nicht. Samosa AI funktioniert ohne eigenen API-Schlüssel.</string>
+    <string name="upsell_samosa_lead_general">Samosa AI ist der KI-Dienst für Gotcha, vom selben Team, das Gotcha entwickelt.</string>
+    <string name="upsell_samosa_feature_no_key">Kein API-Schlüssel zu verwalten: anmelden und loslegen</string>
+    <string name="upsell_samosa_feature_credits">Gratis-Guthaben zum Start</string>
+    <string name="upsell_samosa_feature_tuned">Modelle, die für Gotcha ausgewählt und eingerichtet sind</string>
+    <string name="upsell_samosa_feature_pro">Pro, wenn du mehr willst: die Linux-Shell, leistungsfähigere Modelle und höhere Limits</string>
+    <string name="upsell_samosa_footnote">Du kannst deinen KI-Anbieter jederzeit in der KI-Konfiguration ändern.</string>
+    <string name="upsell_samosa_action">Samosa AI testen</string>
+    <string name="upsell_samosa_see">Samosa AI entdecken</string>
+    <string name="upsell_not_now">Nicht jetzt</string>
+    <string name="upsell_settings_plan">Du nutzt den Tarif %1$s. Pro bietet die Linux-Shell, leistungsfähigere Modelle und höhere Limits.</string>
+    <string name="upsell_settings_switch">Zu Samosa AI wechseln</string>
+    <string name="upsell_drawer_pro">Samosa AI Pro holen</string>
+    <string name="upsell_welcome_title">Willkommen bei Pro</string>
+    <string name="upsell_welcome_text">Dein Samosa-AI-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
+    <string name="upsell_welcome_shell">Linux-Shell einrichten</string>
+    <string name="upsell_welcome_later">Später</string>
 </resources>

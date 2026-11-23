@@ -92,7 +92,16 @@ data class RunState(
      * The chat whose protections are skipped (issue #155), or null. Shown
      * whichever chat is viewed; the banner lights up when it is the open one.
      */
-    val protectionsSkippedSessionId: String? = null
+    val protectionsSkippedSessionId: String? = null,
+    /** The Samosa AI / Pro nudge the last run brought up, or null. Not saved with the chat. */
+    val upsell: ChatUpsell? = null
+)
+
+/** A nudge shown under a chat's transcript: in [sessionId], to [audience], because of [reason]. */
+data class ChatUpsell(
+    val sessionId: String,
+    val audience: com.gotcha.upsell.UpsellAudience,
+    val reason: com.gotcha.upsell.UpsellReason
 )
 
 /** A chat screen following [ChatRunner]. Called on the thread that changed the state. */
@@ -665,7 +674,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 runningSessionId = runningId,
                 runningSessionTitle = runningTitle,
                 backgroundHint = currentBackgroundHint(),
-                foregroundControlStatus = null
+                foregroundControlStatus = null,
+                // The next request moves on from whatever the last one ran into.
+                upsell = null
             )
         }
         // Issue #105: hold a foreground slot for the run, so Android keeps the
@@ -948,6 +959,29 @@ class ChatRunner(private val app: Application) : AgentEvents {
             speak(text)
         }
         currentRunIsVoice = false
+    }
+
+    override fun onRunSummary(runSummary: com.gotcha.data.RunSummary) {
+        if (runSummary.succeeded) com.gotcha.upsell.UpsellStore(settingsRepository.prefs).recordSuccessfulRun()
+    }
+
+    override val showsUpsell: Boolean get() = true
+
+    override fun onUpsell(reason: com.gotcha.upsell.UpsellReason) {
+        val sessionId = engine.sessionId ?: return
+        val anyone = com.gotcha.upsell.Upsell.audience(app, settings)
+        val audience = if (reason == com.gotcha.upsell.UpsellReason.LIMITS) {
+            com.gotcha.upsell.Upsell.limitsAudience(anyone, settings.provider)
+        } else {
+            anyone
+        }
+        if (audience == com.gotcha.upsell.UpsellAudience.NONE) return
+        setState { it.copy(upsell = ChatUpsell(sessionId, audience, reason)) }
+    }
+
+    /** The user closed the nudge under the chat. */
+    fun dismissUpsell() {
+        setState { it.copy(upsell = null) }
     }
 
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {

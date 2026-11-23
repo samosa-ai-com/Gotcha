@@ -67,7 +67,7 @@ import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 
 /**
- * Settings ▸ Linux shell ▸ Terminal: a real terminal in the Linux system of Gotcha Shell.
+ * Settings ▸ Shell ▸ Gotcha Shell ▸ Terminal: a real terminal in the Linux system of Gotcha Shell.
  *
  * The session lives in [TerminalViewModel], so rotating the phone or leaving the screen does not
  * end it; "End the session" or `exit` does. The view is Termux's, copied unchanged into

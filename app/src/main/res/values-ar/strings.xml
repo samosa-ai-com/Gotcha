@@ -139,7 +139,10 @@
     <string name="settings_page_speech_summary">الأصوات، النسخ، قراءة الردود بصوت عالٍ</string>
     <string name="settings_page_permissions">الأذونات</string>
     <string name="settings_page_permissions_summary">ما يُسمح للمساعد بفعله</string>
-    <string name="settings_page_termux">Termux (صدفة Linux)</string>
+    <string name="settings_page_shell">الصدفة</string>
+    <string name="settings_page_shell_summary">Gotcha Shell أو Termux: حيث يشغّل المساعد أوامر Linux</string>
+    <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
+    <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">شغّل الأوامر في صدفة Linux حقيقية</string>
     <string name="settings_page_skills">المهارات / الإضافات</string>
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
@@ -299,6 +302,8 @@
     <string name="ai_config_select_model">(اختر نموذجًا)</string>
     <string name="ai_config_no_models_found">لم يتم العثور على نماذج</string>
     <string name="ai_config_custom_model">✏️ نموذج مخصص…</string>
+    <string name="ai_config_model_locked">غير مشمول في خطتك</string>
+    <string name="ai_config_model_not_in_plan">‏%1$s غير مشمول في خطتك، لذا تم اختيار %2$s بدلًا منه. احفظ للإبقاء عليه.</string>
     <string name="ai_config_sub_agent_model">نموذج الوكيل الفرعي</string>
     <string name="ai_config_same_as_main_agent">نفس الوكيل الرئيسي</string>
     <string name="ai_config_navigator_model">نموذج المتصفح</string>
@@ -2002,6 +2007,9 @@
     <string name="samosa_sign_in_hint_website">سجّل الدخول على موقع Samosa AI لاستخدام Samosa AI. تُحفظ إعداداتك المتوافقة مع OpenAI بشكل منفصل ولا تتأثر.</string>
     <string name="samosa_opening_sign_in">جارٍ فتح تسجيل الدخول إلى Samosa…</string>
     <string name="samosa_manage_account">إدارة الحساب</string>
+    <string name="samosa_manage_models">إدارة نماذجك</string>
+    <string name="account_title">حساب Samosa AI</string>
+    <string name="account_fallback_name">حساب Samosa</string>
     <string name="samosa_add_credits">إضافة رصيد</string>
     <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
@@ -2093,7 +2101,7 @@
     <string name="telemetry_event_setup">عندما تحفظ إعداد الذكاء الاصطناعي أو تختبر الاتصال: Samosa AI أو خادمك الخاص (يُذكر نوعه فقط)، وهل أُدخل مفتاح، وهل نجح الاختبار، دون المفتاح أو العنوان أو النموذج أبدًا</string>
     <string name="telemetry_event_lens">عندما تستخدم Screen Lens أو اقتراحًا من Screen Companion: نوع الإجراء الذي نقرت عليه، مثل النسخ أو الترجمة أو الاتصال، دون ما كان على الشاشة أبدًا</string>
     <string name="telemetry_event_crash">عندما يتعطل Gotcha: نوع الخطأ والدالة التي جاء منها، دون رسالته أبدًا</string>
-    <string name="settings_page_linux_shell">صدفة Linux</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Gotcha Shell: نظام Linux كامل للمساعد</string>
     <string name="linux_shell_intro">Gotcha Shell تطبيق منفصل يمنح المساعد نظام Linux كاملًا: تثبيت الحزم وتشغيل نصوص برمجية وأدوات لا يأتي بها أي هاتف. يعمل بمعزل عن Gotcha، فلا يستطيع أي أمر تغيير إعدادات Gotcha أو محادثاته أو ذاكرته، ولا يرى ملفاتك إلا إذا سلّمه Gotcha ملفًا.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
@@ -2154,4 +2162,37 @@
     <string name="linux_shell_phase_download_runtime">جارٍ تنزيل بيئة التشغيل…</string>
     <string name="linux_shell_phase_verify_runtime">جارٍ فحص بيئة التشغيل…</string>
     <string name="linux_shell_phase_install_runtime">جارٍ تثبيت بيئة التشغيل…</string>
+
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa AI Pro</string>
+    <string name="upsell_pro_lead_shell">يتطلب تشغيل أوامر Linux صدفة Linux المدمجة في Gotcha، وهي متاحة مع Samosa AI Pro.</string>
+    <string name="upsell_pro_lead_limits">وصلت إلى حد خطتك في الوقت الحالي. يمنحك Pro حدودًا أعلى لتواصل العمل.</string>
+    <string name="upsell_pro_lead_value">أنت تنجز الكثير مع Gotcha. يمنحه Pro إمكانات أكبر.</string>
+    <string name="upsell_pro_lead_general">احصل على المزيد من Gotcha مع Samosa AI Pro.</string>
+    <string name="upsell_pro_feature_shell">صدفة Linux مدمجة: أوامر Linux حقيقية من المحادثة أو الطرفية</string>
+    <string name="upsell_pro_feature_models">نماذج أكثر قدرة</string>
+    <string name="upsell_pro_feature_limits">حدود أعلى</string>
+    <string name="upsell_pro_feature_early">وصول مبكر إلى الميزات الجديدة</string>
+    <string name="upsell_pro_footnote">الخطط متاحة في صفحة حسابك على Samosa AI. عد إلى Gotcha عند الانتهاء وسيكون Pro جاهزًا للاستخدام.</string>
+    <string name="upsell_pro_action">احصل على Pro</string>
+    <string name="upsell_pro_see">اعرض Pro</string>
+    <string name="upsell_samosa_title">اكتشف Samosa AI</string>
+    <string name="upsell_samosa_lead_shell">صدفة Linux المدمجة في Gotcha متاحة مع Samosa AI Pro. البداية بحساب على Samosa AI.</string>
+    <string name="upsell_samosa_lead_limits">توقف مزوّد الذكاء الاصطناعي عن الرد في الوقت الحالي. يعمل Samosa AI دون الحاجة إلى مفتاح API خاص بك.</string>
+    <string name="upsell_samosa_lead_general">Samosa AI هي خدمة الذكاء الاصطناعي المصممة لـ Gotcha، من الفريق نفسه الذي يطوّره.</string>
+    <string name="upsell_samosa_feature_no_key">لا مفاتيح API لإدارتها: سجّل الدخول وابدأ</string>
+    <string name="upsell_samosa_feature_credits">رصيد مجاني للبدء</string>
+    <string name="upsell_samosa_feature_tuned">نماذج مختارة ومُعدّة لـ Gotcha</string>
+    <string name="upsell_samosa_feature_pro">Pro عندما تريد المزيد: صدفة Linux ونماذج أكثر قدرة وحدود أعلى</string>
+    <string name="upsell_samosa_footnote">يمكنك تغيير مزوّد الذكاء الاصطناعي في أي وقت من إعدادات الذكاء الاصطناعي.</string>
+    <string name="upsell_samosa_action">جرّب Samosa AI</string>
+    <string name="upsell_samosa_see">اكتشف Samosa AI</string>
+    <string name="upsell_not_now">ليس الآن</string>
+    <string name="upsell_settings_plan">أنت على خطة %1$s. يضيف Pro صدفة Linux ونماذج أكثر قدرة وحدودًا أعلى.</string>
+    <string name="upsell_settings_switch">التبديل إلى Samosa AI</string>
+    <string name="upsell_drawer_pro">احصل على Samosa AI Pro</string>
+    <string name="upsell_welcome_title">مرحبًا بك في Pro</string>
+    <string name="upsell_welcome_text">خطة Samosa AI Pro مفعّلة: صدفة Linux والنماذج الأكثر قدرة والحدود الأعلى جاهزة لك.</string>
+    <string name="upsell_welcome_shell">إعداد صدفة Linux</string>
+    <string name="upsell_welcome_later">لاحقًا</string>
 </resources>
