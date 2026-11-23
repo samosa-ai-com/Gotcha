@@ -88,6 +88,14 @@ data class TourStep(
 fun defaultTourSteps(): List<TourStep> =
     brainSteps() + permissionSteps() + profileSteps()
 
+/**
+ * Saved step ids from earlier builds, mapped to the step that took their place,
+ * so a tour paused on a step that is gone resumes where it was rather than from
+ * the top. "open_ai" opened the AI hub, which the settings redesign removed;
+ * the AI model row it led to now sits on the Settings list itself.
+ */
+val RETIRED_TOUR_STEPS: Map<String, String> = mapOf("open_ai" to "open_ai_config")
+
 /** Finding Settings, and giving the assistant something to think with. */
 private fun brainSteps(): List<TourStep> = listOf(
     TourStep(

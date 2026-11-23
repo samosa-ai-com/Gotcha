@@ -69,10 +69,12 @@ class TourController(
 
     /**
      * Starts (or restarts) the tour. [fromStepId] resumes a saved position;
-     * an unknown or null id starts from the beginning.
+     * an unknown or null id starts from the beginning. An id from
+     * [RETIRED_TOUR_STEPS] resumes on the step that replaced it.
      */
     fun start(fromStepId: String? = null) {
-        index = steps.indexOfFirst { it.id == fromStepId }.takeIf { it >= 0 } ?: 0
+        val stepId = RETIRED_TOUR_STEPS[fromStepId] ?: fromStepId
+        index = steps.indexOfFirst { it.id == stepId }.takeIf { it >= 0 } ?: 0
         onPersist(current?.id, false)
         track(current, TourAction.REACHED)
     }
