@@ -73,8 +73,12 @@
     <string name="shell_hub_intro">Duas formas de deixar o assistente executar comandos Linux. O Gotcha Shell é um sistema Linux completo no próprio app; o Termux usa o app Termux, se você já o tiver. Configure um deles, ou os dois.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Use o app Termux se você já o tiver</string>
-    <string name="settings_page_skills">Habilidades / Plugins</string>
+    <string name="settings_page_skills">Habilidades</string>
     <string name="settings_page_skills_summary">Habilidades integradas e da comunidade</string>
+    <string name="skills_hub_connectors_summary">Google, Microsoft, Notion, Home Assistant, e-mail, MCP</string>
+    <string name="skills_hub_intro">Os conectores dão ao assistente acesso às suas contas; as habilidades dizem como usá-las e os apps ao redor.</string>
+    <string name="settings_page_skills_and_connectors_summary">Contas conectadas e habilidades integradas</string>
+    <string name="settings_page_skills_and_connectors">Habilidades e conectores</string>
     <string name="settings_page_proactive">Assistência proativa</string>
     <string name="settings_page_proactive_summary">Sugestões, detecção de OTP, o que pode ser analisado</string>
     <string name="settings_page_assistive_ball">Bola flutuante e palavra de ativação</string>

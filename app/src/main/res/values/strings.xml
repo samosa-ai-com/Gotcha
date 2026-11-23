@@ -144,8 +144,12 @@
     <string name="shell_hub_intro">Two ways to let the assistant run Linux commands. Gotcha Shell is a full Linux system in its own app; Termux uses the Termux app if you already have it. Set up either one, or both.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Use the Termux app if you already have it</string>
-    <string name="settings_page_skills">Skills / Plugins</string>
+    <string name="settings_page_skills">Skills</string>
     <string name="settings_page_skills_summary">Built-in and community skills</string>
+    <string name="skills_hub_connectors_summary">Google, Microsoft, Notion, Home Assistant, email, MCP</string>
+    <string name="skills_hub_intro">Connectors give the assistant your accounts; skills tell it how to use them and the apps around them.</string>
+    <string name="settings_page_skills_and_connectors_summary">Connected accounts and built-in skills</string>
+    <string name="settings_page_skills_and_connectors">Skills and connectors</string>
     <string name="settings_page_proactive">Proactive assistance</string>
     <string name="settings_page_proactive_summary">Offers, OTP detection, what may be scanned</string>
     <string name="settings_page_assistive_ball">Floating ball and wake word</string>

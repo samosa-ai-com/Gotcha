@@ -239,6 +239,16 @@ class SettingsFlowTest {
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_shell_row").performScrollTo().assertExists()
+
+        // Connectors open from Settings too, and Back comes back to the hub.
+        composeRule.onNodeWithTag("settings_skills_and_connectors_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_connectors_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_connectors_row").assertDoesNotExist()
+        scenario?.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_skills_row").assertExists()
     }
 
     @Test

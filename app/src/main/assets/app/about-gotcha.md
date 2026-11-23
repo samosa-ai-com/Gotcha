@@ -86,7 +86,9 @@ drawer's account row); below it the pages sit in five headed groups:
 | AI model | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
 | Voice and speech | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, the voice language (what Gotcha speaks and listens in; by default the AI reply language), the transcription language override, Test voice, auto-read replies aloud |
 | About you | Name, occupation, background, reply style, location, preferred currency and language |
-| Skills / Plugins | Built-in skills, importing community skills by URL, allowed community skill hosts |
+| Skills and connectors | Hub for Connectors and Skills |
+| Skills and connectors > Connectors | The same Connectors screen as the drawer's Connectors row |
+| Skills and connectors > Skills | Built-in skills, importing community skills by URL, allowed community skill hosts |
 | **Automation** | |
 | Proactive assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
 | Scheduled tasks | Prompts Gotcha runs by itself at set times: add, edit, pause, delete or run one now; the history of each one's runs, failures included, with a link to the chat each run went into. Without "Alarms & reminders" allowed for Gotcha, a task cannot start on its own and asks for a tap on a notification instead; the page links to that permission |
@@ -116,8 +118,8 @@ words name one control, tapping the result opens its page scrolled to that
 control and briefly highlighted, opening a folded "Advanced settings" section
 if needed.
 
-**Connectors are not in Settings.** They live in the navigation drawer next to
-Settings, on their own Connectors screen.
+**Connectors have their own screen**, reached from the navigation drawer's
+Connectors row or from Settings > Skills and connectors > Connectors.
 
 **Whole-library chat backup and import live in Settings ▸ Chats.** A chat's ⋮ menu has
 **Export chat** (shares the conversation as readable Markdown), **Back up

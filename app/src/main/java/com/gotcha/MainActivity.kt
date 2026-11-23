@@ -1306,6 +1306,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenConnectors = {
                         scope.launch { drawerState.close() }
+                        accountReturnRoute = Route.HOME
                         currentRoute = Route.CONNECTORS
                     },
                     onOpenScheduledTasks = {
@@ -1459,6 +1460,10 @@ class MainActivity : ComponentActivity() {
                             accountReturnRoute = Route.SETTINGS
                             currentRoute = Route.ACCOUNT
                         },
+                        onOpenConnectors = {
+                            accountReturnRoute = Route.SETTINGS
+                            currentRoute = Route.CONNECTORS
+                        },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it
@@ -1517,7 +1522,7 @@ class MainActivity : ComponentActivity() {
                     // reads it from ChatViewModel's cached Settings.
                     val leaveConnectors = {
                         chatViewModel.refreshSettings()
-                        currentRoute = Route.HOME
+                        currentRoute = accountReturnRoute
                     }
                     BackHandler { leaveConnectors() }
                     ConnectorsScreen(onBack = leaveConnectors)

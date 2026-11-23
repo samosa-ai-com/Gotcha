@@ -163,7 +163,9 @@ fun SettingsScreen(
     /** The signed-in Samosa account's display name, or null when signed out. */
     accountName: String? = null,
     /** Opens the Account screen, from the card at the top of the home list. */
-    onOpenAccount: () -> Unit = {}
+    onOpenAccount: () -> Unit = {},
+    /** Opens the Connectors screen, from Settings ▸ Skills and connectors. */
+    onOpenConnectors: () -> Unit = {}
 ) {
     // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
     // the home list otherwise. Only the list itself exits Settings.
@@ -269,6 +271,11 @@ fun SettingsScreen(
                 )
                 SettingsPage.LINUX_TERMINAL -> TerminalScreen(onBack = backToHome)
                 SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
+                SettingsPage.SKILLS_AND_CONNECTORS -> SkillsHubScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange,
+                    onOpenConnectors = onOpenConnectors
+                )
                 SettingsPage.SKILLS -> SkillsScreen(
                     load = load,
                     onSave = onSave,

@@ -73,8 +73,12 @@
     <string name="shell_hub_intro">アシスタントが Linux コマンドを実行する方法は 2 つあります。Gotcha Shell は専用アプリで動く完全な Linux システムです。Termux は、すでにお持ちの Termux アプリを使います。どちらか一方、または両方を設定できます。</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Termux アプリをお持ちならそれを使います</string>
-    <string name="settings_page_skills">スキル / プラグイン</string>
+    <string name="settings_page_skills">スキル</string>
     <string name="settings_page_skills_summary">内蔵スキルとコミュニティスキル</string>
+    <string name="skills_hub_connectors_summary">Google、Microsoft、Notion、Home Assistant、メール、MCP</string>
+    <string name="skills_hub_intro">コネクタはアシスタントにあなたのアカウントを使わせ、スキルはその使い方と周辺アプリの扱い方を教えます。</string>
+    <string name="settings_page_skills_and_connectors_summary">接続したアカウントと組み込みスキル</string>
+    <string name="settings_page_skills_and_connectors">スキルとコネクタ</string>
     <string name="settings_page_proactive">先回りアシスト</string>
     <string name="settings_page_proactive_summary">提案、OTP の検出、スキャンできる対象</string>
     <string name="settings_page_assistive_ball">フローティングボールとウェイクワード</string>

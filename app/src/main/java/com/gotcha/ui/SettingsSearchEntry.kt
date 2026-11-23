@@ -242,6 +242,13 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("linux, shell, command, terminal, ffmpeg, package, bash")
     )
+    SettingsPage.SKILLS_AND_CONNECTORS -> SettingsSearchEntry(
+        page,
+        words(
+            "connectors, accounts, integrations, google, gmail, calendar, microsoft, outlook, notion, " +
+                "home assistant, email, imap, mcp"
+        )
+    )
     SettingsPage.SKILLS -> SettingsSearchEntry(
         page,
         words("plugin, skill, community, import, mcp")

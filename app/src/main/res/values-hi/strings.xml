@@ -73,8 +73,12 @@
     <string name="shell_hub_intro">असिस्टेंट के Linux कमांड चलाने के दो तरीके हैं। Gotcha Shell अपने अलग ऐप में एक पूरा Linux सिस्टम है; Termux आपके पहले से इंस्टॉल Termux ऐप का उपयोग करता है। इनमें से एक सेट करें, या दोनों।</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">अगर Termux ऐप पहले से है तो उसका इस्तेमाल करें</string>
-    <string name="settings_page_skills">स्किल / प्लगइन</string>
+    <string name="settings_page_skills">स्किल</string>
     <string name="settings_page_skills_summary">बिल्ट-इन और कम्युनिटी स्किल</string>
+    <string name="skills_hub_connectors_summary">Google, Microsoft, Notion, Home Assistant, ईमेल, MCP</string>
+    <string name="skills_hub_intro">कनेक्टर असिस्टेंट को आपके अकाउंट देते हैं; स्किल बताते हैं कि उनका और उनसे जुड़े ऐप्स का इस्तेमाल कैसे करें।</string>
+    <string name="settings_page_skills_and_connectors_summary">जुड़े हुए अकाउंट और बिल्ट-इन स्किल</string>
+    <string name="settings_page_skills_and_connectors">स्किल और कनेक्टर</string>
     <string name="settings_page_proactive">प्रोएक्टिव मदद</string>
     <string name="settings_page_proactive_summary">सुझाव, OTP पहचान, क्या स्कैन किया जा सकता है</string>
     <string name="settings_page_assistive_ball">फ़्लोटिंग बॉल और वेक वर्ड</string>

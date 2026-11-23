@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.DeveloperMode
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Notifications
@@ -144,9 +145,11 @@ enum class SettingsGroup(@StringRes val title: Int) {
  *
  * Most pages hang directly off the home list. The exceptions declare a parent:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. Two hubs exist: [SHELL], which
- * collects the two ways the assistant can run Linux commands, and [ABOUT], which
- * collects "who made this app and what did I agree to".
+ * that parent instead of from the home list. Three hubs exist:
+ * [SKILLS_AND_CONNECTORS], which puts the accounts the assistant can reach beside
+ * the skills that tell it how to use them, [SHELL], which collects the two ways
+ * it can run Linux commands, and [ABOUT], which collects "who made this app and
+ * what did I agree to".
  */
 enum class SettingsPage(
     @StringRes val title: Int,
@@ -185,12 +188,20 @@ enum class SettingsPage(
         Icons.Outlined.Person,
         SettingsGroup.ASSISTANT
     ),
+    SKILLS_AND_CONNECTORS(
+        R.string.settings_page_skills_and_connectors,
+        R.string.settings_page_skills_and_connectors_summary,
+        "settings_skills_and_connectors_row",
+        Icons.Outlined.Hub,
+        SettingsGroup.ASSISTANT
+    ),
     SKILLS(
         R.string.settings_page_skills,
         R.string.settings_page_skills_summary,
         "settings_skills_row",
         Icons.Outlined.Extension,
-        SettingsGroup.ASSISTANT
+        null,
+        { SKILLS_AND_CONNECTORS }
     ),
     PROACTIVE(
         R.string.settings_page_proactive,

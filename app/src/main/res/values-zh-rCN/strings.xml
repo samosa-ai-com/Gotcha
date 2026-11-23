@@ -73,8 +73,12 @@
     <string name="shell_hub_intro">助手运行 Linux 命令有两种方式。Gotcha Shell 是独立应用中的完整 Linux 系统；Termux 使用你已安装的 Termux 应用。可以设置其中一个，或两个都设置。</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">如果已安装 Termux 应用，就用它</string>
-    <string name="settings_page_skills">技能 / 插件</string>
+    <string name="settings_page_skills">技能</string>
     <string name="settings_page_skills_summary">内置技能和社区技能</string>
+    <string name="skills_hub_connectors_summary">Google、Microsoft、Notion、Home Assistant、邮件、MCP</string>
+    <string name="skills_hub_intro">连接器让助手使用你的账户；技能告诉它如何使用这些账户及相关应用。</string>
+    <string name="settings_page_skills_and_connectors_summary">已连接的账户与内置技能</string>
+    <string name="settings_page_skills_and_connectors">技能与连接器</string>
     <string name="settings_page_proactive">主动协助</string>
     <string name="settings_page_proactive_summary">建议、OTP 检测、可扫描的内容</string>
     <string name="settings_page_assistive_ball">悬浮球与唤醒词</string>

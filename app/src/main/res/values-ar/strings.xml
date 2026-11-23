@@ -139,8 +139,12 @@
     <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">استخدم تطبيق Termux إن كان لديك</string>
-    <string name="settings_page_skills">المهارات / الإضافات</string>
+    <string name="settings_page_skills">المهارات</string>
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
+    <string name="skills_hub_connectors_summary">Google وMicrosoft وNotion وHome Assistant والبريد وMCP</string>
+    <string name="skills_hub_intro">تمنح الموصلات المساعدَ الوصول إلى حساباتك؛ وتخبره المهارات بكيفية استخدامها واستخدام التطبيقات المحيطة بها.</string>
+    <string name="settings_page_skills_and_connectors_summary">الحسابات المتصلة والمهارات المدمجة</string>
+    <string name="settings_page_skills_and_connectors">المهارات والموصلات</string>
     <string name="settings_page_proactive">المساعدة الاستباقية</string>
     <string name="settings_page_proactive_summary">العروض، كشف OTP، ما يمكن فحصه</string>
     <string name="settings_page_assistive_ball">الكرة العائمة وكلمة التنبيه</string>
