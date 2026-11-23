@@ -1834,7 +1834,6 @@
     <string name="channel_app_updates_description">إشعار عند إصدار نسخة جديدة من Gotcha</string>
     <string name="update_notification_title">Gotcha %1$s متاح</string>
     <string name="update_notification_body">اضغط للتنزيل والتثبيت.</string>
-    <string name="notifications_app_updates">تحديثات التطبيق</string>
     <string name="notifications_app_updates_description">نحو مرتين يوميًا، ينزّل Gotcha ملفًا صغيرًا من GitHub (raw.githubusercontent.com) لمعرفة إن كان هناك إصدار جديد. الطلب لا يحمل أي شيء عنك؛ يرى GitHub عنوان IP الخاص بك، كما في أي تنزيل.</string>
     <string name="notifications_notify_about_new_versions">أبلغني بالإصدارات الجديدة</string>
     <string name="settings_field_update_notifications_enabled">إشعارات التحديث</string>

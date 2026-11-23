@@ -306,6 +306,8 @@ fun SettingsScreen(
                 SettingsPage.ABOUT -> AboutScreen(
                     onBack = backToHome,
                     onOpenPage = onPageChange,
+                    load = load,
+                    onSave = onSave,
                     checkUpdateOnOpen = checkUpdateOnOpen,
                     onUpdateCheckStarted = onUpdateCheckStarted
                 )

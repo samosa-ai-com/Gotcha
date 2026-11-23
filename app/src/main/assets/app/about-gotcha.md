@@ -108,7 +108,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | **Help and about** | |
 | Feature tour | Replays the guided setup one step at a time |
 | Send feedback | Opens the feedback form; nothing is sent until the user submits it |
-| About | Samosa AI, other products, legal, contact |
+| About | Samosa AI, other products, legal, contact; the app version, Check for updates, and "Notify me about new versions" |
 | About > About Samosa AI | Mission, products, pricing, developers |
 | About > Legal | Terms, disclaimer, data retention |
 
