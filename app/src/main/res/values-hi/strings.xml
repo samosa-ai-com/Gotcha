@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">काम पूरा होने पर सूचना दें</string>
     <string name="notifications_enable_server_messages">सर्वर संदेश चालू करें</string>
     <string name="notifications_played_as_soon_as_a">जवाब आते ही बजता है। कोई अलर्ट न चाहिए तो दोनों बंद कर दें।</string>
+    <string name="notifications_reply_alerts">जवाब के अलर्ट</string>
     <string name="notifications_task_finished">काम पूरा हुआ</string>
     <string name="notifications_a_notification_when_a_chat">जब आप किसी दूसरे ऐप में हों और चैट का काम पूरा हो जाए, तब एक सूचना। उस चैट को खोलने के लिए उस पर टैप करें। लॉक स्क्रीन पर यह केवल इतना बताती है कि काम पूरा हुआ।</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Gotcha के लिए सूचनाएँ ब्लॉक हैं, इसलिए कोई सूचना नहीं दिखेगी।</string>

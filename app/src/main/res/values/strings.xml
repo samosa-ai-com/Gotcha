@@ -436,6 +436,7 @@
     <string name="notifications_notify_when_a_task_finishes">Notify when a task finishes</string>
     <string name="notifications_enable_server_messages">Enable server messages</string>
     <string name="notifications_played_as_soon_as_a">Played as soon as a reply arrives. Turn both off for no alert.</string>
+    <string name="notifications_reply_alerts">Reply alerts</string>
     <string name="notifications_task_finished">Task finished</string>
     <string name="notifications_a_notification_when_a_chat">A notification when a chat task finishes while you are in another app. Tap it to open that chat. On the lock screen it only says a task finished.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Notifications are blocked for Gotcha, so none will be shown.</string>

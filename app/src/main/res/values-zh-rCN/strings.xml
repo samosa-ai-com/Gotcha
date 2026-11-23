@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">任务完成时通知</string>
     <string name="notifications_enable_server_messages">启用服务器消息</string>
     <string name="notifications_played_as_soon_as_a">回复到达时立即提示。两项都关闭则不会收到提醒。</string>
+    <string name="notifications_reply_alerts">回复提醒</string>
     <string name="notifications_task_finished">任务已完成</string>
     <string name="notifications_a_notification_when_a_chat">当你在其他应用中时，对话任务完成后会发送通知。点按即可打开对话。锁屏上只会显示有任务已完成。</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Gotcha 的通知已被屏蔽，因此不会显示任何通知。</string>

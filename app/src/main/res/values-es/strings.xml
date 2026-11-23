@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">Avisar cuando termine una tarea</string>
     <string name="notifications_enable_server_messages">Activar mensajes del servidor</string>
     <string name="notifications_played_as_soon_as_a">Suena en cuanto llega una respuesta. Desactiva ambos para no recibir aviso.</string>
+    <string name="notifications_reply_alerts">Avisos de respuesta</string>
     <string name="notifications_task_finished">Tarea terminada</string>
     <string name="notifications_a_notification_when_a_chat">Una notificación cuando una tarea del chat termina mientras estás en otra app. Tócala para abrir ese chat. En la pantalla de bloqueo solo dice que una tarea terminó.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Las notificaciones de Gotcha están bloqueadas, así que no se mostrará ninguna.</string>

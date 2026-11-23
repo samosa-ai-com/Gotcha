@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">Prévenir quand une tâche est terminée</string>
     <string name="notifications_enable_server_messages">Activer les messages du serveur</string>
     <string name="notifications_played_as_soon_as_a">Joué dès qu\'une réponse arrive. Désactivez les deux pour ne recevoir aucune alerte.</string>
+    <string name="notifications_reply_alerts">Alertes de réponse</string>
     <string name="notifications_task_finished">Tâche terminée</string>
     <string name="notifications_a_notification_when_a_chat">Une notification quand une tâche de discussion se termine pendant que vous êtes dans une autre appli. Touchez-la pour ouvrir la discussion. Sur l\'écran de verrouillage, elle indique seulement qu\'une tâche est terminée.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Les notifications de Gotcha sont bloquées, aucune ne s\'affichera.</string>

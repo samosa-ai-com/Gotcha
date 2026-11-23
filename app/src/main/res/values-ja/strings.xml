@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">タスク完了時に通知</string>
     <string name="notifications_enable_server_messages">サーバーからのメッセージを有効にする</string>
     <string name="notifications_played_as_soon_as_a">回答が届いたらすぐに鳴ります。通知が不要なら両方をオフにしてください。</string>
+    <string name="notifications_reply_alerts">返答の通知</string>
     <string name="notifications_task_finished">タスク完了</string>
     <string name="notifications_a_notification_when_a_chat">別のアプリを使っている間にチャットのタスクが終わると通知します。タップするとチャットが開きます。ロック画面では、タスクが終わったことだけを表示します。</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Gotcha の通知はブロックされているため、何も表示されません。</string>

@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">Benachrichtigen, wenn eine Aufgabe fertig ist</string>
     <string name="notifications_enable_server_messages">Servernachrichten aktivieren</string>
     <string name="notifications_played_as_soon_as_a">Wird abgespielt, sobald eine Antwort eintrifft. Schalte beides aus, um keinen Hinweis zu bekommen.</string>
+    <string name="notifications_reply_alerts">Antwort-Hinweise</string>
     <string name="notifications_task_finished">Aufgabe erledigt</string>
     <string name="notifications_a_notification_when_a_chat">Eine Benachrichtigung, wenn eine Chat-Aufgabe fertig ist, während du in einer anderen App bist. Antippen öffnet den Chat. Auf dem Sperrbildschirm steht nur, dass eine Aufgabe fertig ist.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Benachrichtigungen für Gotcha sind blockiert, daher wird keine angezeigt.</string>

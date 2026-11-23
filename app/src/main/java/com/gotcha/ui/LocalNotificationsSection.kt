@@ -94,10 +94,7 @@ internal fun LocalNotificationsSection(
         )
     }
 
-    Text(
-        stringResource(R.string.local_notifications_gotcha_notifications),
-        style = MaterialTheme.typography.titleMedium
-    )
+    // Titled by the folding section around it on the Notifications page.
     Text(
         stringResource(R.string.local_notifications_reminders_and_tips_gotcha_decides),
         style = MaterialTheme.typography.bodySmall

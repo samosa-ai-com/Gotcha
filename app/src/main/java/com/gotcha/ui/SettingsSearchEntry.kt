@@ -307,7 +307,8 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field(
                 "settings_server_messages_enabled",
                 R.string.settings_field_server_messages_enabled,
-                "announcements, sync"
+                "announcements, sync",
+                section = NOTIFICATIONS_SERVER_SECTION
             )
         )
     )
@@ -334,6 +335,10 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
 
 /** The tag of AI Configuration's collapsed "Advanced settings" section. */
 internal const val AI_ADVANCED_SECTION = "settings_ai_advanced"
+
+/** The tags of the Notifications page's two folded sections. */
+internal const val NOTIFICATIONS_GOTCHA_SECTION = "settings_gotcha_notifications"
+internal const val NOTIFICATIONS_SERVER_SECTION = "settings_server_messages"
 
 /** The tag of the floating ball page's collapsed "Advanced settings" section. */
 internal const val BALL_ADVANCED_SECTION = "settings_ball_advanced"

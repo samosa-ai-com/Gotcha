@@ -272,6 +272,7 @@
     <string name="notifications_notify_when_a_task_finishes">Avvisa quando un\'attività è completata</string>
     <string name="notifications_enable_server_messages">Attiva messaggi del server</string>
     <string name="notifications_played_as_soon_as_a">Si attiva appena arriva una risposta. Disattiva entrambi per non ricevere avvisi.</string>
+    <string name="notifications_reply_alerts">Avvisi di risposta</string>
     <string name="notifications_task_finished">Attività completata</string>
     <string name="notifications_a_notification_when_a_chat">Una notifica quando un\'attività della chat termina mentre sei in un\'altra app. Toccala per aprire la chat. Sulla schermata di blocco dice solo che un\'attività è terminata.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Le notifiche di Gotcha sono bloccate, quindi non ne verrà mostrata nessuna.</string>

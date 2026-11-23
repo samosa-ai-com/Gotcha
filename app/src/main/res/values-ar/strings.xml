@@ -389,6 +389,7 @@
     <string name="notifications_notify_when_a_task_finishes">إشعار عند انتهاء مهمة</string>
     <string name="notifications_enable_server_messages">تفعيل رسائل الخادم</string>
     <string name="notifications_played_as_soon_as_a">تُشغَّل بمجرد وصول رد. أوقف كليهما لعدم التنبيه.</string>
+    <string name="notifications_reply_alerts">تنبيهات الرد</string>
     <string name="notifications_task_finished">انتهت المهمة</string>
     <string name="notifications_a_notification_when_a_chat">إشعار عند انتهاء مهمة محادثة وأنت في تطبيق آخر. اضغطه لفتح تلك المحادثة. على شاشة القفل يظهر فقط أن مهمة انتهت.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">الإشعارات محظورة لـ Gotcha، لذا لن يظهر أي منها.</string>
