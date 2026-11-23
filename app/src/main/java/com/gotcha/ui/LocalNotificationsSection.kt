@@ -94,45 +94,47 @@ internal fun LocalNotificationsSection(
         )
     }
 
-    Text(
-        stringResource(R.string.local_notifications_gotcha_notifications),
-        style = MaterialTheme.typography.titleMedium
-    )
+    // Titled by the folding section around it on the Notifications page.
     Text(
         stringResource(R.string.local_notifications_reminders_and_tips_gotcha_decides),
         style = MaterialTheme.typography.bodySmall
     )
-    Toggle("Send Gotcha notifications", enabled, "settings_local_notifications_enabled") {
+    Toggle(stringResource(R.string.local_notifications_send), enabled, "settings_local_notifications_enabled") {
         enabled = it
         onSave { s -> s.copy(localNotificationsEnabled = it) }
     }
     if (!enabled) return
 
-    Toggle("Unfinished chats", unfinished, "settings_unfinished_reminders") {
+    Toggle(stringResource(R.string.local_notifications_unfinished), unfinished, "settings_unfinished_reminders") {
         unfinished = it
         onSave { s -> s.copy(unfinishedChatRemindersEnabled = it) }
     }
     Hint(stringResource(R.string.local_notifications_when_a_task_failed_was))
 
-    Toggle("Routines", routines, "settings_routine_suggestions") {
+    Toggle(stringResource(R.string.local_notifications_routines), routines, "settings_routine_suggestions") {
         routines = it
         onSave { s -> s.copy(routineSuggestionsEnabled = it) }
     }
     Hint(stringResource(R.string.local_notifications_when_something_you_ask_regularly))
 
-    Toggle("After a quiet spell", inactivity, "settings_inactivity_reminders") {
+    Toggle(stringResource(R.string.local_notifications_quiet_spell), inactivity, "settings_inactivity_reminders") {
         inactivity = it
         onSave { s -> s.copy(inactivityRemindersEnabled = it) }
     }
     if (inactivity) {
         Hint(stringResource(R.string.local_notifications_when_you_haven_t_opened))
-        ChoiceChips(INACTIVITY_DAY_CHOICES, inactivityDays, { "$it days" }, "settings_inactivity_days") {
+        ChoiceChips(
+            INACTIVITY_DAY_CHOICES,
+            inactivityDays,
+            { context.resources.getQuantityString(R.plurals.local_notifications_days, it, it) },
+            "settings_inactivity_days"
+        ) {
             inactivityDays = it
             onSave { s -> s.copy(inactivityDays = it) }
         }
     }
 
-    Toggle("Daily tip", tips, "settings_daily_tips_enabled") {
+    Toggle(stringResource(R.string.local_notifications_daily_tip), tips, "settings_daily_tips_enabled") {
         tips = it
         onSave { s -> s.copy(dailyTipsEnabled = it) }
     }
@@ -140,7 +142,7 @@ internal fun LocalNotificationsSection(
         stringResource(R.string.local_notifications_one_thing_to_try_each)
     )
     if (tips) {
-        TimeButton("Time", tipMinute, "settings_daily_tip_time") {
+        TimeButton(stringResource(R.string.local_notifications_time), tipMinute, "settings_daily_tip_time") {
             tipMinute = it
             onSave { s -> s.copy(dailyTipMinuteOfDay = it) }
             LocalNotificationScheduler.scheduleTip(context, it)
@@ -151,17 +153,17 @@ internal fun LocalNotificationsSection(
     }
 
     Spacer(Modifier.height(8.dp))
-    Toggle("Quiet hours", quiet, "settings_quiet_hours") {
+    Toggle(stringResource(R.string.local_notifications_quiet_hours), quiet, "settings_quiet_hours") {
         quiet = it
         onSave { s -> s.copy(quietHoursEnabled = it) }
     }
     if (quiet) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TimeButton("From", quietStart, "settings_quiet_start") {
+            TimeButton(stringResource(R.string.local_notifications_from), quietStart, "settings_quiet_start") {
                 quietStart = it
                 onSave { s -> s.copy(quietHoursStartMinute = it) }
             }
-            TimeButton("To", quietEnd, "settings_quiet_end") {
+            TimeButton(stringResource(R.string.local_notifications_to), quietEnd, "settings_quiet_end") {
                 quietEnd = it
                 onSave { s -> s.copy(quietHoursEndMinute = it) }
             }
@@ -175,7 +177,7 @@ internal fun LocalNotificationsSection(
     }
     Hint(stringResource(R.string.local_notifications_tips_and_reminders_count_finished))
 
-    Toggle("Name chats in notifications", mention, "settings_mention_chats") {
+    Toggle(stringResource(R.string.local_notifications_name_chats), mention, "settings_mention_chats") {
         mention = it
         onSave { s -> s.copy(notificationsMentionChats = it) }
     }

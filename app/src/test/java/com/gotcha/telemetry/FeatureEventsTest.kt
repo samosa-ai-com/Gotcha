@@ -135,7 +135,7 @@ class FeatureEventsTest {
             listOf(
                 "open_settings" to "reached",
                 "open_settings" to "done",
-                "open_ai" to "reached",
+                "open_ai_config" to "reached",
                 "samosa_sign_in" to "reached",
                 "samosa_sign_in" to "skipped",
                 "save_ai_config" to "reached",

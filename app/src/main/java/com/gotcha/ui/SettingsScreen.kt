@@ -1,20 +1,29 @@
 package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.audio.AndroidSpeechQuery
@@ -48,12 +58,9 @@ import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.delay
 
 /**
- * Settings, shaped like the system Settings app: a home list of categories, each
- * opening its own page ([SettingsPage]), Back returning to the list.
- *
- * Appearance used to be the exception, kept inline as a single three-way control
- * because a page for it would have been emptier than the row that opened it.
- * A theme picker settles that: it is now [AppearanceScreen], first on the list.
+ * Settings, shaped like the system Settings app: a home list of categories in
+ * headed groups, each opening its own page ([SettingsPage]), Back returning to
+ * the list.
  *
  * Every page saves through [onSave]'s mutator, writing only the fields it owns.
  */
@@ -154,11 +161,22 @@ fun SettingsScreen(
      * notification was tapped (issue #126). Cleared through [onUpdateCheckStarted].
      */
     checkUpdateOnOpen: Boolean = false,
-    onUpdateCheckStarted: () -> Unit = {}
+    onUpdateCheckStarted: () -> Unit = {},
+    /** The signed-in Samosa account's display name, or null when signed out. */
+    accountName: String? = null,
+    /** Opens the Account screen, from the card at the top of the home list. */
+    onOpenAccount: () -> Unit = {},
+    /** Opens the Connectors screen, from Settings ▸ Skills and connectors. */
+    onOpenConnectors: () -> Unit = {}
 ) {
     // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
     // the home list otherwise. Only the list itself exits Settings.
     val backToHome = { onPageChange(page?.parentPage?.invoke()) }
+
+    // Kept out here, not in SettingsHome: the home list leaves composition while a
+    // page is open, and coming back should land on the row that was tapped rather
+    // than at the top of the list.
+    val homeScroll = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
 
     if (page != null) BackHandler(onBack = backToHome)
 
@@ -203,25 +221,19 @@ fun SettingsScreen(
                 SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
                     load = load,
                     onSave = onSave,
-                    onBack = backToHome,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+                    onBack = backToHome
                 )
                 SettingsPage.CHATS -> ChatsScreen(
                     onBack = backToHome,
                     onImportChats = onImportChats,
-                    onBackupAllChats = onBackupAllChats
+                    onBackupAllChats = onBackupAllChats,
+                    onClearLlmCache = onClearLlmCache,
+                    onClearDebugScreenshots = onClearDebugScreenshots
                 )
                 SettingsPage.LANGUAGE -> LanguageScreen(
                     load = load,
                     onSave = onSave,
-                    onBack = backToHome,
-                    onTestVoice = onTestVoice,
-                    onRefreshAudioModels = onRefreshAudioModels,
-                    onCheckAndroidSpeech = onCheckAndroidSpeech
-                )
-                SettingsPage.AI -> AiHubScreen(
-                    onBack = backToHome,
-                    onOpenPage = onPageChange
+                    onBack = backToHome
                 )
                 SettingsPage.AI_CONFIG -> AiConfigScreen(
                     load = load,
@@ -232,9 +244,7 @@ fun SettingsScreen(
                     onFetchAllowedModels = onFetchAllowedModels,
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
-                    samosaSessionChanges = samosaSessionChanges,
-                    onClearLlmCache = onClearLlmCache,
-                    onClearDebugScreenshots = onClearDebugScreenshots
+                    samosaSessionChanges = samosaSessionChanges
                 )
                 SettingsPage.SPEECH -> SpeechScreen(
                     load = load,
@@ -245,7 +255,7 @@ fun SettingsScreen(
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) },
+                    onTestVoice = onTestVoice,
                     onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.PERMISSIONS -> PermissionsScreen(
@@ -263,11 +273,15 @@ fun SettingsScreen(
                 )
                 SettingsPage.LINUX_SHELL -> LinuxShellScreen(
                     onBack = backToHome,
-                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) },
                     onOpenTerminal = { onPageChange(SettingsPage.LINUX_TERMINAL) }
                 )
                 SettingsPage.LINUX_TERMINAL -> TerminalScreen(onBack = backToHome)
                 SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
+                SettingsPage.SKILLS_AND_CONNECTORS -> SkillsHubScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange,
+                    onOpenConnectors = onOpenConnectors
+                )
                 SettingsPage.SKILLS -> SkillsScreen(
                     load = load,
                     onSave = onSave,
@@ -298,6 +312,8 @@ fun SettingsScreen(
                 SettingsPage.ABOUT -> AboutScreen(
                     onBack = backToHome,
                     onOpenPage = onPageChange,
+                    load = load,
+                    onSave = onSave,
                     checkUpdateOnOpen = checkUpdateOnOpen,
                     onUpdateCheckStarted = onUpdateCheckStarted
                 )
@@ -312,6 +328,9 @@ fun SettingsScreen(
                     onBack = backToHome
                 )
                 null -> SettingsHome(
+                    scrollState = homeScroll,
+                    accountName = accountName,
+                    onOpenAccount = onOpenAccount,
                     onBack = onBack,
                     onOpenPage = onPageChange,
                     onOpenSearchResult = onOpenSearchResult,
@@ -334,6 +353,9 @@ fun SettingsScreen(
  */
 @Composable
 private fun SettingsHome(
+    scrollState: ScrollState,
+    accountName: String?,
+    onOpenAccount: () -> Unit,
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
     onOpenSearchResult: (SettingsPage, String?) -> Unit,
@@ -342,6 +364,11 @@ private fun SettingsHome(
 ) {
     val overlay = rememberSettingsOverlayState()
     var query by rememberSaveable { mutableStateOf("") }
+    // Results scroll on their own, from the top for every query: sharing the
+    // list's offset would open them part-way down, first matches off screen.
+    // The list keeps its place for when the query is cleared.
+    val resultsScroll = rememberScrollState()
+    LaunchedEffect(query) { resultsScroll.scrollTo(0) }
 
     // Opening a page ends the search: coming back to a list still filtered by a
     // query typed minutes ago reads as a list that has lost most of its rows.
@@ -358,10 +385,13 @@ private fun SettingsHome(
         title = stringResource(R.string.settings_title),
         onBack = onBack,
         overlay = overlay,
+        scrollState = if (query.isBlank()) scrollState else resultsScroll,
         header = { SettingsSearchField(query = query, onQueryChange = { query = it }) }
     ) {
         if (query.isBlank()) {
             SettingsHomeRows(
+                accountName = accountName,
+                onOpenAccount = onOpenAccount,
                 onOpenPage = openPage,
                 onStartTour = onStartTour,
                 onSendFeedback = onSendFeedback
@@ -395,33 +425,101 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
     )
 }
 
-/** The unfiltered list: every top-level page, then the tour and feedback rows. */
+/**
+ * The unfiltered list: the account card, then every top-level page under its
+ * [SettingsGroup] heading. The help section leads with the tour and feedback
+ * rows, which run something rather than open a page, and ends on About.
+ */
 @Composable
 private fun ColumnScope.SettingsHomeRows(
+    accountName: String?,
+    onOpenAccount: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
     onStartTour: () -> Unit,
     onSendFeedback: () -> Unit
 ) {
-    SettingsPage.topLevel.forEach { entry ->
-        HorizontalDivider(thickness = 1.dp)
-        SettingsNavRow(
-            page = entry,
-            onClick = { onOpenPage(entry) },
-            modifier = Modifier
-                .testTag(entry.testTag)
-                .then(entry.tourAnchorModifier())
-        )
-        // Re-entry into the guided setup sits just above About, so the menu
-        // ends on the two rows a returning user is least likely to need.
-        if (entry == SettingsPage.NOTIFICATIONS) {
-            HorizontalDivider(thickness = 1.dp)
-            FeatureTourRow(onClick = onStartTour)
-            // Feedback is the same shape; only rendered when the form URL is
-            // configured at build time (gitignored FEEDBACK_* config).
-            if (FeedbackChannel.isConfigured()) {
-                HorizontalDivider(thickness = 1.dp)
-                FeedbackRow(onClick = onSendFeedback)
+    SettingsAccountCard(accountName = accountName, onClick = onOpenAccount)
+    SettingsGroup.entries.forEach { group ->
+        SettingsGroupCard(title = stringResource(group.title)) {
+            var first = true
+            if (group == SettingsGroup.HELP) {
+                FeatureTourRow(onClick = onStartTour)
+                // Only rendered when the form URL is configured at build time
+                // (gitignored FEEDBACK_* config).
+                if (FeedbackChannel.isConfigured()) {
+                    SettingsGroupDivider()
+                    FeedbackRow(onClick = onSendFeedback)
+                }
+                first = false
             }
+            SettingsPage.topLevel.filter { it.group == group }.forEach { entry ->
+                if (!first) SettingsGroupDivider()
+                first = false
+                SettingsNavRow(
+                    page = entry,
+                    onClick = { onOpenPage(entry) },
+                    summaryMaxLines = 1,
+                    horizontalPadding = 16.dp,
+                    modifier = Modifier
+                        .testTag(entry.testTag)
+                        .then(entry.tourAnchorModifier())
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The Samosa account at the top of the list: who is signed in, or an invitation
+ * to sign in. Opens the same Account screen as the drawer's account row.
+ */
+@Composable
+private fun SettingsAccountCard(accountName: String?, onClick: () -> Unit) {
+    OutlinedCard(
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("settings_account_card")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (accountName != null) {
+                AccountAvatar(accountName, size = 40)
+            } else {
+                Icon(
+                    Icons.Outlined.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = accountName ?: stringResource(R.string.samosa_sign_in_website),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(
+                        if (accountName != null) {
+                            R.string.settings_account_summary_signed_in
+                        } else {
+                            R.string.settings_account_summary_signed_out
+                        }
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(text = "›", style = MaterialTheme.typography.titleLarge)
         }
     }
 }
@@ -464,61 +562,35 @@ private fun SettingsSearchResults(query: String, onOpenResult: (SettingsSearchRe
 @Composable
 private fun SettingsPage.tourAnchorModifier(): Modifier = when (this) {
     SettingsPage.PERSONAL_INFO -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERSONAL_INFO)
-    SettingsPage.AI -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI)
+    SettingsPage.AI_CONFIG -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI_CONFIG)
     SettingsPage.PERMISSIONS -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERMISSIONS)
     else -> Modifier
 }
 
-/** Re-entry into the guided setup, shaped like the rows beneath it. */
+/** Re-entry into the guided setup, shaped like the rows around it. */
 @Composable
 private fun FeatureTourRow(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp)
-            .testTag("settings_feature_tour_row"),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.settings_feature_tour),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = stringResource(R.string.settings_feature_tour_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Text(text = "›", style = MaterialTheme.typography.titleLarge)
-    }
+    SettingsLinkRow(
+        icon = Icons.Outlined.Explore,
+        title = stringResource(R.string.settings_feature_tour),
+        summary = stringResource(R.string.settings_feature_tour_summary),
+        onClick = onClick,
+        summaryMaxLines = 1,
+        horizontalPadding = 16.dp,
+        modifier = Modifier.testTag("settings_feature_tour_row")
+    )
 }
 
 /** In-app feedback entry point, shaped like the rows around it. */
 @Composable
 private fun FeedbackRow(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp)
-            .testTag("settings_feedback_row"),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.settings_feedback),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = stringResource(R.string.settings_feedback_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Text(text = "›", style = MaterialTheme.typography.titleLarge)
-    }
+    SettingsLinkRow(
+        icon = Icons.Outlined.Feedback,
+        title = stringResource(R.string.settings_feedback),
+        summary = stringResource(R.string.settings_feedback_summary),
+        onClick = onClick,
+        summaryMaxLines = 1,
+        horizontalPadding = 16.dp,
+        modifier = Modifier.testTag("settings_feedback_row")
+    )
 }

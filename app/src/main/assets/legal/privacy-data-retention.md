@@ -114,8 +114,8 @@ and can be turned off; see Section 11.
        provides controls to:
          (a) clear individual chat histories ("Clear chat" in the
              drawer);
-         (b) clear the LLM response cache (Settings → AI Configuration);
-         (c) clear debug screenshots (Settings → AI Configuration);
+         (b) clear the LLM response cache (Settings → Chats and storage);
+         (c) clear debug screenshots (Settings → Chats and storage);
          (d) uninstall the App, which removes all app-private data,
              including settings, caches, and history.
        Uninstalling does not withdraw the install registration or usage
@@ -161,7 +161,7 @@ and can be turned off; see Section 11.
 10. OPTIONAL WAKE WORD ("Hey Gotcha")
 
    10.1 The wake-word feature is opt-in. When turned on in Settings
-        (Settings → Assistive Ball and Wake Word → "Wake word: Hey Gotcha"), the
+        (Settings → Floating ball and wake word → "Wake word: Hey Gotcha"), the
         App keeps a microphone-type foreground service alive while the Assistive
         Ball is on and no voice call is in progress.
 

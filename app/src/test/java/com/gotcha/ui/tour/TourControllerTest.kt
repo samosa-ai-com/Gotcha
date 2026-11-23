@@ -77,6 +77,23 @@ class TourControllerTest {
     }
 
     @Test
+    fun `resuming on a retired step picks up on the step that replaced it`() {
+        val controller = TourController()
+        controller.start(fromStepId = "open_ai")
+
+        assertEquals("open_ai_config", controller.current?.id)
+    }
+
+    @Test
+    fun `every retired step points at a step that still ships`() {
+        val shipped = defaultTourSteps().map { it.id }.toSet()
+        RETIRED_TOUR_STEPS.forEach { (old, replacement) ->
+            assertFalse("$old still ships", old in shipped)
+            assertTrue("$replacement does not ship", replacement in shipped)
+        }
+    }
+
+    @Test
     fun `arriving where the next step lives finishes this one`() {
         val controller = TourController(steps())
         controller.start()

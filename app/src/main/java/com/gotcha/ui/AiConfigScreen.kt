@@ -85,8 +85,6 @@ fun AiConfigScreen(
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside this screen; it re-reads it. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    onClearLlmCache: () -> Unit = {},
-    onClearDebugScreenshots: () -> Unit = {}
 ) {
     val initial = remember { load() }
     var provider by remember { mutableStateOf(initial.provider) }
@@ -177,6 +175,32 @@ fun AiConfigScreen(
     )
 
     /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applyAiConfig(initial)) }
+    val dirty = applyAiConfig(baseline) != baseline
+
+    fun commit() {
+        onSave { applyAiConfig(it) }
+        baseline = applyAiConfig(baseline)
+    }
+
+    /** What the Save button needs; the unsaved-changes dialog holds to it too. */
+    val canSave = when (provider) {
+        LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+        LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
+    }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = canSave
+    )
+
+    /**
      * The settings as they stand on screen, for calls that must see unsaved edits
      * (connection tests, model discovery) rather than what is in storage.
      */
@@ -231,13 +255,15 @@ fun AiConfigScreen(
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = onBack, overlay = overlay) {
-        // ---- Provider / model guidance ----
-        Text(
-            stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = guardedBack, overlay = overlay) {
+        // ---- Provider / model guidance: moot once Samosa AI is the provider ----
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // ---- LLM provider selector ----
         ExposedDropdownMenuBox(
@@ -573,26 +599,10 @@ fun AiConfigScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")
             )
-            OutlinedButton(
-                onClick = {
-                    onClearLlmCache()
-                    overlay.show(localContext.getString(R.string.ai_config_llm_response_cache_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_llm_cache)) }
-            OutlinedButton(
-                onClick = {
-                    onClearDebugScreenshots()
-                    overlay.show(localContext.getString(R.string.ai_config_debug_screenshots_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_debug_screenshots)) }
         }
         Button(
             onClick = {
-                onSave { applyAiConfig(it) }
+                commit()
                 Telemetry.track(
                     FeatureEvents.setup(
                         SetupAction.SAVED,
@@ -607,10 +617,7 @@ fun AiConfigScreen(
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
-            enabled = when (provider) {
-                LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
-                LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
-            },
+            enabled = canSave,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save")
@@ -648,10 +655,13 @@ fun AiConfigScreen(
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
 
-        Text(
-            stringResource(R.string.ai_config_the_api_key_is_stored),
-            style = MaterialTheme.typography.bodySmall
-        )
+        // About the key and base URL fields, which only an OpenAI-compatible provider shows.
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_the_api_key_is_stored),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }
 

@@ -49,8 +49,7 @@ private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY",
 fun PersonalInfoScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
-    onBack: () -> Unit,
-    onOpenLanguage: () -> Unit = {}
+    onBack: () -> Unit
 ) {
     val initial = remember { load() }
     var userName by remember { mutableStateOf(initial.userName) }
@@ -74,7 +73,26 @@ fun PersonalInfoScreen(
         preferredCurrency = preferredCurrency
     )
 
-    SettingsScaffold(title = stringResource(SettingsPage.PERSONAL_INFO.title), onBack = onBack, overlay = overlay) {
+    /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applyPersonalInfo(initial)) }
+    val dirty = applyPersonalInfo(baseline) != baseline
+
+    fun commit() {
+        onSave { applyPersonalInfo(it) }
+        baseline = applyPersonalInfo(baseline)
+    }
+    val guardedBack = rememberUnsavedChangesGuard(dirty = dirty, onSave = ::commit, onLeave = onBack)
+
+    SettingsScaffold(
+        title = stringResource(SettingsPage.PERSONAL_INFO.title),
+        onBack = guardedBack,
+        overlay = overlay
+    ) {
         Text(
             stringResource(R.string.personal_info_about_you),
             style = MaterialTheme.typography.titleMedium,
@@ -191,25 +209,10 @@ fun PersonalInfoScreen(
             }
         }
 
-        HorizontalDivider(thickness = 1.dp)
-
-        // Language moved out of this page (issue #74); a pointer keeps it findable
-        // for anyone who still comes here looking for "Preferred Language".
-        Text(
-            stringResource(R.string.personal_info_reply_voice_and_app_display),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SettingsNavRow(
-            page = SettingsPage.LANGUAGE,
-            onClick = onOpenLanguage,
-            modifier = Modifier.testTag("settings_personal_info_language_row")
-        )
-
         val saved = stringResource(R.string.personal_info_saved)
         Button(
             onClick = {
-                onSave { applyPersonalInfo(it) }
+                commit()
                 overlay.show(saved)
             },
             modifier = Modifier

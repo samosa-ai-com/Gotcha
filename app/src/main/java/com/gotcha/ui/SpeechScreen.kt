@@ -9,6 +9,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
@@ -54,10 +56,11 @@ import kotlinx.coroutines.launch
  * The Speech page: which engines synthesise and transcribe, the models and
  * voices they use, and whether replies are read aloud automatically.
  *
- * No language is set here. The transcription override moved to the Language
- * page (issue #114); this page shows it read-only, with a way there
- * ([onOpenLanguage]), and warns when a model picked here doesn't suit the voice
- * language ([SpeechLanguageCheck], issue #113).
+ * The voice language and the transcription language are set here too
+ * ([VoiceLanguageSection]), beside the models they have to suit, and the page
+ * warns when a model picked here doesn't suit the voice language
+ * ([SpeechLanguageCheck], issue #113). The AI reply language, which an unset
+ * voice language follows, stays on the Language page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +83,8 @@ fun SpeechScreen(
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside this screen; it re-reads it. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    /** Opens Settings → Language, where every language setting lives. */
-    onOpenLanguage: () -> Unit = {},
+    /** Speaks a test phrase in a language; false when its voice data is missing, null when TTS is off. */
+    onTestVoice: suspend (Language) -> Boolean? = { null },
     /** Android Built-in's engines and what they can do for a language; see [AndroidSpeechStatus]. */
     onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
@@ -103,6 +106,11 @@ fun SpeechScreen(
     var androidSttOnDeviceOnly by remember { mutableStateOf(initial.androidSttOnDeviceOnly) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var autoReadVoiceReplies by remember { mutableStateOf(initial.autoReadVoiceReplies) }
+    var voiceLanguage by remember { mutableStateOf(initial.voiceLanguage) }
+    var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
+
+    /** What the voice uses with the language picked here, before it is saved. */
+    val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { initial.preferredLanguage })
     // Samosa auth state, kept live as the user signs in / out.
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
@@ -177,8 +185,30 @@ fun SpeechScreen(
         androidSttService = androidSttService,
         androidSttOnDeviceOnly = androidSttOnDeviceOnly,
         autoReadReplies = autoReadReplies,
-        autoReadVoiceReplies = autoReadVoiceReplies
+        autoReadVoiceReplies = autoReadVoiceReplies,
+        voiceLanguage = voiceLanguage,
+        sttLanguage = sttLanguage.trim()
     )
+
+    /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applySpeech(initial)) }
+    val dirty = applySpeech(baseline) != baseline
+
+    fun commit() {
+        onSave { applySpeech(it) }
+        baseline = applySpeech(baseline)
+    }
+
+    /** Switches and the language pickers save as they change, like every other settings switch; [baseline] follows. */
+    fun saveSwitch(change: (Settings) -> Settings) {
+        onSave(change)
+        baseline = change(baseline)
+    }
 
     /** As stored, plus the unsaved edits — audio-model discovery needs both. */
     fun draftSpeech(): Settings = applySpeech(load())
@@ -201,6 +231,12 @@ fun SpeechScreen(
         }
         return ttsOk && sttOk
     }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = speechConfigValid()
+    )
 
     val refreshAudioModelsAction = {
         if (!refreshingModels) {
@@ -259,11 +295,18 @@ fun SpeechScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val usesAndroidSpeech = ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID
-    LaunchedEffect(usesAndroidSpeech, androidTtsEngine, androidSttService, androidSttOnDeviceOnly, resumes) {
+    LaunchedEffect(
+        usesAndroidSpeech,
+        androidTtsEngine,
+        androidSttService,
+        androidSttOnDeviceOnly,
+        resolvedVoiceLanguage,
+        resumes
+    ) {
         if (usesAndroidSpeech) {
             androidSpeech = onCheckAndroidSpeech(
                 AndroidSpeechQuery(
-                    initial.effectiveVoiceLanguage,
+                    resolvedVoiceLanguage,
                     androidTtsEngine,
                     androidSttService,
                     androidSttOnDeviceOnly
@@ -272,7 +315,7 @@ fun SpeechScreen(
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = guardedBack, overlay = overlay) {
         // ---- Voice / speech recommendations ----
         Text(
             stringResource(R.string.speech_for_mixed_language_text_like),
@@ -422,7 +465,7 @@ fun SpeechScreen(
             }
             AudioProvider.ANDROID -> AndroidTtsSettings(
                 status = androidSpeech,
-                language = initial.effectiveVoiceLanguage,
+                language = resolvedVoiceLanguage,
                 engine = androidTtsEngine,
                 onEngine = {
                     // Voices belong to an engine; the new one starts on its own choice.
@@ -523,11 +566,6 @@ fun SpeechScreen(
                         openUpsell(UpsellReason.GENERAL)
                     }
                 )
-                TranscriptionLanguageSummary(
-                    sttLanguage = initial.sttLanguage,
-                    voiceLanguage = initial.effectiveVoiceLanguage.label,
-                    onOpenLanguage = onOpenLanguage
-                )
                 SpeechDocsLink(modifier = Modifier.testTag("settings_stt_docs_link"))
             }
             AudioProvider.API -> {
@@ -569,22 +607,40 @@ fun SpeechScreen(
                         sttModelExpanded = false
                     }
                 )
-                TranscriptionLanguageSummary(
-                    sttLanguage = initial.sttLanguage,
-                    voiceLanguage = initial.effectiveVoiceLanguage.label,
-                    onOpenLanguage = onOpenLanguage
-                )
             }
             AudioProvider.ANDROID -> AndroidSttSettings(
                 status = androidSpeech,
-                language = initial.effectiveVoiceLanguage,
+                language = resolvedVoiceLanguage,
                 service = androidSttService,
                 onService = { androidSttService = it },
                 onDeviceOnly = androidSttOnDeviceOnly,
-                onOnDeviceOnly = { androidSttOnDeviceOnly = it }
+                onOnDeviceOnly = { on ->
+                    androidSttOnDeviceOnly = on
+                    saveSwitch { it.copy(androidSttOnDeviceOnly = on) }
+                }
             )
             AudioProvider.NONE -> Unit
         }
+        HorizontalDivider(thickness = 1.dp)
+        VoiceLanguageSection(
+            voiceLanguage = voiceLanguage,
+            // Pickers save as they change, like the switches: their Save button
+            // waits on the provider setup, which a language has nothing to do with.
+            onVoiceLanguage = { lang ->
+                voiceLanguage = lang
+                saveSwitch { it.copy(voiceLanguage = lang) }
+            },
+            replyLanguage = initial.preferredLanguage,
+            sttLanguage = sttLanguage,
+            onSttLanguage = { lang ->
+                sttLanguage = lang
+                saveSwitch { it.copy(sttLanguage = lang.trim()) }
+            },
+            sttProvider = sttProvider,
+            sttModel = sttApiModel,
+            sttModels = availableSttModels,
+            onTestVoice = onTestVoice
+        )
         // Android Built-in's problems are shown by its own availability lines above.
         SpeechLanguageWarnings(
             listOfNotNull(
@@ -593,22 +649,25 @@ fun SpeechScreen(
                     ttsApiModel,
                     ttsVoice,
                     availableTtsModels,
-                    initial.effectiveVoiceLanguage,
+                    resolvedVoiceLanguage,
                     LocalContext.current.stringLookup()
                 )
             ) + SpeechLanguageCheck.sttWarnings(
                 sttProvider,
                 sttApiModel,
-                initial.sttLanguage,
+                sttLanguage,
                 availableSttModels,
-                initial.effectiveVoiceLanguage,
+                resolvedVoiceLanguage,
                 LocalContext.current.stringLookup()
             )
         )
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_replies_aloud),
             checked = autoReadReplies,
-            onCheckedChange = { autoReadReplies = it },
+            onCheckedChange = { on ->
+                autoReadReplies = on
+                saveSwitch { it.copy(autoReadReplies = on) }
+            },
             isLarge = true,
             switchTestTag = "settings_auto_read_replies"
         )
@@ -616,19 +675,22 @@ fun SpeechScreen(
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_voice_replies),
             checked = autoReadVoiceReplies || autoReadReplies,
-            onCheckedChange = { autoReadVoiceReplies = it },
+            onCheckedChange = { on ->
+                autoReadVoiceReplies = on
+                saveSwitch { it.copy(autoReadVoiceReplies = on) }
+            },
             isLarge = true,
             enabled = !autoReadReplies,
             switchTestTag = "settings_auto_read_voice_replies"
         )
         Button(
             onClick = {
-                onSave { applySpeech(it) }
+                commit()
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
             enabled = speechConfigValid(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("settings_save_speech")
         ) { Text(stringResource(R.string.speech_save_speech_settings)) }
         status?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium)
@@ -847,34 +909,6 @@ private fun SttModelPicker(
             }
         }
     }
-}
-
-/**
- * The transcription language, read-only: it is set on the Language page with the
- * other languages (issue #114), and [onOpenLanguage] goes there.
- */
-@Composable
-private fun TranscriptionLanguageSummary(
-    sttLanguage: String,
-    voiceLanguage: String,
-    onOpenLanguage: () -> Unit
-) {
-    val forced = sttLanguage.trim()
-    Text(
-        if (forced.isEmpty()) {
-            stringResource(
-                R.string.speech_transcription_follows_voice,
-                stringResource(Language.fromLabel(voiceLanguage).nameRes)
-            )
-        } else {
-            stringResource(R.string.speech_transcription_forced, AudioLanguageLabels.label(forced))
-        },
-        style = MaterialTheme.typography.bodyMedium
-    )
-    TextButton(
-        onClick = onOpenLanguage,
-        modifier = Modifier.testTag("settings_speech_open_language")
-    ) { Text(stringResource(R.string.speech_change_in_settings_language)) }
 }
 
 /** Inline link to the Samosa AI docs on choosing a voice and language. */

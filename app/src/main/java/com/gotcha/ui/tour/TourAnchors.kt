@@ -26,10 +26,7 @@ enum class TourAnchor {
     DRAWER_SETTINGS,
     SETTINGS_PERSONAL_INFO,
 
-    /** The AI hub's row on the settings home list. */
-    SETTINGS_AI,
-
-    /** The AI Configuration row, which lives inside the AI hub. */
+    /** The AI model row on the settings home list. */
     SETTINGS_AI_CONFIG,
     SETTINGS_PERMISSIONS,
     AI_PROVIDER,

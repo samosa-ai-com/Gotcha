@@ -30,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
 import com.gotcha.R
+import com.gotcha.data.Settings
 import com.gotcha.tools.CompanyInfoTool
 import com.gotcha.updater.AppUpdateManager
 import com.gotcha.updater.UpdateStatus
@@ -45,6 +46,8 @@ import kotlinx.coroutines.launch
 fun AboutScreen(
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
+    load: () -> Settings,
+    onSave: ((Settings) -> Settings) -> Unit,
     checkUpdateOnOpen: Boolean = false,
     onUpdateCheckStarted: () -> Unit = {}
 ) {
@@ -61,6 +64,7 @@ fun AboutScreen(
         }
         HorizontalDivider(thickness = 1.dp)
         AppUpdateSection(checkOnOpen = checkUpdateOnOpen, onCheckStarted = onUpdateCheckStarted)
+        UpdateNotificationsToggle(load = load, onSave = onSave)
         HorizontalDivider(thickness = 1.dp)
     }
 }

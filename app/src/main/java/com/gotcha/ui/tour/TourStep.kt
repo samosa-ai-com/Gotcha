@@ -23,8 +23,6 @@ enum class TourPlace {
     /** The settings category list. */
     SETTINGS_HOME,
 
-    /** The AI hub: the model page and the speech page, one level under Settings. */
-    AI_HUB,
     AI_CONFIG,
     PERMISSIONS,
     PERSONAL_INFO
@@ -90,6 +88,14 @@ data class TourStep(
 fun defaultTourSteps(): List<TourStep> =
     brainSteps() + permissionSteps() + profileSteps()
 
+/**
+ * Saved step ids from earlier builds, mapped to the step that took their place,
+ * so a tour paused on a step that is gone resumes where it was rather than from
+ * the top. "open_ai" opened the AI hub, which the settings redesign removed;
+ * the AI model row it led to now sits on the Settings list itself.
+ */
+val RETIRED_TOUR_STEPS: Map<String, String> = mapOf("open_ai" to "open_ai_config")
+
 /** Finding Settings, and giving the assistant something to think with. */
 private fun brainSteps(): List<TourStep> = listOf(
     TourStep(
@@ -101,16 +107,8 @@ private fun brainSteps(): List<TourStep> = listOf(
         hint = R.string.tour_open_settings_hint
     ),
     TourStep(
-        id = "open_ai",
-        place = TourPlace.SETTINGS_HOME,
-        autoNavigate = false,
-        anchor = TourAnchor.SETTINGS_AI,
-        title = R.string.tour_open_ai_title,
-        body = R.string.tour_open_ai_body
-    ),
-    TourStep(
         id = "open_ai_config",
-        place = TourPlace.AI_HUB,
+        place = TourPlace.SETTINGS_HOME,
         autoNavigate = false,
         anchor = TourAnchor.SETTINGS_AI_CONFIG,
         title = R.string.tour_open_ai_config_title,

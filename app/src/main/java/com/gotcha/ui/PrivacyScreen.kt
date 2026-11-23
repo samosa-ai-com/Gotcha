@@ -61,27 +61,29 @@ fun PrivacyScreen(
     LaunchedEffect(Unit) { overview = loadUsageOverview(context) }
 
     SettingsScaffold(title = stringResource(SettingsPage.PRIVACY.title), onBack = onBack, overlay = overlay) {
-        Text(
-            text = stringResource(R.string.privacy_your_usage_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(R.string.privacy_your_usage_intro),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        val loaded = overview
-        if (loaded == null) {
-            Text(stringResource(R.string.loading), style = MaterialTheme.typography.bodyMedium)
-        } else {
-            UsageCard(loaded)
-        }
-
-        // Shown in builds without an endpoint too, so the page can say plainly
-        // that this build sends nothing rather than hiding the question.
-        HorizontalDivider(thickness = 1.dp)
+        // The one choice on the page comes first. Shown in builds without an
+        // endpoint too, so the page can say plainly that this build sends
+        // nothing rather than hiding the question.
         UsageDataSection()
+
+        // The local counts are interesting, not a setting: folded below it.
+        HorizontalDivider(thickness = 1.dp)
+        SettingsAdvancedSection(
+            testTag = "privacy_your_usage",
+            title = stringResource(R.string.privacy_your_usage_title)
+        ) {
+            Text(
+                text = stringResource(R.string.privacy_your_usage_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val loaded = overview
+            if (loaded == null) {
+                Text(stringResource(R.string.loading), style = MaterialTheme.typography.bodyMedium)
+            } else {
+                UsageCard(loaded)
+            }
+        }
 
         HorizontalDivider(thickness = 1.dp)
 
@@ -233,7 +235,9 @@ private fun UsageDataSection() {
     val available = current?.configured == true
     SettingsToggleRow(
         label = stringResource(R.string.privacy_usage_data_switch),
-        checked = current?.enabled == true,
+        // Off when this build has no endpoint: a greyed-out switch that still
+        // reads "on" beside "This build sends no usage data" contradicted itself.
+        checked = available && current?.enabled == true,
         onCheckedChange = { on ->
             // Move the switch at once. A first choice is written from a
             // background coroutine, so re-reading status() immediately could

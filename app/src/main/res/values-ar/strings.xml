@@ -36,7 +36,7 @@
     <string name="language_arabic">العربية</string>
 
     <!-- Settings → Language -->
-    <string name="language_page_intro">كل لغة يستخدمها Gotcha في مكان واحد: اللغة التي كُتبت بها شاشات التطبيق نفسه، وما يتحدث به Gotcha ويسمعه، وما يكتب به إجاباته.</string>
+    <string name="language_page_intro">لغة شاشات Gotcha، واللغة التي يجيب بها. لغات التحدث والاستماع موجودة في الصوت والكلام.</string>
     <string name="language_display_title">لغة عرض التطبيق</string>
     <string name="language_display_description">لغة أزرار وشاشات Gotcha نفسه. يتغير Gotcha فقط؛ يبقى باقي هاتفك كما هو.</string>
     <string name="language_display_open_settings">اختر لغة التطبيق</string>
@@ -46,7 +46,6 @@
     <string name="language_voice_title">لغة الصوت</string>
     <string name="language_voice_description">ما ينطقه Gotcha بصوت عالٍ ويستمع له أثناء الإدخال الصوتي والمكالمات. اتركها تابعة للغة الرد إلا إذا أردت إجابات مكتوبة بلغة ومنطوقة بأخرى.</string>
     <string name="language_voice_follow_reply">نفس لغة رد الذكاء الاصطناعي</string>
-    <string name="language_voice_speech_hint">يُختار النموذج والصوت الذي يقرأه من الإعدادات ← الذكاء الاصطناعي ← الكلام.</string>
     <string name="language_transcription_title">لغة النسخ</string>
     <string name="language_transcription_description">اللغة التي يكتب بها Gotcha كلامك، للإدخال الصوتي والمكالمات ونسخ ملفات الصوت.</string>
     <string name="language_transcription_hint_api">اتركه فارغًا ليُنسخ الكلام بلغة الصوت. حدّده لفرض لغة واحدة، مما يساعد الدقة عندما يميل النموذج للخطأ.</string>
@@ -60,18 +59,22 @@
     <string name="language_tts_settings_failed">تعذّر فتح إعدادات تحويل النص إلى كلام.</string>
     <string name="language_reply_title">لغة رد الذكاء الاصطناعي</string>
     <string name="language_reply_description">اللغة التي يكتب بها المساعد إجاباته. تبقى أسماء الأدوات والأوامر ومسارات الملفات بالإنجليزية لتبقى تعمل.</string>
-    <string name="language_saved">تم حفظ إعدادات اللغة.</string>
-    <string name="language_save">حفظ إعدادات اللغة</string>
 
     <!-- Shared actions -->
     <string name="action_cancel">إلغاء</string>
 
     <!-- Settings pages: title and the summary under it on the home list -->
-    <string name="settings_page_personal_info">المعلومات الشخصية</string>
+    <string name="settings_page_personal_info">عنك</string>
     <string name="settings_page_personal_info_summary">هويتك، العملة، أسلوب الرد</string>
     <string name="settings_page_second_brain">الدماغ الثاني</string>
-    <string name="settings_page_chats">المحادثات</string>
-    <string name="settings_page_chats_summary">استيراد المحادثات أو نسخها احتياطيًا</string>
+    <string name="settings_page_chats">المحادثات والتخزين</string>
+    <string name="settings_page_chats_summary">استيراد، نسخ احتياطي، مسح ذاكرة التخزين المؤقت</string>
+    <string name="chats_clear_debug_screenshots_summary">احذف لقطات الشاشة المحفوظة لاستكشاف الأخطاء</string>
+    <string name="chats_clear_llm_cache_summary">انسَ ردود النموذج المحفوظة لتوفير الوقت</string>
+    <string name="chats_backup_summary">احفظ كل المحادثات في ملف واحد</string>
+    <string name="chats_import_summary">أضف محادثات من ملف نسخة احتياطية لـ Gotcha</string>
+    <string name="chats_group_storage">التخزين</string>
+    <string name="chats_group_chats">المحادثات</string>
     <string name="second_brain_intro">ما يتذكره Gotcha عنك. الهوية أولًا، ثم الخريطة، ثم التفاصيل. التعديل يتم عبر الوكيل حاليًا.</string>
     <string name="second_brain_summary">ملاحظات: %1$d · أشخاص: %2$d · مجالات: %3$d</string>
     <string name="second_brain_setup_title">دماغك الثاني</string>
@@ -130,26 +133,28 @@
     <string name="second_brain_graph_reset">إعادة العرض</string>
     <string name="second_brain_graph_neighbors"> · %1$d متصلة</string>
     <string name="settings_page_language">اللغة</string>
-    <string name="settings_page_language_summary">لغة عرض التطبيق والصوت والنسخ والردود بالذكاء الاصطناعي</string>
-    <string name="settings_page_ai">الذكاء الاصطناعي</string>
-    <string name="settings_page_ai_summary">الطراز، المزوّد، الصوت والنسخ</string>
-    <string name="settings_page_ai_config">إعدادات الذكاء الاصطناعي</string>
-    <string name="settings_page_ai_config_summary">المزوّد، الطرازات، حدود الوكيل</string>
-    <string name="settings_page_speech">الكلام (TTS / STT)</string>
-    <string name="settings_page_speech_summary">الأصوات، النسخ، قراءة الردود بصوت عالٍ</string>
+    <string name="settings_page_language_summary">لغة عرض التطبيق ولغة ردود الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_config">نموذج الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_config_summary">المزوّد والنموذج وحدود الوكيل</string>
+    <string name="settings_page_speech">الصوت والكلام</string>
+    <string name="settings_page_speech_summary">الأصوات والنسخ والقراءة بصوت عالٍ</string>
     <string name="settings_page_permissions">الأذونات</string>
     <string name="settings_page_permissions_summary">ما يُسمح للمساعد بفعله</string>
     <string name="settings_page_shell">الصدفة</string>
-    <string name="settings_page_shell_summary">Gotcha Shell أو Termux: حيث يشغّل المساعد أوامر Linux</string>
+    <string name="settings_page_shell_summary">Gotcha Shell أو Termux لأوامر Linux</string>
     <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">شغّل الأوامر في صدفة Linux حقيقية</string>
-    <string name="settings_page_skills">المهارات / الإضافات</string>
+    <string name="settings_page_termux_summary">استخدم تطبيق Termux إن كان لديك</string>
+    <string name="settings_page_skills">المهارات</string>
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
+    <string name="skills_hub_connectors_summary">Google وMicrosoft وNotion وHome Assistant والبريد وMCP</string>
+    <string name="skills_hub_intro">تمنح الموصلات المساعدَ الوصول إلى حساباتك؛ وتخبره المهارات بكيفية استخدامها واستخدام التطبيقات المحيطة بها.</string>
+    <string name="settings_page_skills_and_connectors_summary">الحسابات المتصلة والمهارات المدمجة</string>
+    <string name="settings_page_skills_and_connectors">المهارات والموصلات</string>
     <string name="settings_page_proactive">المساعدة الاستباقية</string>
     <string name="settings_page_proactive_summary">العروض، كشف OTP، ما يمكن فحصه</string>
-    <string name="settings_page_assistive_ball">الكرة المساعدة وكلمة التنبيه</string>
-    <string name="settings_page_assistive_ball_summary">كرة عائمة فوق التطبيقات، اتصال بدون لمس، \"Hey Gotcha\"</string>
+    <string name="settings_page_assistive_ball">الكرة العائمة وكلمة التنبيه</string>
+    <string name="settings_page_assistive_ball_summary">مكالمات دون استخدام اليدين و\"Hey Gotcha\"</string>
     <string name="settings_page_appearance">المظهر</string>
     <string name="settings_page_appearance_summary">كيف يبدو التطبيق</string>
     <string name="settings_page_notifications">الإشعارات</string>
@@ -243,23 +248,34 @@
     <!-- Settings home -->
     <string name="settings_title">الإعدادات</string>
     <string name="settings_search_hint">ابحث في الإعدادات</string>
+    <string name="settings_account_summary_signed_out">سجّل الدخول لاستخدام نماذج وأصوات Samosa AI</string>
+    <string name="settings_account_summary_signed_in">الحساب والخطة وتسجيل الخروج</string>
+    <string name="settings_group_help">المساعدة وحول</string>
+    <string name="settings_group_privacy">الخصوصية والأذونات</string>
+    <string name="settings_group_app">التطبيق</string>
+    <string name="settings_group_automation">الأتمتة</string>
+    <string name="settings_group_assistant">المساعد</string>
+    <string name="settings_unsaved_title">هل تحفظ تغييراتك؟</string>
+    <string name="settings_unsaved_message">غيّرت هذه الصفحة دون حفظ.</string>
+    <string name="settings_unsaved_save">حفظ</string>
+    <string name="settings_unsaved_discard">تجاهل</string>
+    <string name="settings_unsaved_incomplete">بعض الحقول المطلوبة في هذه الصفحة فارغة، لذا لا يمكن حفظ التغييرات بعد.</string>
+    <string name="settings_unsaved_keep_editing">متابعة التعديل</string>
     <string name="settings_search_clear">مسح البحث</string>
     <string name="settings_search_empty">لا توجد إعدادات تطابق "%1$s"</string>
     <string name="settings_feature_tour">جولة الميزات</string>
     <string name="settings_feature_tour_summary">أعد الإعداد خطوة بخطوة</string>
     <string name="settings_feedback">إرسال ملاحظات</string>
-    <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه — لا يُرسل شيء حتى تُرسل</string>
+    <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه</string>
 
     <!-- AiHubScreen -->
-    <string name="ai_hub_the_model_does_the_thinking">النموذج يفكر؛ الكلام يمنحه صوتًا وأذنين. مزود واحد يمكنه تغطية الاثنين. اللغة التي يتحدث ويجيب بها في الإعدادات ← اللغة.</string>
 
     <!-- AppearanceScreen -->
     <string name="appearance_theme">المظهر</string>
     <string name="appearance_every_theme_works_on_every">كل مظهر يعمل على كل جهاز. حيث لا يتوفر التمويه المباشر، يُصنع الزجاج بطريقة أرخص بدلًا من إيقافه.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_save_proactive_settings">حفظ إعدادات الاستباقية</string>
-    <string name="proactive_master_proactive_offers">العروض الاستباقية الرئيسية</string>
+    <string name="proactive_master_proactive_offers">العروض الاستباقية</string>
     <string name="proactive_scan_screen_content">فحص محتوى الشاشة</string>
     <string name="proactive_scan_clipboard">فحص الحافظة</string>
     <string name="proactive_scan_notifications">فحص الإشعارات</string>
@@ -276,14 +292,13 @@
     <string name="personal_info_background">الخلفية</string>
     <string name="personal_info_reply_style">أسلوب الرد</string>
     <string name="personal_info_preferred_currency">العملة المفضلة</string>
-    <string name="personal_info_save_personal_info">حفظ المعلومات الشخصية</string>
+    <string name="personal_info_save_personal_info">حفظ</string>
     <string name="personal_info_about_you">عنك</string>
     <string name="personal_info_everything_here_is_optional_stays">كل شيء هنا اختياري، يبقى على هذا الجهاز، ويُعطى للمساعد في بداية كل محادثة حتى لا يضطر للسؤال.</string>
     <string name="personal_info_for_more_personalized_results_keep">لنتائج أكثر تخصيصًا، حافظ على تحديث هذا الملف — أو اطلب من Gotcha تسجيل أشياء مثل موقعك الشخصي أو رابط GitHub أو سيرتك الذاتية (PDF) في ملفك.</string>
     <string name="personal_info_anything_worth_knowing_by_default">أي شيء يستحق المعرفة افتراضيًا — الأدوات التي تستخدمها، من تعمل معه، ما تطلبه عادة</string>
     <string name="personal_info_how_replies_should_be_written">كيف يجب كتابة الردود</string>
     <string name="personal_info_e_g_keep_it_to">مثال: اجعله بضع جمل، بلا قوائم نقطية، أظهر الأمر الذي شغّلته</string>
-    <string name="personal_info_reply_voice_and_app_display">لغة الرد والصوت وعرض التطبيق أصبحت في صفحتها الخاصة.</string>
 
     <!-- Appearance and save confirmations -->
     <string name="appearance_tier_solid">موفّر البطارية مفعّل، لذا يُرسم المظهر بشكل مسطّح حتى يُطفأ.</string>
@@ -291,8 +306,7 @@
     <string name="appearance_brightness_light">فاتح</string>
     <string name="appearance_brightness_dark">داكن</string>
     <string name="appearance_skin_description">مظهر %1$s، %2$s</string>
-    <string name="proactive_saved">تم حفظ الإعدادات الاستباقية.</string>
-    <string name="personal_info_saved">تم حفظ المعلومات الشخصية.</string>
+    <string name="personal_info_saved">تم الحفظ.</string>
 
     <!-- AiConfigScreen -->
     <string name="ai_config_llm_provider">مزوّد LLM</string>
@@ -336,7 +350,6 @@
     <string name="speech_default_clear">افتراضي (مسح)</string>
     <string name="speech_no_voices_suggested_type_a">لا أصوات مقترحة — اكتب معرّف صوت أعلاه</string>
     <string name="speech_stt_model">نموذج تحويل الكلام</string>
-    <string name="speech_change_in_settings_language">غيّر من الإعدادات ← اللغة</string>
     <string name="speech_podcast_host_a_voice_optional">صوت المضيف أ (اختياري)</string>
     <string name="speech_podcast_host_b_voice_optional">صوت المضيف ب (اختياري)</string>
     <string name="speech_auto_read_replies_aloud">قراءة الردود تلقائيًا بصوت عالٍ</string>
@@ -359,7 +372,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">فقط أثناء إيقاف الشاشة</string>
     <string name="assistive_ball_hands_free_when_you_are">بدون استخدام اليدين عندما لا تنظر إلى الهاتف؛ تشغيل الشاشة يعني إيقاف الميكروفون.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">كرة قابلة للسحب تطفو فوق التطبيقات الأخرى. اضغط مطولًا لبدء مكالمة صوتية بدون استخدام اليدين مع المساعد؛ اضغط عليها لبدء / إيقاف مؤقت / إنهاء ولفتح التطبيق. اسحبها إلى ✕ لإخفائها مجددًا.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">تقول \"Hey Gotcha\" — يعمل نموذج OpenWakeWord المضمّن على الجهاز، لكن فقط أثناء تشغيل الكرة المساعدة وعدم وجود مكالمة نشطة. المستمع داخل خدمة الكرة، لذا إيقاف الكرة يوقف كلمة التنبيه أيضًا. أبقِ إذن الميكروفون مفعّلًا.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">قل \"Hey Gotcha\" لبدء مكالمة. يُسمع على الهاتف نفسه، فقط أثناء تشغيل الكرة وعدم وجود مكالمة جارية.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">شغّل \"إظهار الكرة المساعدة\" أعلاه لاستخدامها.</string>
     <string name="assistive_ball_when_to_listen">متى تستمع</string>
     <string name="assistive_ball_the_listener_is_only_active">المستمع نشط فقط عندما تطابق الشاشة الحالة المختارة، لذا يكون الميكروفون ومؤشره متوقفين بقية الوقت.</string>
@@ -378,6 +391,7 @@
     <string name="notifications_notify_when_a_task_finishes">إشعار عند انتهاء مهمة</string>
     <string name="notifications_enable_server_messages">تفعيل رسائل الخادم</string>
     <string name="notifications_played_as_soon_as_a">تُشغَّل بمجرد وصول رد. أوقف كليهما لعدم التنبيه.</string>
+    <string name="notifications_reply_alerts">تنبيهات الرد</string>
     <string name="notifications_task_finished">انتهت المهمة</string>
     <string name="notifications_a_notification_when_a_chat">إشعار عند انتهاء مهمة محادثة وأنت في تطبيق آخر. اضغطه لفتح تلك المحادثة. على شاشة القفل يظهر فقط أن مهمة انتهت.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">الإشعارات محظورة لـ Gotcha، لذا لن يظهر أي منها.</string>
@@ -390,6 +404,16 @@
     <string name="local_notifications_clear">مسح</string>
     <string name="local_notifications_cancel">إلغاء</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">تذكيرات ونصائح يقرر Gotcha إرسالها، تُحسب على هذا الهاتف من محادثاتك. لا يُرفع أي شيء عن طريقة استخدامك لـ Gotcha لتحديدها.</string>
+    <string name="local_notifications_to">إلى</string>
+    <string name="local_notifications_from">من</string>
+    <string name="local_notifications_time">الوقت</string>
+    <string name="local_notifications_name_chats">ذكر اسم المحادثات في الإشعارات</string>
+    <string name="local_notifications_quiet_hours">ساعات الهدوء</string>
+    <string name="local_notifications_daily_tip">نصيحة يومية</string>
+    <string name="local_notifications_quiet_spell">بعد فترة هدوء</string>
+    <string name="local_notifications_routines">الروتين</string>
+    <string name="local_notifications_unfinished">المحادثات غير المكتملة</string>
+    <string name="local_notifications_send">إرسال إشعارات Gotcha</string>
     <string name="local_notifications_this_empties_the_list_behind">هذا يفرّغ القائمة خلف الجرس في الشاشة الرئيسية. التذكيرات التي أرسلها Gotcha بالفعل لن تُرسل مرة أخرى.</string>
 
     <!-- AiConfigScreen -->
@@ -429,8 +453,6 @@
     <string name="speech_tts_voice_optional">صوت TTS (اختياري)</string>
     <string name="speech_provider_default_voice">الافتراضي لدى المزوّد</string>
     <string name="speech_default_voice_or_pick">الافتراضي (%1$s) أو اختر أدناه</string>
-    <string name="speech_transcription_follows_voice">لغة التفريغ: %1$s، لغة الصوت.</string>
-    <string name="speech_transcription_forced">لغة التفريغ: مفروضة على %1$s.</string>
 
     <!-- LocalNotificationsSection -->
     <string name="local_notifications_history_cleared">تم مسح سجل الإشعارات</string>
@@ -494,6 +516,7 @@
     <string name="skills_add_host">إضافة مضيف</string>
     <string name="skills_add">إضافة</string>
     <string name="skills_community_skills">مهارات المجتمع</string>
+    <string name="skills_all_skills">كل المهارات (%1$d)</string>
     <string name="skills_paste_community_skill_json">الصق JSON مهارة المجتمع</string>
     <string name="skills_no_community_skills_imported_yet">لم تُستورد مهارات مجتمع بعد.</string>
     <string name="skills_allowed_community_skill_hosts">مضيفو مهارات المجتمع المسموحون</string>
@@ -537,7 +560,7 @@
     <string name="permissions_health_connect_permission_needed">مطلوب إذن Health Connect</string>
     <string name="permissions_open_health_connect">افتح Health Connect</string>
     <string name="permissions_not_now">ليس الآن</string>
-    <string name="permissions_nothing_here_is_required_up">لا شيء هنا مطلوب مسبقًا — يطلب المساعد الإذن عند أول حاجة إليه، ويوضّح السبب. هذه الصفحة لمنحها مسبقًا، ورؤية المُفعَّل، وإيقاف أي شيء. تُظهر أذونات وقت التشغيل نافذة نظام عند تفعيلها؛ أما أذونات الوصول الخاص فتفتح شاشة الإعدادات لإعداد لمرة واحدة.</string>
+    <string name="permissions_nothing_here_is_required_up">لا شيء هنا مطلوب مسبقًا: يطلب المساعد الإذن عندما يحتاجه أول مرة. استخدم هذه الصفحة لمنح إذن مبكرًا أو إيقافه.</string>
     <string name="permissions_guided_setup">إعداد موجَّه ›</string>
     <string name="permissions_gotcha_can_t_read_your">لا يستطيع Gotcha قراءة بياناتك الصحية بعد. افتح Health Connect، وابحث عن Gotcha ضمن أذونات التطبيق، واسمح بأنواع البيانات التي ترتاح لمشاركتها، ثم عُد هنا.</string>
     <string name="permissions_open_settings_screen">افتح شاشة الإعدادات</string>
@@ -1237,10 +1260,8 @@
     <string name="tour_open_settings_title">كل شيء خلف هنا</string>
     <string name="tour_open_settings_body">اسحب من الحافة اليسرى في أي وقت للوصول إلى هذه القائمة. اضغط الإعدادات للبدء.</string>
     <string name="tour_open_settings_hint">نصيحة: نفس السحب يعمل من أي مكان في المحادثة.</string>
-    <string name="tour_open_ai_title">ابدأ بالذكاء الاصطناعي</string>
-    <string name="tour_open_ai_body">كل ما يفكر ويسمع ويتحدث به Gotcha خلف هذا الصف. افتحه.</string>
     <string name="tour_open_ai_config_title">امنح Gotcha عقلاً</string>
-    <string name="tour_open_ai_config_body">إعداد الذكاء الاصطناعي هو مكان النموذج. افتحه — ستعود هنا لتغيير النماذج لاحقاً، واختيار صوت.</string>
+    <string name="tour_open_ai_config_body">صفحة نموذج الذكاء الاصطناعي هي مكان عقل Gotcha. افتحها — ستعود إليها لاحقًا لتغيير النماذج.</string>
     <string name="tour_choose_provider_title">اختر من يقوم بالتفكير</string>
     <string name="tour_choose_provider_body">يمنحك Samosa AI نموذجاً وكلاماً ونسخاً ضمن حصة يومية مجانية — دون مفاتيح للصق. اختر متوافق مع OpenAI بدلاً من ذلك إن أردت استخدام مزوّدك.</string>
     <string name="tour_samosa_sign_in_title">سجّل الدخول مرة واحدة</string>
@@ -1255,7 +1276,7 @@
     <string name="tour_grant_overlay_title">وواحد للكرة العائمة</string>
     <string name="tour_grant_overlay_body">‏\"العرض فوق التطبيقات الأخرى\" يتيح ظهور الكرة المساعدة وعدسة الشاشة فوق أي شيء تستخدمه.</string>
     <string name="tour_open_personal_info_title">آخر شيء: من أنت؟</string>
-    <string name="tour_open_personal_info_body">افتح المعلومات الشخصية. ما تضعه هنا يصل إلى كل رد — لغتك ووحداتك وعملتك.</string>
+    <string name="tour_open_personal_info_body">افتح عنك. ما تكتبه هنا يصل إلى كل رد — وحداتك وعملتك وطريقة الكتابة التي تفضلها.</string>
     <string name="tour_fill_personal_info_title">أخبره باسمك</string>
     <string name="tour_fill_personal_info_body">اكتب ما تحب أن يُنادى به. كل شيء في هذه الصفحة اختياري، وكلّه يجعل الإجابات تناسبك أكثر.</string>
     <string name="tour_save_personal_info_title">احفظه</string>
@@ -1401,11 +1422,11 @@
     <string name="call_confirmation_needed">التأكيد مطلوب: %1$s</string>
     <string name="call_stt_label">تحويل الكلام إلى نص</string>
     <string name="call_tts_label">تحويل النص إلى كلام</string>
-    <string name="call_audio_not_configured">%1$s غير مُهيأ. قم بإعداده من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s Samosa AI غير مُهيأ. سجّل الدخول من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_model_missing">لم يتم اختيار نموذج %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_url_invalid">رابط API الخاص بـ %1$s مفقود أو غير صالح. صحّحه من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">لم يتم اختيار نموذج API الخاص بـ %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s غير مُهيأ. قم بإعداده من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI غير مُهيأ. سجّل الدخول من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_model_missing">لم يتم اختيار نموذج %1$s. اختر واحداً من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_url_invalid">رابط API الخاص بـ %1$s مفقود أو غير صالح. صحّحه من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_api_model_missing">لم يتم اختيار نموذج API الخاص بـ %1$s. اختر واحداً من Gotcha ← الإعدادات ← الصوت والكلام.</string>
     <string name="screenshot_channel">التقاط لقطة شاشة</string>
     <string name="screenshot_channel_description">التقاط لقطة شاشة لمرة واحدة</string>
     <string name="screenshot_capturing">جارٍ التقاط لقطة الشاشة…</string>
@@ -1537,7 +1558,7 @@
     <string name="chat_vm_no_api_key_configured_open">لا مفتاح API مُهيّأ. افتح الإعدادات لإضافة واحد.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">إذن الميكروفون غير ممنوح. فعّله من الإعدادات ← الأذونات.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">فشل بدء التعرّف على الكلام.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT غير مُهيّأ. سجّل الدخول من الإعدادات ← الكلام.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT غير مُهيّأ. سجّل الدخول من الإعدادات ← الصوت والكلام.</string>
     <string name="chat_vm_no_stt_api_url_configured">لا عنوان URL لواجهة STT مُهيّأ في الإعدادات.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">لم يُحدَّد نموذج STT. حدّث نماذج الصوت في الإعدادات.</string>
     <string name="chat_vm_failed_to_start_recording">فشل بدء التسجيل.</string>
@@ -1674,7 +1695,7 @@
     <string name="error_generic">خطأ: %1$s</string>
 
     <!-- Errors: model timeout -->
-    <string name="error_model_timeout">النموذج لم يستجب في الوقت المحدد. حاول مجددًا، أو ارفع مهلة API من الإعدادات ← AI ← إعدادات AI.</string>
+    <string name="error_model_timeout">النموذج لم يستجب في الوقت المحدد. حاول مجددًا، أو ارفع مهلة API من الإعدادات ← نموذج الذكاء الاصطناعي.</string>
 
     <!-- Connectors: status lines and connect results -->
     <string name="connector_not_connected">غير متصل</string>
@@ -1723,7 +1744,7 @@
     <string name="speech_check_android_tts_missing">تحويل النص إلى كلام في Android لا يملك صوت %1$s مثبتًا، لذا لن تُقرأ ردود %1$s بصوت عالٍ. ثبّت بيانات الصوت، أو اختر محركًا يملكه، من إعدادات تحويل النص إلى كلام في Android.</string>
     <string name="speech_check_android_stt_unsupported">مُعرّف الكلام في Android لا يدرج %1$s، لذا قد ينسخ كلام %1$s خطأً. اختر خدمة إدخال صوتي أخرى من إعدادات Android.</string>
     <string name="speech_android_voice_input_settings_failed">تعذّر فتح إعدادات الإدخال الصوتي.</string>
-    <string name="speech_voice_not_installed">لا يوجد صوت %1$s مثبت لتحويل النص إلى كلام في Android، لذا لم يُقرأ هذا بصوت عالٍ. ثبّته عبر اختبار الصوت في الإعدادات ← اللغة.</string>
+    <string name="speech_voice_not_installed">لا يوجد صوت %1$s مثبت لتحويل النص إلى كلام في Android، لذا لم يُقرأ هذا بصوت عالٍ. ثبّته عبر اختبار الصوت في الإعدادات ← الصوت والكلام.</string>
     <string name="speech_android_tts_engine">محرك تحويل النص إلى كلام</string>
     <string name="speech_android_stt_engine">مُعرّف الكلام</string>
     <string name="speech_android_phone_default">اختيار الهاتف (%1$s)</string>
@@ -1749,9 +1770,9 @@
     <string name="speech_android_on_device_needs_12">يتطلب «على الجهاز فقط» Android 12 أو أحدث.</string>
     <string name="speech_android_tts_settings">إعدادات تحويل النص إلى كلام في Android</string>
     <string name="speech_android_voice_input_settings">إعدادات إدخال الصوت في Android</string>
-    <string name="stt_on_device_unavailable">هذا الهاتف لا يستطيع التعرّف على الكلام على الجهاز. أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
-    <string name="stt_language_not_on_device">%1$s غير مُنزَّل للتعرّف على الكلام على الجهاز. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
-    <string name="stt_language_unsupported">مُتعرِّف الكلام لا يستطيع التعرّف على %1$s. اختر لغة أخرى من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
+    <string name="stt_on_device_unavailable">هذا الهاتف لا يستطيع التعرّف على الكلام على الجهاز. أوقف «على الجهاز فقط» من الإعدادات → الصوت والكلام.</string>
+    <string name="stt_language_not_on_device">%1$s غير مُنزَّل للتعرّف على الكلام على الجهاز. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط» من الإعدادات → الصوت والكلام.</string>
+    <string name="stt_language_unsupported">مُتعرِّف الكلام لا يستطيع التعرّف على %1$s. اختر لغة أخرى من الإعدادات → الصوت والكلام.</string>
     <string name="speech_check_android_stt_not_on_device">«على الجهاز فقط» مفعّل، لكن %1$s لا يمكن التعرّف عليه على هذا الهاتف بعد، لذا سيتوقف إدخال الصوت برسالة. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط».</string>
 
     <!-- Referral sharing -->
@@ -1826,7 +1847,6 @@
     <string name="channel_app_updates_description">إشعار عند إصدار نسخة جديدة من Gotcha</string>
     <string name="update_notification_title">Gotcha %1$s متاح</string>
     <string name="update_notification_body">اضغط للتنزيل والتثبيت.</string>
-    <string name="notifications_app_updates">تحديثات التطبيق</string>
     <string name="notifications_app_updates_description">نحو مرتين يوميًا، ينزّل Gotcha ملفًا صغيرًا من GitHub (raw.githubusercontent.com) لمعرفة إن كان هناك إصدار جديد. الطلب لا يحمل أي شيء عنك؛ يرى GitHub عنوان IP الخاص بك، كما في أي تنزيل.</string>
     <string name="notifications_notify_about_new_versions">أبلغني بالإصدارات الجديدة</string>
     <string name="settings_field_update_notifications_enabled">إشعارات التحديث</string>
@@ -1888,7 +1908,7 @@
     <string name="scheduled_needs_tap_public_title">حان وقت مهمة مجدولة</string>
     <string name="scheduled_task_gone">لم تعد هذه المهمة موجودة.</string>
     <string name="scheduled_task_files_missing">تعذّرت قراءة الملفات المحفوظة مع هذه المهمة. أضفها مرة أخرى في الإعدادات.</string>
-    <string name="scheduled_task_ai_not_set_up">لم يتم إعداد ذكاء Gotcha. سجّل الدخول أو أضف مفتاح API في الإعدادات ▸ AI.</string>
+    <string name="scheduled_task_ai_not_set_up">لم يتم إعداد ذكاء Gotcha. سجّل الدخول أو أضف مفتاح API في الإعدادات ▸ نموذج الذكاء الاصطناعي.</string>
     <string name="scheduled_task_needs_exact_alarms">بانتظار نقرة: قد لا يضبط Gotcha المنبهات الدقيقة.</string>
     <string name="settings_page_scheduled_tasks">المهام المجدولة</string>
     <string name="settings_page_scheduled_tasks_summary">أوامر يشغّلها Gotcha بنفسه في أوقات محددة</string>
@@ -2014,7 +2034,7 @@
     <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
     <string name="samosa_session_deactivated">تم إلغاء تنشيط حساب Samosa AI هذا.</string>
-    <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. في Samosa AI: الإعدادات ← إعداد الذكاء الاصطناعي ← إضافة رصيد.</string>
+    <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. لـ Samosa AI، افتح حسابك أعلى الإعدادات واضغط إضافة رصيد.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">الطرفية</string>
@@ -2050,7 +2070,7 @@
     <string name="linux_terminal_refused_failed_unknown">تعذّر تشغيل الطرفية.</string>
     <!-- Settings ▸ Privacy, and optional usage data -->
     <string name="settings_page_privacy">الخصوصية</string>
-    <string name="settings_page_privacy_summary">استخدامك على هذا الهاتف، وإلى أين تذهب بياناتك</string>
+    <string name="settings_page_privacy_summary">استخدامك، وإلى أين تذهب بياناتك</string>
     <string name="privacy_your_usage_title">استخدامك</string>
     <string name="privacy_your_usage_intro">محسوب على هذا الهاتف من المحادثات والمكالمات والسجلات التي يحتفظ بها Gotcha أصلًا. لا يُرسَل أي شيء من هذا إلى أي مكان.</string>
     <string name="privacy_stat_chats">المحادثات</string>
@@ -2102,7 +2122,7 @@
     <string name="telemetry_event_lens">عندما تستخدم Screen Lens أو اقتراحًا من Screen Companion: نوع الإجراء الذي نقرت عليه، مثل النسخ أو الترجمة أو الاتصال، دون ما كان على الشاشة أبدًا</string>
     <string name="telemetry_event_crash">عندما يتعطل Gotcha: نوع الخطأ والدالة التي جاء منها، دون رسالته أبدًا</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell: نظام Linux كامل للمساعد</string>
+    <string name="settings_page_linux_shell_summary">نظام Linux كامل في تطبيق خاص به</string>
     <string name="linux_shell_intro">Gotcha Shell تطبيق منفصل يمنح المساعد نظام Linux كاملًا: تثبيت الحزم وتشغيل نصوص برمجية وأدوات لا يأتي بها أي هاتف. يعمل بمعزل عن Gotcha، فلا يستطيع أي أمر تغيير إعدادات Gotcha أو محادثاته أو ذاكرته، ولا يرى ملفاتك إلا إذا سلّمه Gotcha ملفًا.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">خطة Pro الخاصة بك نشطة.</string>
@@ -2151,7 +2171,6 @@
     <string name="linux_shell_reset_confirm_title">حذف نظام Linux؟</string>
     <string name="linux_shell_reset_confirm_text">يوقف هذا أي أوامر قيد التشغيل ويحذف نظام Linux وكل حزمة مثبّتة فيه وكل ملف بداخله. لا يتأثر Gotcha نفسه.</string>
     <string name="linux_shell_ready">صدفة Linux جاهزة. جرّب أن تطلب من المساعد تشغيل أمر.</string>
-    <string name="linux_shell_termux_fallback">يمكن لـ Gotcha أيضًا استخدام Termux عندما لا يكون Gotcha Shell مُعدًّا.</string>
     <string name="linux_shell_phase_download">جارٍ التنزيل…</string>
     <string name="linux_shell_phase_verify">جارٍ فحص التنزيل…</string>
     <string name="linux_shell_phase_extract">جارٍ فك الضغط…</string>
@@ -2184,7 +2203,7 @@
     <string name="upsell_samosa_feature_credits">رصيد مجاني للبدء</string>
     <string name="upsell_samosa_feature_tuned">نماذج مختارة ومُعدّة لـ Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro عندما تريد المزيد: صدفة Linux ونماذج أكثر قدرة وحدود أعلى</string>
-    <string name="upsell_samosa_footnote">يمكنك تغيير مزوّد الذكاء الاصطناعي في أي وقت من إعدادات الذكاء الاصطناعي.</string>
+    <string name="upsell_samosa_footnote">يمكنك تغيير مزوّد الذكاء الاصطناعي في أي وقت من نموذج الذكاء الاصطناعي.</string>
     <string name="upsell_samosa_action">جرّب Samosa AI</string>
     <string name="upsell_samosa_see">اكتشف Samosa AI</string>
     <string name="upsell_not_now">ليس الآن</string>
@@ -2195,4 +2214,12 @@
     <string name="upsell_welcome_text">خطة Samosa AI Pro مفعّلة: صدفة Linux والنماذج الأكثر قدرة والحدود الأعلى جاهزة لك.</string>
     <string name="upsell_welcome_shell">إعداد صدفة Linux</string>
     <string name="upsell_welcome_later">لاحقًا</string>
+    <plurals name="local_notifications_days">
+        <item quantity="zero">%d يوم</item>
+        <item quantity="one">يوم واحد</item>
+        <item quantity="two">يومان</item>
+        <item quantity="few">%d أيام</item>
+        <item quantity="many">%d يومًا</item>
+        <item quantity="other">%d يوم</item>
+    </plurals>
 </resources>

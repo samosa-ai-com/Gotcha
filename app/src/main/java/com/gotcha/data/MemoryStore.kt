@@ -34,7 +34,7 @@ object MemoryStore {
         appendLine(
             "If memory files exist, SOUL.md and MEMORY.md contents are in a " +
                 "[memory_startup] system message after this prompt; if that message is absent, " +
-                "memory is unavailable and you continue with Personal Info."
+                "memory is unavailable and you continue with the About you profile."
         )
         appendLine(
             "Follow MEMORY.md links with read_file or grep using ABSOLUTE paths. " +
@@ -167,7 +167,7 @@ object MemoryStore {
 
     private fun normalizeNewlines(text: String): String = text.replace("\r\n", "\n").trim()
 
-    /** Rewrites user.md from Personal Info. Called on startup and on profile updates. */
+    /** Rewrites user.md from Settings ▸ About you. Called on startup and on profile updates. */
     fun syncUserFile(settings: Settings) {
         runCatching {
             GotchaStorage.memoryRoot().mkdirs()
@@ -200,7 +200,7 @@ object MemoryStore {
                 appendLine(soul.text)
                 if (soul.truncated) appendLine("... truncated, showing first $SOUL_CAP_CHARS chars ...")
             } else {
-                appendLine("(missing - continue with Personal Info)")
+                appendLine("(missing - continue with the About you profile)")
             }
             appendLine("</soul_md>")
             appendLine()
@@ -209,15 +209,15 @@ object MemoryStore {
                 appendLine(index.text)
                 if (index.truncated) appendLine("... truncated, showing first $MEMORY_CAP_CHARS chars ...")
             } else {
-                appendLine("(missing - continue with Personal Info)")
+                appendLine("(missing - continue with the About you profile)")
             }
             appendLine("</memory_md>")
             appendLine()
             appendLine("Rules:")
             appendLine("1. SOUL.md is identity. Follow it for the whole chat.")
             appendLine("2. MEMORY.md is the map. Load detail files only when the task needs them.")
-            appendLine("3. If a file is missing, continue with Personal Info and note it once.")
-            appendLine("4. user.md is synced from Settings Personal Info. Do not duplicate it into notes.")
+            appendLine("3. If a file is missing, continue with the About you profile and note it once.")
+            appendLine("4. user.md is synced from Settings ▸ About you. Do not duplicate it into notes.")
             appendLine("5. Before writing memory, load the full protocol: search_skills('memory').")
         }
         return ChatMessage(role = "system", content = JsonPrimitive(body))

@@ -32,6 +32,28 @@ All notable changes to Gotcha are documented here.
   about it, so you will be asked to accept the updated terms once.
 
 ### Changed
+- **Settings is reorganised.** The list is grouped under headings (Assistant,
+  Automation, App, Privacy and permissions, Help and about), with icons,
+  one-line rows and your Samosa AI account card at the top. The AI page is
+  gone: AI model and Voice and speech sit on the list directly. Several pages
+  are renamed (AI Configuration → AI model, Speech → Voice and speech,
+  Personal Info → About you, Assistive Ball and Wake Word → Floating ball and
+  wake word).
+- **Settings pages no longer lose changes on Back.** Switches and pickers save
+  as they change; pages with text fields ask Save or Discard before leaving
+  with unsaved edits.
+- The voice and transcription languages moved from Language to Voice and
+  speech, next to the voices they must suit; Language keeps the app's display
+  language and the AI reply language.
+- Connectors can be opened from Settings ▸ Skills and connectors as well as
+  the drawer. Clearing the LLM cache and debug screenshots moved to Chats and
+  storage; "Notify me about new versions" moved to About.
+- Long pages fold their rarely used parts: Notifications' reminders and server
+  messages, the full skill list, the floating ball's Night Light option and
+  Privacy's usage stats. The Gotcha Shell page no longer links to Termux, its
+  sibling under Settings ▸ Shell.
+- The Privacy page's usage-data switch reads off in builds that cannot send.
+- The Gotcha notifications switches and time labels are translated.
 - The Linux-shell plan row no longer shows the date the offline grace expires.
   The grace still applies; advertising it read as a subscription countdown.
 - `BuildConfig.SKIP_TIER_CHECK` replaces the hardcoded `BuildConfig.DEBUG` bypass

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -65,7 +66,6 @@ fun NotificationsScreen(
     var taskFinished by remember { mutableStateOf(initial.chatCompletionNotificationsEnabled) }
     var taskPreview by remember { mutableStateOf(initial.chatCompletionPreview) }
     var serverMessagesEnabled by remember { mutableStateOf(initial.serverMessagesEnabled) }
-    var updateNotifications by remember { mutableStateOf(initial.updateNotificationsEnabled) }
     var lastFetched by remember { mutableStateOf(initial.serverMessagesLastFetchedAt) }
     var isSyncing by remember { mutableStateOf(false) }
 
@@ -93,6 +93,10 @@ fun NotificationsScreen(
     }
 
     SettingsScaffold(title = stringResource(SettingsPage.NOTIFICATIONS.title), onBack = onBack, overlay = overlay) {
+        Text(
+            stringResource(R.string.notifications_reply_alerts),
+            style = MaterialTheme.typography.titleMedium
+        )
         Text(
             stringResource(R.string.notifications_played_as_soon_as_a),
             style = MaterialTheme.typography.bodySmall
@@ -178,97 +182,79 @@ fun NotificationsScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        LocalNotificationsSection(
-            initial = initial,
-            onSave = onSave,
-            canPost = canPost,
-            requestPermission = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        )
-
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.notifications_server_messages),
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            stringResource(
-                R.string.notifications_server_messages_description,
-                BuildConfig.SAMOSA_API_URL.removePrefix("https://")
-            ),
-            style = MaterialTheme.typography.bodySmall
-        )
-        SettingsToggleRow(
-            label = stringResource(R.string.notifications_enable_server_messages),
-            checked = serverMessagesEnabled,
-            onCheckedChange = {
-                serverMessagesEnabled = it
-                onSave { s -> s.copy(serverMessagesEnabled = it) }
-                // The one moment the permission is actually needed: a message
-                // that can't be posted is a setting that silently does nothing.
-                if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(
-                        localContext,
-                        android.Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
-            },
-            isLarge = true,
-            switchTestTag = "settings_server_messages_enabled"
-        )
-        Button(
-            onClick = {
-                isSyncing = true
-                scope.launch {
-                    try {
-                        val ts = onSyncServerMessages()
-                        if (ts != null) lastFetched = ts
-                    } finally {
-                        isSyncing = false
+        // The long tail — reminders and tips, then what the server may send —
+        // folds away so the page opens on the alerts most people change.
+        HorizontalDivider(thickness = 1.dp)
+        SettingsAdvancedSection(
+            testTag = NOTIFICATIONS_GOTCHA_SECTION,
+            title = stringResource(R.string.local_notifications_gotcha_notifications)
+        ) {
+            LocalNotificationsSection(
+                initial = initial,
+                onSave = onSave,
+                canPost = canPost,
+                requestPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
-            },
-            enabled = !isSyncing && serverMessagesEnabled,
-            modifier = Modifier.fillMaxWidth().testTag("settings_server_messages_sync")
-        ) { Text(stringResource(if (isSyncing) R.string.notifications_syncing else R.string.notifications_sync_now)) }
-        Text(
-            stringResource(R.string.notifications_last_synced, formatRelative(lastFetched)),
-            style = MaterialTheme.typography.bodySmall
-        )
+            )
+        }
 
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.notifications_app_updates),
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            stringResource(R.string.notifications_app_updates_description),
-            style = MaterialTheme.typography.bodySmall
-        )
-        SettingsToggleRow(
-            label = stringResource(R.string.notifications_notify_about_new_versions),
-            checked = updateNotifications,
-            onCheckedChange = {
-                updateNotifications = it
-                onSave { s -> s.copy(updateNotificationsEnabled = it) }
-                if (it && !canPost && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
-            },
-            isLarge = true,
-            switchTestTag = "settings_update_notifications_enabled"
-        )
-        if (updateNotifications && !canPost) {
+        HorizontalDivider(thickness = 1.dp)
+        SettingsAdvancedSection(
+            testTag = NOTIFICATIONS_SERVER_SECTION,
+            title = stringResource(R.string.notifications_server_messages)
+        ) {
             Text(
-                stringResource(R.string.notifications_notifications_are_blocked_for_gotcha),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
+                stringResource(
+                    R.string.notifications_server_messages_description,
+                    BuildConfig.SAMOSA_API_URL.removePrefix("https://")
+                ),
+                style = MaterialTheme.typography.bodySmall
+            )
+            SettingsToggleRow(
+                label = stringResource(R.string.notifications_enable_server_messages),
+                checked = serverMessagesEnabled,
+                onCheckedChange = {
+                    serverMessagesEnabled = it
+                    onSave { s -> s.copy(serverMessagesEnabled = it) }
+                    // The one moment the permission is actually needed: a message
+                    // that can't be posted is a setting that silently does nothing.
+                    if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                            localContext,
+                            android.Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+                isLarge = true,
+                switchTestTag = "settings_server_messages_enabled"
+            )
+            Button(
+                onClick = {
+                    isSyncing = true
+                    scope.launch {
+                        try {
+                            val ts = onSyncServerMessages()
+                            if (ts != null) lastFetched = ts
+                        } finally {
+                            isSyncing = false
+                        }
+                    }
+                },
+                enabled = !isSyncing && serverMessagesEnabled,
+                modifier = Modifier.fillMaxWidth().testTag("settings_server_messages_sync")
+            ) {
+                Text(
+                    stringResource(if (isSyncing) R.string.notifications_syncing else R.string.notifications_sync_now)
+                )
+            }
+            Text(
+                stringResource(R.string.notifications_last_synced, formatRelative(lastFetched)),
+                style = MaterialTheme.typography.bodySmall
             )
         }
     }
