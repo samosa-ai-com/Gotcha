@@ -196,10 +196,16 @@ object ShellEntitlement {
     private fun prefs(context: Context) =
         (context.applicationContext ?: context).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** Reads the tier from `GET /me` with the stored Samosa session. */
-    private class BackendTierSource(private val context: Context) : TierSource {
+    /**
+     * Reads the tier from `GET /me` with the stored Samosa session. [token] reads that session;
+     * tests replace it, since the real read opens encrypted storage on a background thread.
+     */
+    internal class BackendTierSource(
+        private val context: Context,
+        private val token: () -> String = { SettingsRepository(context).load().samosaSessionToken }
+    ) : TierSource {
         override suspend fun fetch(): TierAnswer = withContext(Dispatchers.IO) {
-            val token = SettingsRepository(context).load().samosaSessionToken
+            val token = token()
             // A missing token during startup is not proof of an explicit sign-out. Keep the
             // remembered answer; clearSamosaSession() records an actual sign-out separately.
             if (token.isBlank()) return@withContext TierAnswer.Unavailable
