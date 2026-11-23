@@ -1,6 +1,6 @@
 DATA RETENTION AND PRIVACY POLICY
 
-Last updated: [effective date]
+Last updated: 23 November 2026
 
 This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short

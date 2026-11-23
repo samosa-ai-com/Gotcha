@@ -1,6 +1,6 @@
 SAMOSA AIR TERMS OF SERVICE
 
-Last updated: [effective date]
+Last updated: 23 November 2026
 
 These Terms of Service ("AIR Terms") govern your access to and use of
 Samosa AIR, the managed AI service operated by Samosa AI ("we," "us," or

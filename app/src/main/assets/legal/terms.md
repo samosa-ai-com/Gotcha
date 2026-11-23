@@ -1,6 +1,6 @@
 TERMS AND CONDITIONS
 
-Last updated: [effective date]
+Last updated: 23 November 2026
 
 These Terms and Conditions ("Terms") govern your access to and use of the
 Gotcha mobile application ("App") and related services provided by
