@@ -143,7 +143,7 @@
     <string name="settings_page_shell_summary">Gotcha Shell أو Termux: حيث يشغّل المساعد أوامر Linux</string>
     <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">شغّل الأوامر في صدفة Linux حقيقية</string>
+    <string name="settings_page_termux_summary">استخدم تطبيق Termux إن كان لديك</string>
     <string name="settings_page_skills">المهارات / الإضافات</string>
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
     <string name="settings_page_proactive">المساعدة الاستباقية</string>
@@ -2102,7 +2102,7 @@
     <string name="telemetry_event_lens">عندما تستخدم Screen Lens أو اقتراحًا من Screen Companion: نوع الإجراء الذي نقرت عليه، مثل النسخ أو الترجمة أو الاتصال، دون ما كان على الشاشة أبدًا</string>
     <string name="telemetry_event_crash">عندما يتعطل Gotcha: نوع الخطأ والدالة التي جاء منها، دون رسالته أبدًا</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell: نظام Linux كامل للمساعد</string>
+    <string name="settings_page_linux_shell_summary">نظام Linux كامل في تطبيق خاص به</string>
     <string name="linux_shell_intro">Gotcha Shell تطبيق منفصل يمنح المساعد نظام Linux كاملًا: تثبيت الحزم وتشغيل نصوص برمجية وأدوات لا يأتي بها أي هاتف. يعمل بمعزل عن Gotcha، فلا يستطيع أي أمر تغيير إعدادات Gotcha أو محادثاته أو ذاكرته، ولا يرى ملفاتك إلا إذا سلّمه Gotcha ملفًا.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">خطة Pro الخاصة بك نشطة.</string>
@@ -2151,7 +2151,6 @@
     <string name="linux_shell_reset_confirm_title">حذف نظام Linux؟</string>
     <string name="linux_shell_reset_confirm_text">يوقف هذا أي أوامر قيد التشغيل ويحذف نظام Linux وكل حزمة مثبّتة فيه وكل ملف بداخله. لا يتأثر Gotcha نفسه.</string>
     <string name="linux_shell_ready">صدفة Linux جاهزة. جرّب أن تطلب من المساعد تشغيل أمر.</string>
-    <string name="linux_shell_termux_fallback">يمكن لـ Gotcha أيضًا استخدام Termux عندما لا يكون Gotcha Shell مُعدًّا.</string>
     <string name="linux_shell_phase_download">جارٍ التنزيل…</string>
     <string name="linux_shell_phase_verify">جارٍ فحص التنزيل…</string>
     <string name="linux_shell_phase_extract">جارٍ فك الضغط…</string>

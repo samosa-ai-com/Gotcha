@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -57,14 +56,14 @@ private data class InstallProgress(val phase: String, val done: Long, val total:
 
 /**
  * Settings ▸ Shell ▸ Gotcha Shell: the state of the Gotcha Shell companion app and of the Linux system
- * inside it, with the actions that manage it — Install, Repair, Reset and Uninstall. The Termux
- * setup page is linked from the bottom as the fallback.
+ * inside it, with the actions that manage it — Install, Repair, Reset and Uninstall. Termux is
+ * its sibling under Settings ▸ Shell, not something this page links to.
  *
  * Everything here asks the companion over Binder, which blocks, so each action runs in a
  * coroutine and the page shows what is in progress.
  */
 @Composable
-fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTerminal: () -> Unit) {
+fun LinuxShellScreen(onBack: () -> Unit, onOpenTerminal: () -> Unit) {
     val context = LocalContext.current
     val manager = remember(context) { CompanionShellManager(context) }
     val overlay = rememberSettingsOverlayState()
@@ -311,18 +310,6 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit, onOpenTe
                 )
             }
         }
-
-        HorizontalDivider(thickness = 1.dp)
-        Text(
-            stringResource(R.string.linux_shell_termux_fallback),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SettingsNavRow(
-            page = SettingsPage.TERMUX,
-            onClick = onOpenTermuxSetup,
-            modifier = Modifier.testTag("linux_shell_termux_row")
-        )
     }
 
     if (showInstallPrep) {

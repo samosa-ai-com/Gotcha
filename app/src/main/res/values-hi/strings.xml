@@ -77,7 +77,7 @@
     <string name="settings_page_shell_summary">Gotcha Shell या Termux: जहाँ असिस्टेंट Linux कमांड चलाता है</string>
     <string name="shell_hub_intro">असिस्टेंट के Linux कमांड चलाने के दो तरीके हैं। Gotcha Shell अपने अलग ऐप में एक पूरा Linux सिस्टम है; Termux आपके पहले से इंस्टॉल Termux ऐप का उपयोग करता है। इनमें से एक सेट करें, या दोनों।</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">असली Linux शेल में कमांड चलाएँ</string>
+    <string name="settings_page_termux_summary">अगर Termux ऐप पहले से है तो उसका इस्तेमाल करें</string>
     <string name="settings_page_skills">स्किल / प्लगइन</string>
     <string name="settings_page_skills_summary">बिल्ट-इन और कम्युनिटी स्किल</string>
     <string name="settings_page_proactive">सक्रिय सहायता</string>
@@ -1714,7 +1714,7 @@
     <string name="telemetry_event_lens">जब आप Screen Lens या Screen Companion का कोई सुझाव इस्तेमाल करते हैं: आपने किस तरह के काम पर टैप किया, जैसे कॉपी, अनुवाद या कॉल, स्क्रीन पर क्या था यह कभी नहीं</string>
     <string name="telemetry_event_crash">जब Gotcha क्रैश होता है: त्रुटि का प्रकार और वह किस मेथड से आई, उसका मैसेज कभी नहीं</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell: असिस्टेंट के लिए पूरा Linux सिस्टम</string>
+    <string name="settings_page_linux_shell_summary">अपने अलग ऐप में पूरा Linux सिस्टम</string>
     <string name="linux_shell_intro">Gotcha Shell एक अलग ऐप है जो असिस्टेंट को पूरा Linux सिस्टम देता है: पैकेज इंस्टॉल करना, ऐसी स्क्रिप्ट और टूल चलाना जो किसी फ़ोन में नहीं आते। यह Gotcha से अलग चलता है, इसलिए कोई भी कमांड Gotcha की सेटिंग, चैट या मेमोरी नहीं बदल सकती, और यह आपकी फ़ाइलें तभी देख सकता है जब Gotcha उसे कोई फ़ाइल दे।</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">आपका Pro प्लान चालू है।</string>
@@ -1763,7 +1763,6 @@
     <string name="linux_shell_reset_confirm_title">Linux सिस्टम मिटाएँ?</string>
     <string name="linux_shell_reset_confirm_text">इससे चल रही सभी कमांड रुक जाती हैं और Linux सिस्टम, उसमें इंस्टॉल हर पैकेज और उसकी हर फ़ाइल मिट जाती है। Gotcha पर इसका कोई असर नहीं होता।</string>
     <string name="linux_shell_ready">Linux शेल तैयार है। असिस्टेंट से कोई कमांड चलाने को कहें।</string>
-    <string name="linux_shell_termux_fallback">Gotcha Shell सेट अप न होने पर Gotcha, Termux भी इस्तेमाल कर सकता है।</string>
     <string name="linux_shell_phase_download">डाउनलोड हो रहा है…</string>
     <string name="linux_shell_phase_verify">डाउनलोड जाँचा जा रहा है…</string>
     <string name="linux_shell_phase_extract">अनपैक हो रहा है…</string>

@@ -77,7 +77,7 @@
     <string name="settings_page_shell_summary">Gotcha Shell または Termux: アシスタントが Linux コマンドを実行する場所</string>
     <string name="shell_hub_intro">アシスタントが Linux コマンドを実行する方法は 2 つあります。Gotcha Shell は専用アプリで動く完全な Linux システムです。Termux は、すでにお持ちの Termux アプリを使います。どちらか一方、または両方を設定できます。</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">本物の Linux シェルでコマンドを実行</string>
+    <string name="settings_page_termux_summary">Termux アプリをお持ちならそれを使います</string>
     <string name="settings_page_skills">スキル / プラグイン</string>
     <string name="settings_page_skills_summary">内蔵スキルとコミュニティスキル</string>
     <string name="settings_page_proactive">先回りアシスト</string>
@@ -1691,7 +1691,7 @@
     <string name="telemetry_event_lens">Screen Lens や Screen Companion の提案を使ったとき: タップしたアクションの種類（コピー、翻訳、電話など）。画面の内容は送信しません</string>
     <string name="telemetry_event_crash">Gotcha がクラッシュしたとき: エラーの種類と発生したメソッド。メッセージは送信しません</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell：アシスタント用の完全な Linux システム</string>
+    <string name="settings_page_linux_shell_summary">専用アプリで動く完全な Linux システム</string>
     <string name="linux_shell_intro">Gotcha Shell は、アシスタントに完全な Linux システムを提供する別のアプリです。パッケージのインストールや、スマートフォンにはないスクリプトやツールの実行ができます。Gotcha とは別に動作するため、コマンドが Gotcha の設定、チャット、メモリを変更することはできず、Gotcha が渡さない限りあなたのファイルを見ることもできません。</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">Pro プランは有効です。</string>
@@ -1740,7 +1740,6 @@
     <string name="linux_shell_reset_confirm_title">Linux システムを削除しますか？</string>
     <string name="linux_shell_reset_confirm_text">実行中のコマンドを停止し、Linux システム、その中のすべてのパッケージとすべてのファイルを削除します。Gotcha 自体には影響しません。</string>
     <string name="linux_shell_ready">Linux シェルの準備ができました。アシスタントにコマンドの実行を頼んでみてください。</string>
-    <string name="linux_shell_termux_fallback">Gotcha Shell が設定されていない場合、Gotcha は Termux も使えます。</string>
     <string name="linux_shell_phase_download">ダウンロードしています…</string>
     <string name="linux_shell_phase_verify">ダウンロードを確認しています…</string>
     <string name="linux_shell_phase_extract">展開しています…</string>

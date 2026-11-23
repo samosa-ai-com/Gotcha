@@ -263,7 +263,6 @@ fun SettingsScreen(
                 )
                 SettingsPage.LINUX_SHELL -> LinuxShellScreen(
                     onBack = backToHome,
-                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) },
                     onOpenTerminal = { onPageChange(SettingsPage.LINUX_TERMINAL) }
                 )
                 SettingsPage.LINUX_TERMINAL -> TerminalScreen(onBack = backToHome)

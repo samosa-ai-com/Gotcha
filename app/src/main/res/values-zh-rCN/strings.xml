@@ -77,7 +77,7 @@
     <string name="settings_page_shell_summary">Gotcha Shell 或 Termux：助手运行 Linux 命令的地方</string>
     <string name="shell_hub_intro">助手运行 Linux 命令有两种方式。Gotcha Shell 是独立应用中的完整 Linux 系统；Termux 使用你已安装的 Termux 应用。可以设置其中一个，或两个都设置。</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">在真正的 Linux shell 中运行命令</string>
+    <string name="settings_page_termux_summary">如果已安装 Termux 应用，就用它</string>
     <string name="settings_page_skills">技能 / 插件</string>
     <string name="settings_page_skills_summary">内置技能和社区技能</string>
     <string name="settings_page_proactive">主动协助</string>
@@ -1691,7 +1691,7 @@
     <string name="telemetry_event_lens">当你使用 Screen Lens 或 Screen Companion 的建议时：你点击的操作类型，如复制、翻译或拨打电话，绝不包含屏幕上的内容</string>
     <string name="telemetry_event_crash">当 Gotcha 崩溃时：错误类型及其所在的方法，绝不包含错误信息</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell：为助手提供完整的 Linux 系统</string>
+    <string name="settings_page_linux_shell_summary">在独立应用中运行的完整 Linux 系统</string>
     <string name="linux_shell_intro">Gotcha Shell 是一个独立的应用，为助手提供完整的 Linux 系统：安装软件包，运行手机自带不了的脚本和工具。它与 Gotcha 分开运行，因此任何命令都无法更改 Gotcha 的设置、聊天或记忆；除非 Gotcha 交给它，否则它也看不到你的文件。</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">你的 Pro 套餐已生效。</string>
@@ -1740,7 +1740,6 @@
     <string name="linux_shell_reset_confirm_title">删除 Linux 系统？</string>
     <string name="linux_shell_reset_confirm_text">这会停止所有正在运行的命令，并删除 Linux 系统、其中安装的每个软件包和其中的每个文件。Gotcha 本身不受影响。</string>
     <string name="linux_shell_ready">Linux shell 已就绪。试着让助手运行一个命令。</string>
-    <string name="linux_shell_termux_fallback">未设置 Gotcha Shell 时，Gotcha 也可以使用 Termux。</string>
     <string name="linux_shell_phase_download">正在下载…</string>
     <string name="linux_shell_phase_verify">正在检查下载内容…</string>
     <string name="linux_shell_phase_extract">正在解压…</string>

@@ -77,7 +77,7 @@
     <string name="settings_page_shell_summary">Gotcha Shell ou Termux : où l\'assistant exécute des commandes Linux</string>
     <string name="shell_hub_intro">Deux façons de laisser l\'assistant exécuter des commandes Linux. Gotcha Shell est un système Linux complet dans sa propre app ; Termux utilise l\'app Termux si vous l\'avez déjà. Configurez l\'une ou l\'autre, ou les deux.</string>
     <string name="settings_page_termux">Termux</string>
-    <string name="settings_page_termux_summary">Exécuter des commandes dans un vrai shell Linux</string>
+    <string name="settings_page_termux_summary">Utiliser l\'app Termux si vous l\'avez déjà</string>
     <string name="settings_page_skills">Compétences / Plugins</string>
     <string name="settings_page_skills_summary">Compétences intégrées et de la communauté</string>
     <string name="settings_page_proactive">Assistance proactive</string>
@@ -1736,7 +1736,7 @@
     <string name="telemetry_event_lens">Quand vous utilisez Screen Lens ou une suggestion de Screen Companion : le type d\'action touché, comme copier, traduire ou appeler, jamais ce qui était à l\'écran</string>
     <string name="telemetry_event_crash">Quand Gotcha plante : le type d\'erreur et la méthode d\'où elle vient, jamais son message</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
-    <string name="settings_page_linux_shell_summary">Gotcha Shell : un système Linux complet pour l\'assistant</string>
+    <string name="settings_page_linux_shell_summary">Un système Linux complet dans sa propre app</string>
     <string name="linux_shell_intro">Gotcha Shell est une app distincte qui donne à l\'assistant un système Linux complet : installer des paquets, exécuter des scripts et des outils qu\'aucun téléphone ne fournit. Elle fonctionne séparément de Gotcha : aucune commande ne peut modifier les paramètres, les discussions ou la mémoire de Gotcha, et elle ne voit vos fichiers que si Gotcha lui en transmet un.</string>
     <string name="linux_shell_plan_title">Samosa AI Pro</string>
     <string name="linux_shell_plan_active">Votre offre Pro est active.</string>
@@ -1785,7 +1785,6 @@
     <string name="linux_shell_reset_confirm_title">Supprimer le système Linux ?</string>
     <string name="linux_shell_reset_confirm_text">Cela arrête toutes les commandes en cours et supprime le système Linux, chaque paquet qui y est installé et chaque fichier qu\'il contient. Gotcha lui-même n\'est pas affecté.</string>
     <string name="linux_shell_ready">Le shell Linux est prêt. Demandez à l\'assistant d\'exécuter une commande.</string>
-    <string name="linux_shell_termux_fallback">Gotcha peut aussi utiliser Termux quand Gotcha Shell n\'est pas configurée.</string>
     <string name="linux_shell_phase_download">Téléchargement…</string>
     <string name="linux_shell_phase_verify">Vérification du téléchargement…</string>
     <string name="linux_shell_phase_extract">Décompression…</string>
