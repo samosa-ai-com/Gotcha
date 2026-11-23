@@ -162,6 +162,8 @@
     <string name="settings_unsaved_message">Du hast diese Seite geändert, ohne zu speichern.</string>
     <string name="settings_unsaved_save">Speichern</string>
     <string name="settings_unsaved_discard">Verwerfen</string>
+    <string name="settings_unsaved_incomplete">Einige Pflichtfelder auf dieser Seite sind leer, daher kann noch nicht gespeichert werden.</string>
+    <string name="settings_unsaved_keep_editing">Weiter bearbeiten</string>
     <string name="settings_search_clear">Suche löschen</string>
     <string name="settings_search_empty">Keine Einstellung passt zu „%1$s“</string>
     <string name="settings_feature_tour">Funktionstour</string>

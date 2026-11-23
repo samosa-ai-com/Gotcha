@@ -187,7 +187,17 @@ fun AiConfigScreen(
         onSave { applyAiConfig(it) }
         baseline = applyAiConfig(baseline)
     }
-    val guardedBack = rememberUnsavedChangesGuard(dirty = dirty, onSave = ::commit, onLeave = onBack)
+    /** What the Save button needs; the unsaved-changes dialog holds to it too. */
+    val canSave = when (provider) {
+        LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+        LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
+    }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = canSave
+    )
 
     /**
      * The settings as they stand on screen, for calls that must see unsaved edits
@@ -606,10 +616,7 @@ fun AiConfigScreen(
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
-            enabled = when (provider) {
-                LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
-                LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
-            },
+            enabled = canSave,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save")

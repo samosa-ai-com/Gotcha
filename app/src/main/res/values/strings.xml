@@ -306,6 +306,8 @@
     <string name="settings_unsaved_message">You changed this page without saving.</string>
     <string name="settings_unsaved_save">Save</string>
     <string name="settings_unsaved_discard">Discard</string>
+    <string name="settings_unsaved_incomplete">Some required fields on this page are empty, so these changes can\'t be saved yet.</string>
+    <string name="settings_unsaved_keep_editing">Keep editing</string>
     <string name="settings_search_clear">Clear search</string>
     <string name="settings_search_empty">No settings match “%1$s”</string>
     <string name="settings_feature_tour">Feature tour</string>

@@ -162,6 +162,8 @@
     <string name="settings_unsaved_message">你更改了此页面但尚未保存。</string>
     <string name="settings_unsaved_save">保存</string>
     <string name="settings_unsaved_discard">放弃</string>
+    <string name="settings_unsaved_incomplete">此页面有必填项为空，暂时无法保存这些更改。</string>
+    <string name="settings_unsaved_keep_editing">继续编辑</string>
     <string name="settings_search_clear">清除搜索</string>
     <string name="settings_search_empty">没有与“%1$s”匹配的设置</string>
     <string name="settings_feature_tour">功能导览</string>

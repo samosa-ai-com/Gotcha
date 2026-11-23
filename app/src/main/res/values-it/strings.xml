@@ -162,6 +162,8 @@
     <string name="settings_unsaved_message">Hai modificato questa pagina senza salvare.</string>
     <string name="settings_unsaved_save">Salva</string>
     <string name="settings_unsaved_discard">Scarta</string>
+    <string name="settings_unsaved_incomplete">Alcuni campi obbligatori di questa pagina sono vuoti, quindi non è ancora possibile salvare.</string>
+    <string name="settings_unsaved_keep_editing">Continua a modificare</string>
     <string name="settings_search_clear">Cancella ricerca</string>
     <string name="settings_search_empty">Nessuna impostazione corrisponde a “%1$s”</string>
     <string name="settings_feature_tour">Tour delle funzioni</string>

@@ -162,6 +162,8 @@
     <string name="settings_unsaved_message">आपने इस पेज में बदलाव किए हैं पर सेव नहीं किए।</string>
     <string name="settings_unsaved_save">सेव करें</string>
     <string name="settings_unsaved_discard">छोड़ दें</string>
+    <string name="settings_unsaved_incomplete">इस पेज के कुछ ज़रूरी फ़ील्ड खाली हैं, इसलिए ये बदलाव अभी सेव नहीं हो सकते।</string>
+    <string name="settings_unsaved_keep_editing">बदलाव जारी रखें</string>
     <string name="settings_search_clear">खोज साफ़ करें</string>
     <string name="settings_search_empty">“%1$s” से कोई सेटिंग मेल नहीं खाती</string>
     <string name="settings_feature_tour">फ़ीचर टूर</string>

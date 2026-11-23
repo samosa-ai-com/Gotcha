@@ -259,6 +259,8 @@
     <string name="settings_unsaved_message">غيّرت هذه الصفحة دون حفظ.</string>
     <string name="settings_unsaved_save">حفظ</string>
     <string name="settings_unsaved_discard">تجاهل</string>
+    <string name="settings_unsaved_incomplete">بعض الحقول المطلوبة في هذه الصفحة فارغة، لذا لا يمكن حفظ التغييرات بعد.</string>
+    <string name="settings_unsaved_keep_editing">متابعة التعديل</string>
     <string name="settings_search_clear">مسح البحث</string>
     <string name="settings_search_empty">لا توجد إعدادات تطابق "%1$s"</string>
     <string name="settings_feature_tour">جولة الميزات</string>

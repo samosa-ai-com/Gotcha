@@ -209,7 +209,6 @@ fun SpeechScreen(
         onSave(change)
         baseline = change(baseline)
     }
-    val guardedBack = rememberUnsavedChangesGuard(dirty = dirty, onSave = ::commit, onLeave = onBack)
 
     /** As stored, plus the unsaved edits — audio-model discovery needs both. */
     fun draftSpeech(): Settings = applySpeech(load())
@@ -232,6 +231,12 @@ fun SpeechScreen(
         }
         return ttsOk && sttOk
     }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = speechConfigValid()
+    )
 
     val refreshAudioModelsAction = {
         if (!refreshingModels) {

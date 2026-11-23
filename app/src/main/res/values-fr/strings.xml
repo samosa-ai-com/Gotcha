@@ -162,6 +162,8 @@
     <string name="settings_unsaved_message">Vous avez modifié cette page sans enregistrer.</string>
     <string name="settings_unsaved_save">Enregistrer</string>
     <string name="settings_unsaved_discard">Ignorer</string>
+    <string name="settings_unsaved_incomplete">Des champs obligatoires de cette page sont vides : impossible d\'enregistrer pour l\'instant.</string>
+    <string name="settings_unsaved_keep_editing">Continuer</string>
     <string name="settings_search_clear">Effacer la recherche</string>
     <string name="settings_search_empty">Aucun paramètre ne correspond à « %1$s »</string>
     <string name="settings_feature_tour">Visite guidée</string>

@@ -25,12 +25,17 @@ import com.gotcha.ui.theme.SkinAlertDialog
  * While [dirty], both the system Back and the returned function (meant for the
  * page's own "← Back") ask Save / Discard first; when clean they just call
  * [onLeave]. Dismissing the dialog keeps the user on the page, edits intact.
+ *
+ * Pass [canSave] as the same check that enables the page's Save button. While
+ * it is false the dialog says the page is incomplete and offers Keep editing
+ * instead of Save, so leaving can never store what the button would refuse.
  */
 @Composable
 fun rememberUnsavedChangesGuard(
     dirty: Boolean,
     onSave: () -> Unit,
-    onLeave: () -> Unit
+    onLeave: () -> Unit,
+    canSave: Boolean = true
 ): () -> Unit {
     var asking by remember { mutableStateOf(false) }
     val back = { if (dirty) asking = true else onLeave() }
@@ -42,16 +47,29 @@ fun rememberUnsavedChangesGuard(
             onDismissRequest = { asking = false },
             modifier = Modifier.testTag("settings_unsaved_dialog"),
             title = { Text(stringResource(R.string.settings_unsaved_title)) },
-            text = { Text(stringResource(R.string.settings_unsaved_message)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (canSave) R.string.settings_unsaved_message else R.string.settings_unsaved_incomplete
+                    )
+                )
+            },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        asking = false
-                        onSave()
-                        onLeave()
-                    },
-                    modifier = Modifier.testTag("settings_unsaved_save")
-                ) { Text(stringResource(R.string.settings_unsaved_save)) }
+                if (canSave) {
+                    TextButton(
+                        onClick = {
+                            asking = false
+                            onSave()
+                            onLeave()
+                        },
+                        modifier = Modifier.testTag("settings_unsaved_save")
+                    ) { Text(stringResource(R.string.settings_unsaved_save)) }
+                } else {
+                    TextButton(
+                        onClick = { asking = false },
+                        modifier = Modifier.testTag("settings_unsaved_keep_editing")
+                    ) { Text(stringResource(R.string.settings_unsaved_keep_editing)) }
+                }
             },
             dismissButton = {
                 TextButton(
