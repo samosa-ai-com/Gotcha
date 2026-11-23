@@ -85,8 +85,6 @@ fun AiConfigScreen(
     onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
     /** Fires when the Samosa session changed outside this screen; it re-reads it. */
     samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
-    onClearLlmCache: () -> Unit = {},
-    onClearDebugScreenshots: () -> Unit = {}
 ) {
     val initial = remember { load() }
     var provider by remember { mutableStateOf(initial.provider) }
@@ -588,22 +586,6 @@ fun AiConfigScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")
             )
-            OutlinedButton(
-                onClick = {
-                    onClearLlmCache()
-                    overlay.show(localContext.getString(R.string.ai_config_llm_response_cache_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_llm_cache)) }
-            OutlinedButton(
-                onClick = {
-                    onClearDebugScreenshots()
-                    overlay.show(localContext.getString(R.string.ai_config_debug_screenshots_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_debug_screenshots)) }
         }
         Button(
             onClick = {

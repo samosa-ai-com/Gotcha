@@ -1785,4 +1785,12 @@
     <string name="upsell_welcome_text">Samosa AI Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
     <string name="upsell_welcome_shell">Linux シェルを設定</string>
     <string name="upsell_welcome_later">後で</string>
+    <string name="settings_page_chats">チャットとストレージ</string>
+    <string name="settings_page_chats_summary">インポート、バックアップ、キャッシュ消去</string>
+    <string name="chats_clear_debug_screenshots_summary">トラブル調査用に保存したスクリーンショットを削除</string>
+    <string name="chats_clear_llm_cache_summary">時間短縮のため保存したモデルの返答を消去</string>
+    <string name="chats_backup_summary">すべてのチャットを 1 つのファイルに保存</string>
+    <string name="chats_import_summary">Gotcha のバックアップからチャットを追加</string>
+    <string name="chats_group_storage">ストレージ</string>
+    <string name="chats_group_chats">チャット</string>
 </resources>

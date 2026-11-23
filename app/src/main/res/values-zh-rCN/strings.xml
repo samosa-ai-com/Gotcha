@@ -1785,4 +1785,12 @@
     <string name="upsell_welcome_text">你的 Samosa AI Pro 套餐已生效：Linux shell、更强大的模型和更高的上限已为你准备就绪。</string>
     <string name="upsell_welcome_shell">设置 Linux shell</string>
     <string name="upsell_welcome_later">稍后</string>
+    <string name="settings_page_chats">聊天与存储</string>
+    <string name="settings_page_chats_summary">导入、备份、清除缓存</string>
+    <string name="chats_clear_debug_screenshots_summary">删除为排查问题保存的截图</string>
+    <string name="chats_clear_llm_cache_summary">清除为节省时间而保存的模型回复</string>
+    <string name="chats_backup_summary">将所有聊天保存到一个文件</string>
+    <string name="chats_import_summary">从 Gotcha 备份文件添加聊天</string>
+    <string name="chats_group_storage">存储</string>
+    <string name="chats_group_chats">聊天</string>
 </resources>

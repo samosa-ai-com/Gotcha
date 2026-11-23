@@ -1808,4 +1808,12 @@
     <string name="upsell_welcome_text">आपका Samosa AI Pro प्लान सक्रिय है: Linux शेल, ज़्यादा सक्षम मॉडल और ज़्यादा सीमाएँ आपके लिए तैयार हैं।</string>
     <string name="upsell_welcome_shell">Linux शेल सेट अप करें</string>
     <string name="upsell_welcome_later">बाद में</string>
+    <string name="settings_page_chats">चैट और स्टोरेज</string>
+    <string name="settings_page_chats_summary">इंपोर्ट, बैकअप, कैश साफ़ करें</string>
+    <string name="chats_clear_debug_screenshots_summary">समस्या जाँचने के लिए रखे स्क्रीनशॉट हटाएँ</string>
+    <string name="chats_clear_llm_cache_summary">समय बचाने के लिए रखे गए मॉडल जवाब हटाएँ</string>
+    <string name="chats_backup_summary">सभी चैट एक फ़ाइल में सेव करें</string>
+    <string name="chats_import_summary">Gotcha बैकअप फ़ाइल से चैट जोड़ें</string>
+    <string name="chats_group_storage">स्टोरेज</string>
+    <string name="chats_group_chats">चैट</string>
 </resources>

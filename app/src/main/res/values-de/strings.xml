@@ -1808,4 +1808,12 @@
     <string name="upsell_welcome_text">Dein Samosa-AI-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
     <string name="upsell_welcome_shell">Linux-Shell einrichten</string>
     <string name="upsell_welcome_later">Später</string>
+    <string name="settings_page_chats">Chats und Speicher</string>
+    <string name="settings_page_chats_summary">Importieren, sichern, Caches leeren</string>
+    <string name="chats_clear_debug_screenshots_summary">Für die Fehlersuche gespeicherte Screenshots löschen</string>
+    <string name="chats_clear_llm_cache_summary">Gespeicherte Modellantworten vergessen</string>
+    <string name="chats_backup_summary">Alle Chats in einer Datei sichern</string>
+    <string name="chats_import_summary">Chats aus einer Gotcha-Sicherung hinzufügen</string>
+    <string name="chats_group_storage">Speicher</string>
+    <string name="chats_group_chats">Chats</string>
 </resources>

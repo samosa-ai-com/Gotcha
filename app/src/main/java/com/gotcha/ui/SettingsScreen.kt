@@ -220,7 +220,9 @@ fun SettingsScreen(
                 SettingsPage.CHATS -> ChatsScreen(
                     onBack = backToHome,
                     onImportChats = onImportChats,
-                    onBackupAllChats = onBackupAllChats
+                    onBackupAllChats = onBackupAllChats,
+                    onClearLlmCache = onClearLlmCache,
+                    onClearDebugScreenshots = onClearDebugScreenshots
                 )
                 SettingsPage.LANGUAGE -> LanguageScreen(
                     load = load,
@@ -236,9 +238,7 @@ fun SettingsScreen(
                     onFetchAllowedModels = onFetchAllowedModels,
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
-                    samosaSessionChanges = samosaSessionChanges,
-                    onClearLlmCache = onClearLlmCache,
-                    onClearDebugScreenshots = onClearDebugScreenshots
+                    samosaSessionChanges = samosaSessionChanges
                 )
                 SettingsPage.SPEECH -> SpeechScreen(
                     load = load,

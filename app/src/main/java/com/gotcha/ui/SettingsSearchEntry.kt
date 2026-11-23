@@ -136,10 +136,16 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.CHATS -> SettingsSearchEntry(
         page,
-        words("chats, conversations, import, backup, export, restore"),
+        words("chats, conversations, import, backup, export, restore, storage, clear"),
         listOf(
             field("settings_chats_import", R.string.drawer_import_chats),
-            field("settings_chats_backup_all", R.string.drawer_back_up_all_chats)
+            field("settings_chats_backup_all", R.string.drawer_back_up_all_chats),
+            field("settings_clear_llm_cache", R.string.ai_config_clear_llm_cache, "cache, storage, space"),
+            field(
+                "settings_clear_debug_screenshots",
+                R.string.ai_config_clear_debug_screenshots,
+                "screenshots, debug, storage, space"
+            )
         )
     )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(

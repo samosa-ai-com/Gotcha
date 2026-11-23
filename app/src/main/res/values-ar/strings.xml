@@ -67,8 +67,14 @@
     <string name="settings_page_personal_info">عنك</string>
     <string name="settings_page_personal_info_summary">هويتك، العملة، أسلوب الرد</string>
     <string name="settings_page_second_brain">الدماغ الثاني</string>
-    <string name="settings_page_chats">المحادثات</string>
-    <string name="settings_page_chats_summary">استيراد المحادثات أو نسخها احتياطيًا</string>
+    <string name="settings_page_chats">المحادثات والتخزين</string>
+    <string name="settings_page_chats_summary">استيراد، نسخ احتياطي، مسح ذاكرة التخزين المؤقت</string>
+    <string name="chats_clear_debug_screenshots_summary">احذف لقطات الشاشة المحفوظة لاستكشاف الأخطاء</string>
+    <string name="chats_clear_llm_cache_summary">انسَ ردود النموذج المحفوظة لتوفير الوقت</string>
+    <string name="chats_backup_summary">احفظ كل المحادثات في ملف واحد</string>
+    <string name="chats_import_summary">أضف محادثات من ملف نسخة احتياطية لـ Gotcha</string>
+    <string name="chats_group_storage">التخزين</string>
+    <string name="chats_group_chats">المحادثات</string>
     <string name="second_brain_intro">ما يتذكره Gotcha عنك. الهوية أولًا، ثم الخريطة، ثم التفاصيل. التعديل يتم عبر الوكيل حاليًا.</string>
     <string name="second_brain_summary">ملاحظات: %1$d · أشخاص: %2$d · مجالات: %3$d</string>
     <string name="second_brain_setup_title">دماغك الثاني</string>

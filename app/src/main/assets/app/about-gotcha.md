@@ -83,7 +83,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | Setting | What it controls |
 | --- | --- |
 | **Assistant** | |
-| AI model | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
+| AI model | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations |
 | Voice and speech | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, the voice language (what Gotcha speaks and listens in; by default the AI reply language), the transcription language override, Test voice, auto-read replies aloud |
 | About you | Name, occupation, background, reply style, location, preferred currency and language |
 | Skills and connectors | Hub for Connectors and Skills |
@@ -101,7 +101,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | Appearance | Theme |
 | Language | App display language and AI reply language |
 | Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The "Waiting for your answer" notification, for a paused task, has no switch here: it is its own channel in Android's notification settings for Gotcha. So is "Task in progress", the quiet notification shown while a task runs so Android keeps Gotcha going when the user switches apps; it opens the chat, and its Stop button stops the task. A task also keeps running when Gotcha is swiped out of recent apps, and opening Gotcha again mid-task shows the running chat. If Android closes Gotcha mid-task anyway, the chat ends with a note that the task was interrupted and the list of notifications gets an "Interrupted" entry; a new message in that chat picks the task up again. The bell on the home screen opens the list of recent notifications (a dot on it means one is unread, a number means more); in an open chat the list is under the chat's ⋮ menu, which shows a dot while something is unread and also keeps that chat out of notifications |
-| Chats | Import chats, and back up every chat |
+| Chats and storage | Import chats, back up every chat, clear the LLM response cache, clear debug screenshots |
 | **Privacy and permissions** | |
 | Permissions | Every runtime and special-access permission, grouped: Communications, Contacts, Calendar, Media & Storage, Location, Device Control, Notifications, System Access, Health |
 | Privacy | "Your usage": counts worked out on the phone from the chats, calls, crash log and scheduled tasks Gotcha already keeps (chats, voice calls, requests, success rate, actions taken, most-used actions, models used, scheduled tasks in use, crashes). Nothing on it is sent anywhere. In official builds, "Usage data": on by default in every country, shown on the first screen where the law treats prior consent as required and otherwise in Settings, sending counts and outcomes only (never messages, screen content, files, contacts, commands or app names) to a server run by Samosa AI, with "What we send" listing every event. An install registration runs on first launch whatever the switch says; it describes the build and device in broad terms and identifies no one. There is nothing to delete on request because nothing sent identifies you. Also says where data goes and links to the data retention policy |
@@ -121,10 +121,10 @@ if needed.
 **Connectors have their own screen**, reached from the navigation drawer's
 Connectors row or from Settings > Skills and connectors > Connectors.
 
-**Whole-library chat backup and import live in Settings ▸ Chats.** A chat's ⋮ menu has
+**Whole-library chat backup and import live in Settings ▸ Chats and storage.** A chat's ⋮ menu has
 **Export chat** (shares the conversation as readable Markdown), **Back up
 chat** (saves the whole chat to a `.gotcha.json` file, images optional), and
-**Chat assets** (the files Gotcha created for that chat). Settings ▸ Chats has
+**Chat assets** (the files Gotcha created for that chat). Settings ▸ Chats and storage has
 **Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
 images, attachments or full tool arguments; a backup restores everything. In

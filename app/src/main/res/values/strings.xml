@@ -70,8 +70,14 @@
     <string name="settings_page_personal_info">About you</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
-    <string name="settings_page_chats">Chats</string>
-    <string name="settings_page_chats_summary">Import or back up conversations</string>
+    <string name="settings_page_chats">Chats and storage</string>
+    <string name="settings_page_chats_summary">Import, back up, clear caches</string>
+    <string name="chats_clear_debug_screenshots_summary">Delete screenshots kept for troubleshooting</string>
+    <string name="chats_clear_llm_cache_summary">Forget model replies kept to save time</string>
+    <string name="chats_backup_summary">Save every chat to one file</string>
+    <string name="chats_import_summary">Add chats from a Gotcha backup file</string>
+    <string name="chats_group_storage">Storage</string>
+    <string name="chats_group_chats">Chats</string>
     <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>
     <string name="second_brain_summary">Notes: %1$d · People: %2$d · Areas: %3$d</string>
     <string name="second_brain_setup_title">Your second brain</string>

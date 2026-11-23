@@ -1830,4 +1830,12 @@
     <string name="upsell_welcome_text">Tu plan Samosa AI Pro está activo: la shell de Linux, modelos más capaces y límites más altos ya están disponibles.</string>
     <string name="upsell_welcome_shell">Configurar la shell de Linux</string>
     <string name="upsell_welcome_later">Más tarde</string>
+    <string name="settings_page_chats">Chats y almacenamiento</string>
+    <string name="settings_page_chats_summary">Importar, copia de seguridad, borrar cachés</string>
+    <string name="chats_clear_debug_screenshots_summary">Elimina capturas guardadas para diagnóstico</string>
+    <string name="chats_clear_llm_cache_summary">Olvida las respuestas del modelo guardadas</string>
+    <string name="chats_backup_summary">Guarda todos los chats en un archivo</string>
+    <string name="chats_import_summary">Añade chats desde una copia de Gotcha</string>
+    <string name="chats_group_storage">Almacenamiento</string>
+    <string name="chats_group_chats">Chats</string>
 </resources>
