@@ -9,7 +9,7 @@ import kotlinx.coroutines.CancellationException
 /**
  * Looks after the Gotcha Shell companion itself, as opposed to running things in it: what state
  * it is in, and installing, repairing or wiping its Linux system. This is what
- * Settings ▸ Linux shell drives.
+ * Settings ▸ Shell ▸ Gotcha Shell drives.
  *
  * Each action returns null on success, otherwise a sentence saying why it failed.
  */

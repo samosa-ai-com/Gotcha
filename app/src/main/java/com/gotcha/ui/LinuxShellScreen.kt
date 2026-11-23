@@ -56,7 +56,7 @@ private enum class ShellAction { GET_APP, INSTALL, REPAIR, RESET }
 private data class InstallProgress(val phase: String, val done: Long, val total: Long)
 
 /**
- * Settings ▸ Linux shell: the state of the Gotcha Shell companion app and of the Linux system
+ * Settings ▸ Shell ▸ Gotcha Shell: the state of the Gotcha Shell companion app and of the Linux system
  * inside it, with the actions that manage it — Install, Repair, Reset and Uninstall. The Termux
  * setup page is linked from the bottom as the fallback.
  *
