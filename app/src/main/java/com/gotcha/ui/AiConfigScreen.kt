@@ -187,6 +187,7 @@ fun AiConfigScreen(
         onSave { applyAiConfig(it) }
         baseline = applyAiConfig(baseline)
     }
+
     /** What the Save button needs; the unsaved-changes dialog holds to it too. */
     val canSave = when (provider) {
         LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
