@@ -185,7 +185,7 @@
     <string name="personal_info_background">Hintergrund</string>
     <string name="personal_info_reply_style">Antwortstil</string>
     <string name="personal_info_preferred_currency">Bevorzugte Währung</string>
-    <string name="personal_info_save_personal_info">Persönliche Infos speichern</string>
+    <string name="personal_info_save_personal_info">Speichern</string>
     <string name="personal_info_about_you">Über dich</string>
     <string name="personal_info_everything_here_is_optional_stays">Alles hier ist optional, bleibt auf diesem Gerät und wird dem Assistenten zu Beginn jeder Unterhaltung mitgegeben, damit er nicht fragen muss.</string>
     <string name="personal_info_for_more_personalized_results_keep">Für persönlichere Ergebnisse halte dieses Profil aktuell – oder bitte Gotcha einfach, Dinge wie deine Website, deinen GitHub-Link oder deinen Lebenslauf (PDF) in deinem Profil zu speichern.</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">hell</string>
     <string name="appearance_brightness_dark">dunkel</string>
     <string name="appearance_skin_description">%1$s, Design: %2$s</string>
-    <string name="personal_info_saved">Persönliche Infos gespeichert.</string>
+    <string name="personal_info_saved">Gespeichert.</string>
     <string name="ai_config_llm_provider">LLM-Anbieter</string>
     <string name="ai_config_api_key">API-Schlüssel</string>
     <string name="ai_config_base_url_openai_compatible">Basis-URL (OpenAI-kompatibel)</string>
@@ -901,7 +901,7 @@
     <string name="tour_grant_overlay_title">Und eine für die schwebende Kugel</string>
     <string name="tour_grant_overlay_body">„Über anderen Apps einblenden“ lässt Assistenzkugel und Screen Lens über der App erscheinen, die du gerade nutzt.</string>
     <string name="tour_open_personal_info_title">Zum Schluss: Wer bist du?</string>
-    <string name="tour_open_personal_info_body">Öffne Persönliche Infos. Was du hier einträgst, fließt in jede Antwort ein – deine Sprache, deine Einheiten, deine Währung.</string>
+    <string name="tour_open_personal_info_body">Öffne Über dich. Was du hier einträgst, fließt in jede Antwort ein – deine Einheiten, deine Währung, wie Antworten geschrieben sein sollen.</string>
     <string name="tour_fill_personal_info_title">Sag ihm deinen Namen</string>
     <string name="tour_fill_personal_info_body">Gib ein, wie du genannt werden möchtest. Alles auf dieser Seite ist optional, und jede Angabe macht die Antworten passender.</string>
     <string name="tour_save_personal_info_title">Speichern</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">Bestätigung erforderlich: %1$s</string>
     <string name="call_stt_label">Spracherkennung</string>
     <string name="call_tts_label">Sprachausgabe</string>
-    <string name="call_audio_not_configured">%1$s ist nicht eingerichtet. Richte sie unter Gotcha → Einstellungen → Sprache (TTS / STT) ein.</string>
-    <string name="call_audio_samosa_not_configured">%1$s über Samosa AI ist nicht eingerichtet. Melde dich unter Gotcha → Einstellungen → Sprache (TTS / STT) an.</string>
-    <string name="call_audio_model_missing">Kein Modell für %1$s gewählt. Wähle eines unter Gotcha → Einstellungen → Sprache (TTS / STT).</string>
-    <string name="call_audio_url_invalid">Die API-URL für %1$s fehlt oder ist ungültig. Korrigiere sie unter Gotcha → Einstellungen → Sprache (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">Kein API-Modell für %1$s gewählt. Wähle eines unter Gotcha → Einstellungen → Sprache (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s ist nicht eingerichtet. Richte sie unter Gotcha → Einstellungen → Stimme und Sprache ein.</string>
+    <string name="call_audio_samosa_not_configured">%1$s über Samosa AI ist nicht eingerichtet. Melde dich unter Gotcha → Einstellungen → Stimme und Sprache an.</string>
+    <string name="call_audio_model_missing">Kein Modell für %1$s gewählt. Wähle eines unter Gotcha → Einstellungen → Stimme und Sprache.</string>
+    <string name="call_audio_url_invalid">Die API-URL für %1$s fehlt oder ist ungültig. Korrigiere sie unter Gotcha → Einstellungen → Stimme und Sprache.</string>
+    <string name="call_audio_api_model_missing">Kein API-Modell für %1$s gewählt. Wähle eines unter Gotcha → Einstellungen → Stimme und Sprache.</string>
     <string name="screenshot_channel">Screenshot-Aufnahme</string>
     <string name="screenshot_channel_description">Einmalige Bildschirmaufnahme</string>
     <string name="screenshot_capturing">Screenshot wird aufgenommen…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">Kein API-Schlüssel hinterlegt. Öffne die Einstellungen, um einen hinzuzufügen.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">Mikrofonberechtigung nicht erteilt. Aktiviere sie unter Einstellungen → Berechtigungen.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">Spracherkennung konnte nicht gestartet werden.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa-STT ist nicht eingerichtet. Melde dich unter Einstellungen → Sprache an.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa-STT ist nicht eingerichtet. Melde dich unter Einstellungen → Stimme und Sprache an.</string>
     <string name="chat_vm_no_stt_api_url_configured">In den Einstellungen ist keine STT-API-URL hinterlegt.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">Kein STT-Modell gewählt. Aktualisiere die Audiomodelle in den Einstellungen.</string>
     <string name="chat_vm_failed_to_start_recording">Aufnahme konnte nicht gestartet werden.</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">Netzwerkproblem: %1$s</string>
     <string name="error_an_unexpected_error_occurred">Ein unerwarteter Fehler ist aufgetreten (%1$s).</string>
     <string name="error_generic">Fehler: %1$s</string>
-    <string name="error_model_timeout">Das Modell hat nicht rechtzeitig geantwortet. Versuch es erneut oder erhöhe das API-Zeitlimit unter Einstellungen → KI → KI-Konfiguration.</string>
+    <string name="error_model_timeout">Das Modell hat nicht rechtzeitig geantwortet. Versuch es erneut oder erhöhe das API-Zeitlimit unter Einstellungen → KI-Modell.</string>
     <string name="connector_not_connected">Nicht verbunden</string>
     <string name="connector_connected_to">Verbunden mit %1$s</string>
     <string name="connector_connected_as">Verbunden als %1$s</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">Die Android-Sprachausgabe hat keine Stimme für %1$s installiert, daher werden Antworten auf %1$s nicht vorgelesen. Installiere die Sprachdaten oder wähle eine Engine, die sie hat, in den Android-Einstellungen für die Sprachausgabe.</string>
     <string name="speech_check_android_stt_unsupported">Die Android-Spracherkennung führt %1$s nicht auf und transkribiert gesprochenes %1$s daher womöglich falsch. Wähle in den Android-Einstellungen einen anderen Spracheingabedienst.</string>
     <string name="speech_android_voice_input_settings_failed">Die Einstellungen für die Spracheingabe konnten nicht geöffnet werden.</string>
-    <string name="speech_voice_not_installed">Für die Android-Sprachausgabe ist keine Stimme für %1$s installiert, daher wurde dies nicht vorgelesen. Installiere sie mit „Stimme testen“ unter Einstellungen → Sprache.</string>
+    <string name="speech_voice_not_installed">Für die Android-Sprachausgabe ist keine Stimme für %1$s installiert, daher wurde dies nicht vorgelesen. Installiere sie mit „Stimme testen“ unter Einstellungen → Stimme und Sprache.</string>
     <string name="speech_android_tts_engine">Sprachausgabe-Engine</string>
     <string name="speech_android_stt_engine">Spracherkennung</string>
     <string name="speech_android_phone_default">Vorgabe des Telefons (%1$s)</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">„Nur auf dem Gerät“ braucht Android 12 oder neuer.</string>
     <string name="speech_android_tts_settings">Android-Einstellungen für die Sprachausgabe</string>
     <string name="speech_android_voice_input_settings">Android-Einstellungen für die Spracheingabe</string>
-    <string name="stt_on_device_unavailable">Dieses Telefon kann Sprache nicht auf dem Gerät erkennen. Schalte „Nur auf dem Gerät“ unter Einstellungen → KI → Sprache aus.</string>
-    <string name="stt_language_not_on_device">%1$s ist für die Spracherkennung auf dem Gerät nicht heruntergeladen. Lade es in den Android-Einstellungen herunter oder schalte „Nur auf dem Gerät“ unter Einstellungen → KI → Sprache aus.</string>
-    <string name="stt_language_unsupported">Die Spracherkennung kann %1$s nicht erkennen. Wähle unter Einstellungen → KI → Sprache eine andere.</string>
+    <string name="stt_on_device_unavailable">Dieses Telefon kann Sprache nicht auf dem Gerät erkennen. Schalte „Nur auf dem Gerät“ unter Einstellungen → Stimme und Sprache aus.</string>
+    <string name="stt_language_not_on_device">%1$s ist für die Spracherkennung auf dem Gerät nicht heruntergeladen. Lade es in den Android-Einstellungen herunter oder schalte „Nur auf dem Gerät“ unter Einstellungen → Stimme und Sprache aus.</string>
+    <string name="stt_language_unsupported">Die Spracherkennung kann %1$s nicht erkennen. Wähle unter Einstellungen → Stimme und Sprache eine andere.</string>
     <string name="speech_check_android_stt_not_on_device">„Nur auf dem Gerät“ ist an, aber %1$s kann auf diesem Telefon noch nicht erkannt werden, daher bricht die Spracheingabe mit einer Meldung ab. Lade es in den Android-Einstellungen herunter oder schalte „Nur auf dem Gerät“ aus.</string>
     <string name="referral_copied">Einladungscode kopiert: %1$s</string>
     <string name="referral_share_text">Probier Gotcha aus – mit meinem Einladungscode %1$s bekommst du Bonus-Credits: %2$s</string>
@@ -1529,7 +1529,7 @@
     <string name="scheduled_needs_tap_public_title">Eine geplante Aufgabe ist fällig</string>
     <string name="scheduled_task_gone">Diese Aufgabe gibt es nicht mehr.</string>
     <string name="scheduled_task_files_missing">Die mit dieser Aufgabe gespeicherten Dateien lassen sich nicht mehr lesen. Füge sie in den Einstellungen erneut hinzu.</string>
-    <string name="scheduled_task_ai_not_set_up">Die KI von Gotcha ist nicht eingerichtet. Melde dich an oder füge unter Einstellungen ▸ KI einen API-Schlüssel hinzu.</string>
+    <string name="scheduled_task_ai_not_set_up">Die KI von Gotcha ist nicht eingerichtet. Melde dich an oder füge unter Einstellungen ▸ KI-Modell einen API-Schlüssel hinzu.</string>
     <string name="scheduled_task_needs_exact_alarms">Wartet auf ein Tippen: Gotcha darf keine exakten Wecker stellen.</string>
     <string name="settings_page_scheduled_tasks">Geplante Aufgaben</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts, die Gotcha zu festen Zeiten selbst ausführt</string>
@@ -1638,7 +1638,7 @@
     <string name="samosa_sign_in_cancelled">Anmeldung abgebrochen.</string>
     <string name="samosa_session_ended">Du wurdest von Samosa AI abgemeldet. Melde dich erneut an, um es weiter zu nutzen.</string>
     <string name="samosa_session_deactivated">Dieses Samosa-AI-Konto wurde deaktiviert.</string>
-    <string name="error_out_of_credits_http_402">Kein Guthaben mehr (HTTP 402). Lade Guthaben auf, um weiterzumachen. Für Samosa AI: Einstellungen → KI-Konfiguration → Guthaben aufladen.</string>
+    <string name="error_out_of_credits_http_402">Kein Guthaben mehr (HTTP 402). Lade Guthaben auf, um weiterzumachen. Für Samosa AI: Öffne dein Konto oben in den Einstellungen und tippe auf Guthaben aufladen.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">Terminal</string>
@@ -1807,7 +1807,7 @@
     <string name="upsell_samosa_feature_credits">Gratis-Guthaben zum Start</string>
     <string name="upsell_samosa_feature_tuned">Modelle, die für Gotcha ausgewählt und eingerichtet sind</string>
     <string name="upsell_samosa_feature_pro">Pro, wenn du mehr willst: die Linux-Shell, leistungsfähigere Modelle und höhere Limits</string>
-    <string name="upsell_samosa_footnote">Du kannst deinen KI-Anbieter jederzeit in der KI-Konfiguration ändern.</string>
+    <string name="upsell_samosa_footnote">Du kannst deinen KI-Anbieter jederzeit unter KI-Modell ändern.</string>
     <string name="upsell_samosa_action">Samosa AI testen</string>
     <string name="upsell_samosa_see">Samosa AI entdecken</string>
     <string name="upsell_not_now">Nicht jetzt</string>

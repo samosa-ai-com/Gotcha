@@ -337,7 +337,7 @@
     <string name="personal_info_background">Background</string>
     <string name="personal_info_reply_style">Reply style</string>
     <string name="personal_info_preferred_currency">Preferred Currency</string>
-    <string name="personal_info_save_personal_info">Save Personal Info</string>
+    <string name="personal_info_save_personal_info">Save</string>
     <string name="personal_info_about_you">About you</string>
     <string name="personal_info_everything_here_is_optional_stays">Everything here is optional, stays on this device, and is given to the assistant at the start of every conversation so it doesn\'t have to ask.</string>
     <string name="personal_info_for_more_personalized_results_keep">For more personalized results, keep this profile up to date — or just ask Gotcha to record things like your personal website, GitHub link, or CV (PDF) in your profile for you.</string>
@@ -351,7 +351,7 @@
     <string name="appearance_brightness_light">light</string>
     <string name="appearance_brightness_dark">dark</string>
     <string name="appearance_skin_description">%1$s, %2$s theme</string>
-    <string name="personal_info_saved">Saved Personal Info.</string>
+    <string name="personal_info_saved">Saved.</string>
 
     <!-- AiConfigScreen -->
     <string name="ai_config_llm_provider">LLM Provider</string>
@@ -1273,13 +1273,13 @@
     <string name="tour_grant_overlay_title">And one for the floating ball</string>
     <string name="tour_grant_overlay_body">\"Display over other apps\" lets the assistive ball and Screen Lens appear on top of whatever you\'re using.</string>
     <string name="tour_open_personal_info_title">Last thing: who are you?</string>
-    <string name="tour_open_personal_info_body">Open Personal Info. What you put here reaches every reply — your language, your units, your currency.</string>
+    <string name="tour_open_personal_info_body">Open About you. What you put here reaches every reply — your units, your currency, how you like answers written.</string>
     <string name="tour_fill_personal_info_title">Tell it your name</string>
     <string name="tour_fill_personal_info_body">Type whatever you\'d like to be called. Everything on this page is optional, and all of it makes the answers fit you better.</string>
     <string name="tour_save_personal_info_title">Save it</string>
     <string name="tour_save_personal_info_body">Same as before — nothing on the page counts until you do.</string>
     <string name="tour_finish_title">That\'s the tour</string>
-    <string name="tour_finish_body">Anything you skipped is waiting in Settings, and Feature Tour there replays this whenever you want it.</string>
+    <string name="tour_finish_body">Anything you skipped is waiting in Settings, and Feature tour there replays this whenever you want it.</string>
     <string name="tour_next">Next</string>
     <string name="tour_open_android_settings">Open Android settings</string>
 
@@ -1419,11 +1419,11 @@
     <string name="call_confirmation_needed">Confirmation needed: %1$s</string>
     <string name="call_stt_label">Speech-to-text</string>
     <string name="call_tts_label">Text-to-speech</string>
-    <string name="call_audio_not_configured">%1$s is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_model_missing">%1$s model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_url_invalid">%1$s API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">%1$s API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s is not configured. Set it up in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI is not configured. Sign in from Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_model_missing">%1$s model is not selected. Choose one in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_url_invalid">%1$s API URL is missing or invalid. Fix it in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_api_model_missing">%1$s API model is not selected. Choose one in Gotcha → Settings → Voice and speech.</string>
     <string name="screenshot_channel">Screenshot Capture</string>
     <string name="screenshot_channel_description">One-shot screen capture</string>
     <string name="screenshot_capturing">Capturing screenshot…</string>
@@ -1555,7 +1555,7 @@
     <string name="chat_vm_no_api_key_configured_open">No API key configured. Open settings to add one.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">Microphone permission not granted. Enable it in Settings → Permissions.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">Failed to start speech recognition.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT is not configured. Sign in from Settings → Speech.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT is not configured. Sign in from Settings → Voice and speech.</string>
     <string name="chat_vm_no_stt_api_url_configured">No STT API URL configured in settings.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">No STT model selected. Refresh audio models in settings.</string>
     <string name="chat_vm_failed_to_start_recording">Failed to start recording.</string>
@@ -1680,7 +1680,7 @@
     <string name="error_generic">Error: %1$s</string>
 
     <!-- Errors: model timeout -->
-    <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration.</string>
+    <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI model.</string>
 
     <!-- Connectors: status lines and connect results -->
     <string name="connector_not_connected">Not connected</string>
@@ -1725,7 +1725,7 @@
     <string name="speech_check_android_tts_missing">Android text-to-speech has no %1$s voice installed, so %1$s replies won\'t be read aloud. Install the voice data, or pick an engine that has it, in Android\'s text-to-speech settings.</string>
     <string name="speech_check_android_stt_unsupported">Android\'s speech recognizer doesn\'t list %1$s, so it may transcribe %1$s speech wrongly. Pick another voice input service in Android\'s settings.</string>
     <string name="speech_android_voice_input_settings_failed">Could not open voice input settings.</string>
-    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Language.</string>
+    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Voice and speech.</string>
     <string name="speech_android_tts_engine">Text-to-speech engine</string>
     <string name="speech_android_stt_engine">Speech recognizer</string>
     <string name="speech_android_phone_default">Phone\'s choice (%1$s)</string>
@@ -1751,9 +1751,9 @@
     <string name="speech_android_on_device_needs_12">On-device only needs Android 12 or later.</string>
     <string name="speech_android_tts_settings">Android text-to-speech settings</string>
     <string name="speech_android_voice_input_settings">Android voice input settings</string>
-    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → AI → Speech.</string>
-    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → AI → Speech.</string>
-    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → AI → Speech.</string>
+    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → Voice and speech.</string>
+    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → Voice and speech.</string>
+    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → Voice and speech.</string>
     <string name="speech_check_android_stt_not_on_device">On-device only is on, but %1$s can\'t be recognised on this phone yet, so voice input will stop with a message. Download it in Android\'s settings, or turn off On-device only.</string>
 
     <!-- Referral sharing -->
@@ -1881,7 +1881,7 @@
     <string name="scheduled_needs_tap_public_title">A scheduled task is due</string>
     <string name="scheduled_task_gone">This task no longer exists.</string>
     <string name="scheduled_task_files_missing">The files saved with this task can\'t be read any more. Add them again in Settings.</string>
-    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI.</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI model.</string>
     <string name="scheduled_task_needs_exact_alarms">Waiting for a tap: Gotcha may not set exact alarms.</string>
     <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>
@@ -2054,7 +2054,7 @@
     <string name="samosa_sign_in_cancelled">Sign-in cancelled.</string>
     <string name="samosa_session_ended">You were signed out of Samosa AI. Sign in again to keep using it.</string>
     <string name="samosa_session_deactivated">This Samosa AI account was deactivated.</string>
-    <string name="error_out_of_credits_http_402">Out of credits (HTTP 402). Add credits to keep going. For Samosa AI, open Settings → AI Configuration → Add credits.</string>
+    <string name="error_out_of_credits_http_402">Out of credits (HTTP 402). Add credits to keep going. For Samosa AI, open your account at the top of Settings and tap Add credits.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">Terminal</string>
@@ -2114,7 +2114,7 @@
     <string name="upsell_samosa_feature_credits">Free credits to start</string>
     <string name="upsell_samosa_feature_tuned">Models chosen and set up for Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro when you want more: the Linux shell, more capable models and higher limits</string>
-    <string name="upsell_samosa_footnote">You can change your AI provider at any time in AI Configuration.</string>
+    <string name="upsell_samosa_footnote">You can change your AI provider at any time in AI model.</string>
     <string name="upsell_samosa_action">Try Samosa AI</string>
     <string name="upsell_samosa_see">Discover Samosa AI</string>
     <string name="upsell_not_now">Not now</string>

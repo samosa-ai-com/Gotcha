@@ -185,7 +185,7 @@
     <string name="personal_info_background">पृष्ठभूमि</string>
     <string name="personal_info_reply_style">जवाब की शैली</string>
     <string name="personal_info_preferred_currency">पसंदीदा मुद्रा</string>
-    <string name="personal_info_save_personal_info">व्यक्तिगत जानकारी सहेजें</string>
+    <string name="personal_info_save_personal_info">सेव करें</string>
     <string name="personal_info_about_you">आपके बारे में</string>
     <string name="personal_info_everything_here_is_optional_stays">यहाँ सब कुछ वैकल्पिक है, इसी डिवाइस पर रहता है, और हर बातचीत की शुरुआत में असिस्टेंट को दिया जाता है ताकि उसे पूछना न पड़े।</string>
     <string name="personal_info_for_more_personalized_results_keep">ज़्यादा व्यक्तिगत नतीजों के लिए यह प्रोफ़ाइल अप-टू-डेट रखें — या बस Gotcha से कहें कि आपकी निजी वेबसाइट, GitHub लिंक या CV (PDF) जैसी चीज़ें आपकी प्रोफ़ाइल में दर्ज कर दे।</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">हल्की</string>
     <string name="appearance_brightness_dark">गहरी</string>
     <string name="appearance_skin_description">%1$s, %2$s थीम</string>
-    <string name="personal_info_saved">व्यक्तिगत जानकारी सहेजी गई।</string>
+    <string name="personal_info_saved">सेव हो गया।</string>
     <string name="ai_config_llm_provider">LLM प्रदाता</string>
     <string name="ai_config_api_key">API कुंजी</string>
     <string name="ai_config_base_url_openai_compatible">बेस URL (OpenAI-compatible)</string>
@@ -901,7 +901,7 @@
     <string name="tour_grant_overlay_title">और एक तैरती बॉल के लिए</string>
     <string name="tour_grant_overlay_body">\"दूसरे ऐप के ऊपर दिखाएँ\" से असिस्टिव बॉल और Screen Lens आप जो भी इस्तेमाल कर रहे हों उसके ऊपर दिख सकते हैं।</string>
     <string name="tour_open_personal_info_title">आख़िरी बात: आप कौन हैं?</string>
-    <string name="tour_open_personal_info_body">व्यक्तिगत जानकारी खोलें। आप यहाँ जो लिखते हैं, वह हर जवाब तक पहुँचता है — आपकी भाषा, आपकी इकाइयाँ, आपकी मुद्रा।</string>
+    <string name="tour_open_personal_info_body">आपके बारे में खोलें। यहाँ जो लिखेंगे वह हर जवाब तक पहुँचता है — आपकी इकाइयाँ, आपकी मुद्रा, जवाब कैसे लिखे जाएँ।</string>
     <string name="tour_fill_personal_info_title">इसे अपना नाम बताएँ</string>
     <string name="tour_fill_personal_info_body">आप जिस नाम से बुलाया जाना चाहें, लिखें। इस पेज पर सब कुछ वैकल्पिक है, और हर चीज़ जवाबों को आपके लिए बेहतर बनाती है।</string>
     <string name="tour_save_personal_info_title">इसे सहेजें</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">पुष्टि चाहिए: %1$s</string>
     <string name="call_stt_label">स्पीच-टू-टेक्स्ट</string>
     <string name="call_tts_label">टेक्स्ट-टू-स्पीच</string>
-    <string name="call_audio_not_configured">%1$s सेट नहीं है। इसे Gotcha → सेटिंग → स्पीच (TTS / STT) में सेट करें।</string>
-    <string name="call_audio_samosa_not_configured">%1$s Samosa AI सेट नहीं है। Gotcha → सेटिंग → स्पीच (TTS / STT) से साइन इन करें।</string>
-    <string name="call_audio_model_missing">%1$s मॉडल चुना नहीं गया है। Gotcha → सेटिंग → स्पीच (TTS / STT) में कोई एक चुनें।</string>
-    <string name="call_audio_url_invalid">%1$s API URL नहीं है या गलत है। इसे Gotcha → सेटिंग → स्पीच (TTS / STT) में ठीक करें।</string>
-    <string name="call_audio_api_model_missing">%1$s API मॉडल चुना नहीं गया है। Gotcha → सेटिंग → स्पीच (TTS / STT) में कोई एक चुनें।</string>
+    <string name="call_audio_not_configured">%1$s सेट नहीं है। इसे Gotcha → सेटिंग → आवाज़ और स्पीच में सेट करें।</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI सेट नहीं है। Gotcha → सेटिंग → आवाज़ और स्पीच से साइन इन करें।</string>
+    <string name="call_audio_model_missing">%1$s मॉडल चुना नहीं गया है। Gotcha → सेटिंग → आवाज़ और स्पीच में कोई एक चुनें।</string>
+    <string name="call_audio_url_invalid">%1$s API URL नहीं है या गलत है। इसे Gotcha → सेटिंग → आवाज़ और स्पीच में ठीक करें।</string>
+    <string name="call_audio_api_model_missing">%1$s API मॉडल चुना नहीं गया है। Gotcha → सेटिंग → आवाज़ और स्पीच में कोई एक चुनें।</string>
     <string name="screenshot_channel">स्क्रीनशॉट कैप्चर</string>
     <string name="screenshot_channel_description">एक बार का स्क्रीन कैप्चर</string>
     <string name="screenshot_capturing">स्क्रीनशॉट लिया जा रहा है…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">कोई API कुंजी सेट नहीं है। जोड़ने के लिए सेटिंग खोलें।</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">माइक्रोफ़ोन की अनुमति नहीं मिली। इसे सेटिंग → अनुमतियाँ में चालू करें।</string>
     <string name="chat_vm_failed_to_start_speech_recognition">बोली पहचानना शुरू नहीं हो सका।</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT सेट नहीं है। सेटिंग → स्पीच से साइन इन करें।</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT सेट नहीं है। सेटिंग → आवाज़ और स्पीच से साइन इन करें।</string>
     <string name="chat_vm_no_stt_api_url_configured">सेटिंग में कोई STT API URL सेट नहीं है।</string>
     <string name="chat_vm_no_stt_model_selected_refresh">कोई STT मॉडल नहीं चुना गया। सेटिंग में ऑडियो मॉडल रीफ़्रेश करें।</string>
     <string name="chat_vm_failed_to_start_recording">रिकॉर्डिंग शुरू नहीं हो सकी।</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">नेटवर्क समस्या: %1$s</string>
     <string name="error_an_unexpected_error_occurred">एक अनपेक्षित त्रुटि हुई (%1$s)।</string>
     <string name="error_generic">त्रुटि: %1$s</string>
-    <string name="error_model_timeout">मॉडल ने समय पर जवाब नहीं दिया। फिर से कोशिश करें, या सेटिंग → AI → AI कॉन्फ़िगरेशन में API टाइमआउट बढ़ाएँ।</string>
+    <string name="error_model_timeout">मॉडल ने समय पर जवाब नहीं दिया। फिर से कोशिश करें, या सेटिंग → AI मॉडल में API टाइमआउट बढ़ाएँ।</string>
     <string name="connector_not_connected">कनेक्ट नहीं है</string>
     <string name="connector_connected_to">%1$s से कनेक्ट है</string>
     <string name="connector_connected_as">%1$s के रूप में कनेक्ट है</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">Android टेक्स्ट-टू-स्पीच में %1$s की कोई आवाज़ इंस्टॉल नहीं है, इसलिए %1$s जवाब पढ़कर नहीं सुनाए जाएँगे। Android की टेक्स्ट-टू-स्पीच सेटिंग में आवाज़ का डेटा इंस्टॉल करें, या ऐसा इंजन चुनें जिसमें यह हो।</string>
     <string name="speech_check_android_stt_unsupported">Android की स्पीच पहचान की सूची में %1$s नहीं है, इसलिए यह %1$s बोली को गलत ट्रांसक्राइब कर सकती है। Android की सेटिंग में कोई दूसरी वॉइस इनपुट सेवा चुनें।</string>
     <string name="speech_android_voice_input_settings_failed">वॉइस इनपुट सेटिंग नहीं खुल सकी।</string>
-    <string name="speech_voice_not_installed">Android टेक्स्ट-टू-स्पीच के लिए %1$s की कोई आवाज़ इंस्टॉल नहीं है, इसलिए इसे पढ़कर नहीं सुनाया गया। सेटिंग → भाषा में \"आवाज़ जाँचें\" से इसे इंस्टॉल करें।</string>
+    <string name="speech_voice_not_installed">Android टेक्स्ट-टू-स्पीच के लिए %1$s की कोई आवाज़ इंस्टॉल नहीं है, इसलिए इसे पढ़कर नहीं सुनाया गया। सेटिंग → आवाज़ और स्पीच में \"आवाज़ जाँचें\" से इसे इंस्टॉल करें।</string>
     <string name="speech_android_tts_engine">टेक्स्ट-टू-स्पीच इंजन</string>
     <string name="speech_android_stt_engine">स्पीच पहचान</string>
     <string name="speech_android_phone_default">फ़ोन की पसंद (%1$s)</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">\"सिर्फ़ डिवाइस पर\" के लिए Android 12 या उसके बाद का वर्शन चाहिए।</string>
     <string name="speech_android_tts_settings">Android की टेक्स्ट-टू-स्पीच सेटिंग</string>
     <string name="speech_android_voice_input_settings">Android की वॉइस इनपुट सेटिंग</string>
-    <string name="stt_on_device_unavailable">यह फ़ोन डिवाइस पर बोली नहीं पहचान सकता। सेटिंग → AI → स्पीच में \"सिर्फ़ डिवाइस पर\" बंद करें।</string>
-    <string name="stt_language_not_on_device">डिवाइस पर स्पीच पहचान के लिए %1$s डाउनलोड नहीं हुई है। इसे Android की सेटिंग में डाउनलोड करें, या सेटिंग → AI → स्पीच में \"सिर्फ़ डिवाइस पर\" बंद करें।</string>
-    <string name="stt_language_unsupported">स्पीच पहचान %1$s नहीं पहचान सकती। सेटिंग → AI → स्पीच में कोई दूसरी चुनें।</string>
+    <string name="stt_on_device_unavailable">यह फ़ोन डिवाइस पर बोली नहीं पहचान सकता। सेटिंग → आवाज़ और स्पीच में \"सिर्फ़ डिवाइस पर\" बंद करें।</string>
+    <string name="stt_language_not_on_device">डिवाइस पर स्पीच पहचान के लिए %1$s डाउनलोड नहीं हुई है। इसे Android की सेटिंग में डाउनलोड करें, या सेटिंग → आवाज़ और स्पीच में \"सिर्फ़ डिवाइस पर\" बंद करें।</string>
+    <string name="stt_language_unsupported">स्पीच पहचान %1$s नहीं पहचान सकती। सेटिंग → आवाज़ और स्पीच में कोई दूसरी चुनें।</string>
     <string name="speech_check_android_stt_not_on_device">\"सिर्फ़ डिवाइस पर\" चालू है, पर यह फ़ोन अभी %1$s नहीं पहचान सकता, इसलिए वॉइस इनपुट एक संदेश के साथ रुक जाएगा। इसे Android की सेटिंग में डाउनलोड करें, या \"सिर्फ़ डिवाइस पर\" बंद करें।</string>
     <string name="referral_copied">इनवाइट कोड कॉपी हुआ: %1$s</string>
     <string name="referral_share_text">Gotcha आज़माएँ — बोनस क्रेडिट पाने के लिए मेरा इनवाइट कोड %1$s इस्तेमाल करें: %2$s</string>
@@ -1529,7 +1529,7 @@
     <string name="scheduled_needs_tap_public_title">एक शेड्यूल किए गए काम का समय हो गया</string>
     <string name="scheduled_task_gone">यह काम अब मौजूद नहीं है।</string>
     <string name="scheduled_task_files_missing">इस काम के साथ सहेजी गई फ़ाइलें अब पढ़ी नहीं जा सकतीं। सेटिंग में उन्हें फिर से जोड़ें।</string>
-    <string name="scheduled_task_ai_not_set_up">Gotcha का AI सेट नहीं है। साइन इन करें या सेटिंग ▸ AI में API कुंजी जोड़ें।</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha का AI सेट नहीं है। साइन इन करें या सेटिंग ▸ AI मॉडल में API कुंजी जोड़ें।</string>
     <string name="scheduled_task_needs_exact_alarms">टैप का इंतज़ार: Gotcha सटीक अलार्म सेट नहीं कर सकता।</string>
     <string name="settings_page_scheduled_tasks">शेड्यूल किए गए काम</string>
     <string name="settings_page_scheduled_tasks_summary">प्रॉम्प्ट जिन्हें Gotcha तय समय पर खुद चलाता है</string>
@@ -1638,7 +1638,7 @@
     <string name="samosa_sign_in_cancelled">साइन-इन रद्द किया गया।</string>
     <string name="samosa_session_ended">आप Samosa AI से साइन आउट हो गए हैं। इसे इस्तेमाल करते रहने के लिए फिर से साइन इन करें।</string>
     <string name="samosa_session_deactivated">यह Samosa AI खाता निष्क्रिय कर दिया गया है।</string>
-    <string name="error_out_of_credits_http_402">क्रेडिट खत्म (HTTP 402)। जारी रखने के लिए क्रेडिट जोड़ें। Samosa AI के लिए: सेटिंग्स → AI कॉन्फ़िगरेशन → क्रेडिट जोड़ें।</string>
+    <string name="error_out_of_credits_http_402">क्रेडिट खत्म (HTTP 402)। जारी रखने के लिए क्रेडिट जोड़ें। Samosa AI के लिए, सेटिंग में सबसे ऊपर अपना खाता खोलें और क्रेडिट जोड़ें पर टैप करें।</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">टर्मिनल</string>
@@ -1807,7 +1807,7 @@
     <string name="upsell_samosa_feature_credits">शुरुआत के लिए मुफ़्त क्रेडिट</string>
     <string name="upsell_samosa_feature_tuned">Gotcha के लिए चुने और सेट किए गए मॉडल</string>
     <string name="upsell_samosa_feature_pro">ज़्यादा चाहिए तो Pro: Linux शेल, ज़्यादा सक्षम मॉडल और ज़्यादा सीमाएँ</string>
-    <string name="upsell_samosa_footnote">आप AI कॉन्फ़िगरेशन में कभी भी अपना AI प्रदाता बदल सकते हैं।</string>
+    <string name="upsell_samosa_footnote">आप AI मॉडल में कभी भी अपना AI प्रदाता बदल सकते हैं।</string>
     <string name="upsell_samosa_action">Samosa AI आज़माएँ</string>
     <string name="upsell_samosa_see">Samosa AI जानें</string>
     <string name="upsell_not_now">अभी नहीं</string>

@@ -43,7 +43,7 @@ import com.gotcha.service.DisplayTintGuard
 import android.provider.Settings as AndroidSettings
 
 /**
- * The Assistive Ball and Wake Word page: a switch that starts or stops the
+ * The Floating ball and wake word page (formerly Assistive Ball and Wake Word): a switch that starts or stops the
  * floating overlay, the short version of what the ball does once it is on, and
  * the "Hey Gotcha" wake word — which lives here because its listener runs inside
  * the ball's service and cannot outlive it.

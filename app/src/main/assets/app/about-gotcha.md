@@ -159,7 +159,7 @@ missing, where to turn it on, and offer to try again afterwards.
 | Notification access | Reading and dismissing notifications, media control, now playing | Settings > Permissions |
 | Device admin | Lock screen, disable camera, password policy | Settings > Permissions |
 | Root | Root commands and secure-settings writes | A rooted device; `check_root` reports the truth |
-| The secure-settings grant (or root) | Turning Night Light off for ball and Screen Lens screenshots, so they come out without its tint | Once, from a computer: `adb shell pm grant com.gotcha android.permission.WRITE_SECURE_SETTINGS`; Settings > Assistive Ball and Wake Word shows the command |
+| The secure-settings grant (or root) | Turning Night Light off for ball and Screen Lens screenshots, so they come out without its tint | Once, from a computer: `adb shell pm grant com.gotcha android.permission.WRITE_SECURE_SETTINGS`; Settings > Floating ball and wake word > Advanced settings shows the command |
 | Termux | Termux commands, audio conversion, pulling files out of Termux | Install Termux from F-Droid, then Settings > Shell > Termux |
 | Health Connect | Health summaries and records | Settings > Permissions > Health |
 | Display over other apps | The overlay tools and the Assistive Ball | Settings > Permissions |

@@ -1509,7 +1509,7 @@ object ToolDefinitions {
             "Long scripts are synthesized in segments and joined on-device; ~20 minutes of speech is the " +
             "ceiling. Output is .m4a by default; format='mp3' converts through Termux's ffmpeg when Termux " +
             "is available and quietly falls back to .m4a when it is not. Needs an API-based TTS provider " +
-            "(Samosa AI or External API) in Settings → Speech — Android's built-in TTS cannot write files, " +
+            "(Samosa AI or External API) in Settings → Voice and speech — Android's built-in TTS cannot write files, " +
             "and the error will say so.",
         schema {
             putJsonObject("properties") {
@@ -1534,7 +1534,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "TTS model id to use. Defaults to the model configured in Settings → Speech."
+                        "TTS model id to use. Defaults to the model configured in Settings → Voice and speech."
                     )
                 }
                 putJsonObject("voice") {
@@ -1574,7 +1574,7 @@ object ToolDefinitions {
         "Turn a two-host dialogue script into a spoken audio file — a conversational podcast in the " +
             "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
             "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
-            "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
+            "prose. The hosts get distinct voices (configured in Settings → Voice and speech, overridable per call, " +
             "and defaulting to two different voices from the model's own list). You also direct the pacing, " +
             "and should: give every turn its own pause_ms for the silence that follows it, varying them the " +
             "way a real conversation does — an interjection lands almost on top of the previous line, a " +
@@ -1705,7 +1705,7 @@ object ToolDefinitions {
             "recordings with media_edit first. This is how a saved voice memo becomes text: record with " +
             "start_audio_recording using an explicit output_path (without one the recording lands behind a " +
             "MediaStore URI this tool cannot reach), stop it, then transcribe the file. Needs an API-based " +
-            "STT provider (Samosa AI or External API) in Settings → Speech — Android's SpeechRecognizer " +
+            "STT provider (Samosa AI or External API) in Settings → Voice and speech — Android's SpeechRecognizer " +
             "only listens to the microphone.",
         schema {
             putJsonObject("properties") {
@@ -1720,7 +1720,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "STT model id to use. Defaults to the model configured in Settings → Speech, then " +
+                        "STT model id to use. Defaults to the model configured in Settings → Voice and speech, then " +
                             "to the first STT model the API advertises."
                     )
                 }

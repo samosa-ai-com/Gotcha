@@ -185,7 +185,7 @@
     <string name="personal_info_background">背景</string>
     <string name="personal_info_reply_style">回答のスタイル</string>
     <string name="personal_info_preferred_currency">優先通貨</string>
-    <string name="personal_info_save_personal_info">個人情報を保存</string>
+    <string name="personal_info_save_personal_info">保存</string>
     <string name="personal_info_about_you">あなたについて</string>
     <string name="personal_info_everything_here_is_optional_stays">ここの項目はすべて任意です。このデバイスに保存され、会話の最初にアシスタントへ渡されるので、毎回聞かれることはありません。</string>
     <string name="personal_info_for_more_personalized_results_keep">よりあなたに合った結果のために、このプロフィールを最新に保つか、ウェブサイト、GitHub のリンク、履歴書 (PDF) などを保存するよう Gotcha に頼んでください。</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">ライト</string>
     <string name="appearance_brightness_dark">ダーク</string>
     <string name="appearance_skin_description">%1$s、%2$s テーマ</string>
-    <string name="personal_info_saved">個人情報を保存しました。</string>
+    <string name="personal_info_saved">保存しました。</string>
     <string name="ai_config_llm_provider">LLM プロバイダ</string>
     <string name="ai_config_api_key">API キー</string>
     <string name="ai_config_base_url_openai_compatible">ベース URL (OpenAI 互換)</string>
@@ -901,7 +901,7 @@
     <string name="tour_grant_overlay_title">浮かぶボール用にもう一つ</string>
     <string name="tour_grant_overlay_body">「他のアプリの上に重ねて表示」を許可すると、アシストボールと Screen Lens を使用中のどのアプリの上にも表示できます。</string>
     <string name="tour_open_personal_info_title">最後に、あなたについて</string>
-    <string name="tour_open_personal_info_body">個人情報を開いてください。ここに書いた内容 (言語、単位、通貨) はすべての回答に反映されます。</string>
+    <string name="tour_open_personal_info_body">「あなたについて」を開いてください。ここに書いた内容 (単位、通貨、好みの書き方) はすべての回答に反映されます。</string>
     <string name="tour_fill_personal_info_title">名前を教えてください</string>
     <string name="tour_fill_personal_info_body">呼ばれたい名前を入力してください。このページはすべて任意で、入力するほど回答があなたに合ったものになります。</string>
     <string name="tour_save_personal_info_title">保存</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">確認が必要です: %1$s</string>
     <string name="call_stt_label">音声文字起こし</string>
     <string name="call_tts_label">テキスト読み上げ</string>
-    <string name="call_audio_not_configured">%1$s が設定されていません。Gotcha → 設定 → 音声 (TTS / STT) で設定してください。</string>
-    <string name="call_audio_samosa_not_configured">Samosa AI の%1$s が設定されていません。Gotcha → 設定 → 音声 (TTS / STT) からログインしてください。</string>
-    <string name="call_audio_model_missing">%1$s のモデルが選ばれていません。Gotcha → 設定 → 音声 (TTS / STT) で選んでください。</string>
-    <string name="call_audio_url_invalid">%1$s の API URL が未入力か無効です。Gotcha → 設定 → 音声 (TTS / STT) で修正してください。</string>
-    <string name="call_audio_api_model_missing">%1$s の API モデルが選ばれていません。Gotcha → 設定 → 音声 (TTS / STT) で選んでください。</string>
+    <string name="call_audio_not_configured">%1$s が設定されていません。Gotcha → 設定 → 音声と読み上げ で設定してください。</string>
+    <string name="call_audio_samosa_not_configured">Samosa AI の%1$s が設定されていません。Gotcha → 設定 → 音声と読み上げ からログインしてください。</string>
+    <string name="call_audio_model_missing">%1$s のモデルが選ばれていません。Gotcha → 設定 → 音声と読み上げ で選んでください。</string>
+    <string name="call_audio_url_invalid">%1$s の API URL が未入力か無効です。Gotcha → 設定 → 音声と読み上げ で修正してください。</string>
+    <string name="call_audio_api_model_missing">%1$s の API モデルが選ばれていません。Gotcha → 設定 → 音声と読み上げ で選んでください。</string>
     <string name="screenshot_channel">スクリーンショットの撮影</string>
     <string name="screenshot_channel_description">画面を 1 回撮影</string>
     <string name="screenshot_capturing">スクリーンショットを撮影中…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">API キーが設定されていません。設定を開いて追加してください。</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">マイクの権限が許可されていません。設定 → 権限 で有効にしてください。</string>
     <string name="chat_vm_failed_to_start_speech_recognition">音声認識を開始できませんでした。</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa の STT が設定されていません。設定 → 音声 からログインしてください。</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa の STT が設定されていません。設定 → 音声と読み上げ からログインしてください。</string>
     <string name="chat_vm_no_stt_api_url_configured">設定に STT API の URL がありません。</string>
     <string name="chat_vm_no_stt_model_selected_refresh">STT モデルが選ばれていません。設定で音声モデルを更新してください。</string>
     <string name="chat_vm_failed_to_start_recording">録音を開始できませんでした。</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">ネットワークの問題: %1$s</string>
     <string name="error_an_unexpected_error_occurred">予期しないエラーが発生しました (%1$s)。</string>
     <string name="error_generic">エラー: %1$s</string>
-    <string name="error_model_timeout">モデルが時間内に応答しませんでした。再試行するか、設定 → AI → AI 設定 で API タイムアウトを延ばしてください。</string>
+    <string name="error_model_timeout">モデルが時間内に応答しませんでした。再試行するか、設定 → AI モデル で API タイムアウトを延ばしてください。</string>
     <string name="connector_not_connected">未接続</string>
     <string name="connector_connected_to">%1$s に接続済み</string>
     <string name="connector_connected_as">%1$s として接続済み</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">Android のテキスト読み上げに %1$s の音声がインストールされていないため、%1$s の返答は読み上げられません。Android のテキスト読み上げ設定で音声データをインストールするか、対応しているエンジンを選んでください。</string>
     <string name="speech_check_android_stt_unsupported">Android の音声認識は %1$s に対応していないため、%1$s で話した内容を正しく文字起こしできない場合があります。Android の設定で別の音声入力サービスを選んでください。</string>
     <string name="speech_android_voice_input_settings_failed">音声入力の設定を開けませんでした。</string>
-    <string name="speech_voice_not_installed">Android のテキスト読み上げに %1$s の音声がインストールされていないため、読み上げませんでした。設定 → 言語の「音声をテスト」からインストールしてください。</string>
+    <string name="speech_voice_not_installed">Android のテキスト読み上げに %1$s の音声がインストールされていないため、読み上げませんでした。設定 → 音声と読み上げの「音声をテスト」からインストールしてください。</string>
     <string name="speech_android_tts_engine">テキスト読み上げエンジン</string>
     <string name="speech_android_stt_engine">音声認識</string>
     <string name="speech_android_phone_default">スマートフォンの設定（%1$s）</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">「端末上のみ」には Android 12 以降が必要です。</string>
     <string name="speech_android_tts_settings">Android のテキスト読み上げ設定</string>
     <string name="speech_android_voice_input_settings">Android の音声入力設定</string>
-    <string name="stt_on_device_unavailable">このスマートフォンは端末上で音声を認識できません。設定 → AI → 音声で「端末上のみ」をオフにしてください。</string>
-    <string name="stt_language_not_on_device">端末上の音声認識用の %1$s がダウンロードされていません。Android の設定でダウンロードするか、設定 → AI → 音声で「端末上のみ」をオフにしてください。</string>
-    <string name="stt_language_unsupported">この音声認識は %1$s を認識できません。設定 → AI → 音声で別のものを選んでください。</string>
+    <string name="stt_on_device_unavailable">このスマートフォンは端末上で音声を認識できません。設定 → 音声と読み上げで「端末上のみ」をオフにしてください。</string>
+    <string name="stt_language_not_on_device">端末上の音声認識用の %1$s がダウンロードされていません。Android の設定でダウンロードするか、設定 → 音声と読み上げで「端末上のみ」をオフにしてください。</string>
+    <string name="stt_language_unsupported">この音声認識は %1$s を認識できません。設定 → 音声と読み上げで別のものを選んでください。</string>
     <string name="speech_check_android_stt_not_on_device">「端末上のみ」がオンですが、このスマートフォンはまだ %1$s を認識できないため、音声入力はメッセージを表示して止まります。Android の設定でダウンロードするか、「端末上のみ」をオフにしてください。</string>
     <string name="referral_copied">招待コードをコピーしました: %1$s</string>
     <string name="referral_share_text">Gotcha を試してみて！招待コード %1$s を使うとボーナスクレジットがもらえます: %2$s</string>
@@ -1509,7 +1509,7 @@
     <string name="scheduled_needs_tap_public_title">スケジュールしたタスクの時間です</string>
     <string name="scheduled_task_gone">このタスクはもうありません。</string>
     <string name="scheduled_task_files_missing">このタスクに保存したファイルを読み込めなくなりました。設定でもう一度追加してください。</string>
-    <string name="scheduled_task_ai_not_set_up">Gotcha の AI が設定されていません。設定 ▸ AI でサインインするか API キーを追加してください。</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha の AI が設定されていません。設定 ▸ AI モデル でサインインするか API キーを追加してください。</string>
     <string name="scheduled_task_needs_exact_alarms">タップ待ち：Gotcha は正確なアラームを設定できません。</string>
     <string name="settings_page_scheduled_tasks">スケジュールしたタスク</string>
     <string name="settings_page_scheduled_tasks_summary">決めた時刻に Gotcha が自分で実行するプロンプト</string>
@@ -1615,7 +1615,7 @@
     <string name="samosa_sign_in_cancelled">サインインをキャンセルしました。</string>
     <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>
     <string name="samosa_session_deactivated">この Samosa AI アカウントは無効化されました。</string>
-    <string name="error_out_of_credits_http_402">クレジットがありません (HTTP 402)。続けるにはクレジットを追加してください。Samosa AI の場合: 設定 → AI 設定 → クレジットを追加。</string>
+    <string name="error_out_of_credits_http_402">クレジットがありません (HTTP 402)。続けるにはクレジットを追加してください。Samosa AI の場合は、設定の一番上のアカウントを開いて「クレジットを追加」をタップしてください。</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">ターミナル</string>
@@ -1784,7 +1784,7 @@
     <string name="upsell_samosa_feature_credits">はじめに使える無料クレジット</string>
     <string name="upsell_samosa_feature_tuned">Gotcha 向けに選んで設定したモデル</string>
     <string name="upsell_samosa_feature_pro">もっと必要なら Pro: Linux シェル、より高性能なモデル、より高い上限</string>
-    <string name="upsell_samosa_footnote">AI プロバイダーは AI 設定からいつでも変更できます。</string>
+    <string name="upsell_samosa_footnote">AI プロバイダーは AI モデルからいつでも変更できます。</string>
     <string name="upsell_samosa_action">Samosa AI を試す</string>
     <string name="upsell_samosa_see">Samosa AI を見てみる</string>
     <string name="upsell_not_now">今はしない</string>

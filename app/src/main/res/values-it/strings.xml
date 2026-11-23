@@ -185,7 +185,7 @@
     <string name="personal_info_background">Contesto</string>
     <string name="personal_info_reply_style">Stile delle risposte</string>
     <string name="personal_info_preferred_currency">Valuta preferita</string>
-    <string name="personal_info_save_personal_info">Salva informazioni personali</string>
+    <string name="personal_info_save_personal_info">Salva</string>
     <string name="personal_info_about_you">Su di te</string>
     <string name="personal_info_everything_here_is_optional_stays">Qui è tutto facoltativo, resta su questo dispositivo e viene passato all\'assistente all\'inizio di ogni conversazione, così non deve chiedertelo.</string>
     <string name="personal_info_for_more_personalized_results_keep">Per risultati più personalizzati, tieni aggiornato questo profilo, oppure chiedi a Gotcha di salvarci cose come il tuo sito, il link GitHub o il CV (PDF).</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">chiaro</string>
     <string name="appearance_brightness_dark">scuro</string>
     <string name="appearance_skin_description">%1$s, tema %2$s</string>
-    <string name="personal_info_saved">Informazioni personali salvate.</string>
+    <string name="personal_info_saved">Salvato.</string>
     <string name="ai_config_llm_provider">Fornitore LLM</string>
     <string name="ai_config_api_key">Chiave API</string>
     <string name="ai_config_base_url_openai_compatible">URL di base (compatibile con OpenAI)</string>
@@ -901,7 +901,7 @@
     <string name="tour_grant_overlay_title">E una per la sfera fluttuante</string>
     <string name="tour_grant_overlay_body">\"Mostra sopra altre app\" permette alla sfera di assistenza e a Screen Lens di comparire sopra qualsiasi app tu stia usando.</string>
     <string name="tour_open_personal_info_title">Ultima cosa: chi sei?</string>
-    <string name="tour_open_personal_info_body">Apri Informazioni personali. Ciò che scrivi qui arriva in ogni risposta: la tua lingua, le tue unità di misura, la tua valuta.</string>
+    <string name="tour_open_personal_info_body">Apri Su di te. Quello che scrivi qui arriva in ogni risposta: le tue unità, la tua valuta, come preferisci che ti si scriva.</string>
     <string name="tour_fill_personal_info_title">Digli il tuo nome</string>
     <string name="tour_fill_personal_info_body">Scrivi come vuoi essere chiamato. Tutto in questa pagina è facoltativo, e ogni dato rende le risposte più adatte a te.</string>
     <string name="tour_save_personal_info_title">Salva</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">Serve una conferma: %1$s</string>
     <string name="call_stt_label">Trascrizione vocale</string>
     <string name="call_tts_label">Sintesi vocale</string>
-    <string name="call_audio_not_configured">%1$s non è configurata. Configurala in Gotcha → Impostazioni → Voce (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s di Samosa AI non è configurata. Accedi da Gotcha → Impostazioni → Voce (TTS / STT).</string>
-    <string name="call_audio_model_missing">Nessun modello di %1$s selezionato. Scegline uno in Gotcha → Impostazioni → Voce (TTS / STT).</string>
-    <string name="call_audio_url_invalid">L\'URL dell\'API di %1$s manca o non è valido. Correggilo in Gotcha → Impostazioni → Voce (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">Nessun modello API di %1$s selezionato. Scegline uno in Gotcha → Impostazioni → Voce (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s non è configurata. Configurala in Gotcha → Impostazioni → Voce e parlato.</string>
+    <string name="call_audio_samosa_not_configured">%1$s di Samosa AI non è configurata. Accedi da Gotcha → Impostazioni → Voce e parlato.</string>
+    <string name="call_audio_model_missing">Nessun modello di %1$s selezionato. Scegline uno in Gotcha → Impostazioni → Voce e parlato.</string>
+    <string name="call_audio_url_invalid">L\'URL dell\'API di %1$s manca o non è valido. Correggilo in Gotcha → Impostazioni → Voce e parlato.</string>
+    <string name="call_audio_api_model_missing">Nessun modello API di %1$s selezionato. Scegline uno in Gotcha → Impostazioni → Voce e parlato.</string>
     <string name="screenshot_channel">Acquisizione screenshot</string>
     <string name="screenshot_channel_description">Acquisizione singola dello schermo</string>
     <string name="screenshot_capturing">Acquisizione screenshot…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">Nessuna chiave API configurata. Apri le impostazioni per aggiungerne una.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">Autorizzazione al microfono non concessa. Attivala in Impostazioni → Autorizzazioni.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">Impossibile avviare il riconoscimento vocale.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Lo STT di Samosa non è configurato. Accedi da Impostazioni → Voce.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Lo STT di Samosa non è configurato. Accedi da Impostazioni → Voce e parlato.</string>
     <string name="chat_vm_no_stt_api_url_configured">Nelle impostazioni non c\'è nessun URL dell\'API STT.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">Nessun modello STT selezionato. Aggiorna i modelli audio nelle impostazioni.</string>
     <string name="chat_vm_failed_to_start_recording">Impossibile avviare la registrazione.</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">Problema di rete: %1$s</string>
     <string name="error_an_unexpected_error_occurred">Si è verificato un errore imprevisto (%1$s).</string>
     <string name="error_generic">Errore: %1$s</string>
-    <string name="error_model_timeout">Il modello non ha risposto in tempo. Riprova o aumenta il timeout API in Impostazioni → IA → Configurazione IA.</string>
+    <string name="error_model_timeout">Il modello non ha risposto in tempo. Riprova o aumenta il timeout API in Impostazioni → Modello IA.</string>
     <string name="connector_not_connected">Non connesso</string>
     <string name="connector_connected_to">Connesso a %1$s</string>
     <string name="connector_connected_as">Connesso come %1$s</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">La sintesi vocale di Android non ha una voce per %1$s installata, quindi le risposte in %1$s non verranno lette ad alta voce. Installa i dati vocali, o scegli un motore che li abbia, nelle impostazioni di sintesi vocale di Android.</string>
     <string name="speech_check_android_stt_unsupported">Il riconoscimento vocale di Android non elenca %1$s, quindi potrebbe trascrivere male ciò che dici in %1$s. Scegli un altro servizio di input vocale nelle impostazioni di Android.</string>
     <string name="speech_android_voice_input_settings_failed">Impossibile aprire le impostazioni dell\'input vocale.</string>
-    <string name="speech_voice_not_installed">Nessuna voce per %1$s è installata per la sintesi vocale di Android, quindi questo testo non è stato letto ad alta voce. Installala con Prova la voce in Impostazioni → Lingua.</string>
+    <string name="speech_voice_not_installed">Nessuna voce per %1$s è installata per la sintesi vocale di Android, quindi questo testo non è stato letto ad alta voce. Installala con Prova la voce in Impostazioni → Voce e parlato.</string>
     <string name="speech_android_tts_engine">Motore di sintesi vocale</string>
     <string name="speech_android_stt_engine">Riconoscimento vocale</string>
     <string name="speech_android_phone_default">Scelta del telefono (%1$s)</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">Solo sul dispositivo richiede Android 12 o versioni successive.</string>
     <string name="speech_android_tts_settings">Impostazioni di sintesi vocale di Android</string>
     <string name="speech_android_voice_input_settings">Impostazioni dell\'input vocale di Android</string>
-    <string name="stt_on_device_unavailable">Questo telefono non può riconoscere la voce sul dispositivo. Disattiva Solo sul dispositivo in Impostazioni → IA → Voce.</string>
-    <string name="stt_language_not_on_device">%1$s non è scaricato per il riconoscimento vocale sul dispositivo. Scaricalo nelle impostazioni di Android o disattiva Solo sul dispositivo in Impostazioni → IA → Voce.</string>
-    <string name="stt_language_unsupported">Il riconoscimento vocale non sa riconoscere %1$s. Scegline un altro in Impostazioni → IA → Voce.</string>
+    <string name="stt_on_device_unavailable">Questo telefono non può riconoscere la voce sul dispositivo. Disattiva Solo sul dispositivo in Impostazioni → Voce e parlato.</string>
+    <string name="stt_language_not_on_device">%1$s non è scaricato per il riconoscimento vocale sul dispositivo. Scaricalo nelle impostazioni di Android o disattiva Solo sul dispositivo in Impostazioni → Voce e parlato.</string>
+    <string name="stt_language_unsupported">Il riconoscimento vocale non sa riconoscere %1$s. Scegline un altro in Impostazioni → Voce e parlato.</string>
     <string name="speech_check_android_stt_not_on_device">Solo sul dispositivo è attivo, ma questo telefono non sa ancora riconoscere %1$s, quindi l\'input vocale si fermerà con un messaggio. Scaricalo nelle impostazioni di Android o disattiva Solo sul dispositivo.</string>
     <string name="referral_copied">Codice invito copiato: %1$s</string>
     <string name="referral_share_text">Prova Gotcha: usa il mio codice invito %1$s per ottenere crediti bonus: %2$s</string>
@@ -1548,7 +1548,7 @@
     <string name="scheduled_needs_tap_public_title">È ora di un’attività pianificata</string>
     <string name="scheduled_task_gone">Questa attività non esiste più.</string>
     <string name="scheduled_task_files_missing">I file salvati con questa attività non si possono più leggere. Aggiungili di nuovo nelle Impostazioni.</string>
-    <string name="scheduled_task_ai_not_set_up">L’IA di Gotcha non è configurata. Accedi o aggiungi una chiave API in Impostazioni ▸ IA.</string>
+    <string name="scheduled_task_ai_not_set_up">L’IA di Gotcha non è configurata. Accedi o aggiungi una chiave API in Impostazioni ▸ Modello IA.</string>
     <string name="scheduled_task_needs_exact_alarms">In attesa di un tocco: Gotcha non può impostare sveglie esatte.</string>
     <string name="settings_page_scheduled_tasks">Attività pianificate</string>
     <string name="settings_page_scheduled_tasks_summary">Prompt che Gotcha esegue da solo a orari fissi</string>
@@ -1660,7 +1660,7 @@
     <string name="samosa_sign_in_cancelled">Accesso annullato.</string>
     <string name="samosa_session_ended">Sei stato disconnesso da Samosa AI. Accedi di nuovo per continuare a usarlo.</string>
     <string name="samosa_session_deactivated">Questo account Samosa AI è stato disattivato.</string>
-    <string name="error_out_of_credits_http_402">Crediti esauriti (HTTP 402). Aggiungi crediti per continuare. Per Samosa AI: Impostazioni → Configurazione IA → Aggiungi crediti.</string>
+    <string name="error_out_of_credits_http_402">Crediti esauriti (HTTP 402). Aggiungi crediti per continuare. Per Samosa AI, apri il tuo account in cima alle Impostazioni e tocca Aggiungi crediti.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">Terminale</string>
@@ -1829,7 +1829,7 @@
     <string name="upsell_samosa_feature_credits">Crediti gratuiti per iniziare</string>
     <string name="upsell_samosa_feature_tuned">Modelli scelti e configurati per Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro quando vuoi di più: la shell Linux, modelli più capaci e limiti più alti</string>
-    <string name="upsell_samosa_footnote">Puoi cambiare provider di IA in qualsiasi momento in Configurazione IA.</string>
+    <string name="upsell_samosa_footnote">Puoi cambiare provider di IA in qualsiasi momento in Modello IA.</string>
     <string name="upsell_samosa_action">Prova Samosa AI</string>
     <string name="upsell_samosa_see">Scopri Samosa AI</string>
     <string name="upsell_not_now">Non ora</string>

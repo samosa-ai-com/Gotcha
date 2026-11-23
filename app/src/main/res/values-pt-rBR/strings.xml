@@ -185,7 +185,7 @@
     <string name="personal_info_background">Contexto</string>
     <string name="personal_info_reply_style">Estilo das respostas</string>
     <string name="personal_info_preferred_currency">Moeda preferida</string>
-    <string name="personal_info_save_personal_info">Salvar informações pessoais</string>
+    <string name="personal_info_save_personal_info">Salvar</string>
     <string name="personal_info_about_you">Sobre você</string>
     <string name="personal_info_everything_here_is_optional_stays">Tudo aqui é opcional, fica neste dispositivo e é passado ao assistente no início de cada conversa, para que ele não precise perguntar.</string>
     <string name="personal_info_for_more_personalized_results_keep">Para resultados mais personalizados, mantenha este perfil atualizado ou peça ao Gotcha para salvar coisas como seu site, link do GitHub ou currículo (PDF).</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">claro</string>
     <string name="appearance_brightness_dark">escuro</string>
     <string name="appearance_skin_description">%1$s, tema %2$s</string>
-    <string name="personal_info_saved">Informações pessoais salvas.</string>
+    <string name="personal_info_saved">Salvo.</string>
     <string name="ai_config_llm_provider">Provedor de LLM</string>
     <string name="ai_config_api_key">Chave de API</string>
     <string name="ai_config_base_url_openai_compatible">URL base (compatível com OpenAI)</string>
@@ -901,13 +901,13 @@
     <string name="tour_grant_overlay_title">E uma para a bola flutuante</string>
     <string name="tour_grant_overlay_body">\"Sobrepor a outros apps\" permite que a bola assistiva e o Screen Lens apareçam sobre qualquer app que você estiver usando.</string>
     <string name="tour_open_personal_info_title">Por último: quem é você?</string>
-    <string name="tour_open_personal_info_body">Abra Informações pessoais. O que você escrever aqui vai para todas as respostas: seu idioma, suas unidades, sua moeda.</string>
+    <string name="tour_open_personal_info_body">Abra Sobre você. O que você coloca aqui chega a cada resposta: suas unidades, sua moeda, como prefere que as respostas sejam escritas.</string>
     <string name="tour_fill_personal_info_title">Diga seu nome</string>
     <string name="tour_fill_personal_info_body">Escreva como quer ser chamado. Tudo nesta página é opcional, e cada dado deixa as respostas mais a sua cara.</string>
     <string name="tour_save_personal_info_title">Salve</string>
     <string name="tour_save_personal_info_body">Como antes: nada da página conta até você salvar.</string>
     <string name="tour_finish_title">Fim do tour</string>
-    <string name="tour_finish_body">O que você pulou espera por você em Configurações, e lá o Tour pelos recursos repete tudo quando quiser.</string>
+    <string name="tour_finish_body">O que você pulou espera por você em Configurações, e lá o Tour de recursos repete tudo quando quiser.</string>
     <string name="tour_next">Próximo</string>
     <string name="tour_open_android_settings">Abrir configurações do Android</string>
     <string name="tour_start_using">Começar a usar o Gotcha</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">Confirmação necessária: %1$s</string>
     <string name="call_stt_label">Transcrição de voz</string>
     <string name="call_tts_label">Conversão de texto em voz</string>
-    <string name="call_audio_not_configured">%1$s não está configurada. Configure em Gotcha → Configurações → Voz (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s da Samosa AI não está configurada. Entre em Gotcha → Configurações → Voz (TTS / STT).</string>
-    <string name="call_audio_model_missing">Nenhum modelo de %1$s selecionado. Escolha um em Gotcha → Configurações → Voz (TTS / STT).</string>
-    <string name="call_audio_url_invalid">A URL da API de %1$s está faltando ou é inválida. Corrija em Gotcha → Configurações → Voz (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">Nenhum modelo de API de %1$s selecionado. Escolha um em Gotcha → Configurações → Voz (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s não está configurada. Configure em Gotcha → Configurações → Voz e fala.</string>
+    <string name="call_audio_samosa_not_configured">%1$s da Samosa AI não está configurada. Entre em Gotcha → Configurações → Voz e fala.</string>
+    <string name="call_audio_model_missing">Nenhum modelo de %1$s selecionado. Escolha um em Gotcha → Configurações → Voz e fala.</string>
+    <string name="call_audio_url_invalid">A URL da API de %1$s está faltando ou é inválida. Corrija em Gotcha → Configurações → Voz e fala.</string>
+    <string name="call_audio_api_model_missing">Nenhum modelo de API de %1$s selecionado. Escolha um em Gotcha → Configurações → Voz e fala.</string>
     <string name="screenshot_channel">Captura de tela</string>
     <string name="screenshot_channel_description">Captura única da tela</string>
     <string name="screenshot_capturing">Capturando a tela…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">Nenhuma chave de API configurada. Abra as configurações para adicionar uma.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">Permissão de microfone não concedida. Ative em Configurações → Permissões.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">Não foi possível iniciar o reconhecimento de voz.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">O STT da Samosa não está configurado. Entre em Configurações → Voz.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">O STT da Samosa não está configurado. Entre em Configurações → Voz e fala.</string>
     <string name="chat_vm_no_stt_api_url_configured">Não há URL da API de STT nas configurações.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">Nenhum modelo de STT selecionado. Atualize os modelos de áudio nas configurações.</string>
     <string name="chat_vm_failed_to_start_recording">Não foi possível iniciar a gravação.</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">Problema de rede: %1$s</string>
     <string name="error_an_unexpected_error_occurred">Ocorreu um erro inesperado (%1$s).</string>
     <string name="error_generic">Erro: %1$s</string>
-    <string name="error_model_timeout">O modelo não respondeu a tempo. Tente de novo ou aumente o tempo limite da API em Configurações → IA → Configuração de IA.</string>
+    <string name="error_model_timeout">O modelo não respondeu a tempo. Tente de novo ou aumente o tempo limite da API em Configurações → Modelo de IA.</string>
     <string name="connector_not_connected">Não conectado</string>
     <string name="connector_connected_to">Conectado a %1$s</string>
     <string name="connector_connected_as">Conectado como %1$s</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">A conversão de texto em voz do Android não tem uma voz em %1$s instalada, então as respostas em %1$s não serão lidas em voz alta. Instale os dados de voz, ou escolha um mecanismo que os tenha, nas configurações de conversão de texto em voz do Android.</string>
     <string name="speech_check_android_stt_unsupported">O reconhecimento de voz do Android não lista %1$s, então pode transcrever mal o que você disser em %1$s. Escolha outro serviço de entrada de voz nas configurações do Android.</string>
     <string name="speech_android_voice_input_settings_failed">Não foi possível abrir as configurações de entrada de voz.</string>
-    <string name="speech_voice_not_installed">Nenhuma voz em %1$s está instalada para a conversão de texto em voz do Android, então isto não foi lido em voz alta. Instale-a com Testar voz em Configurações → Idioma.</string>
+    <string name="speech_voice_not_installed">Nenhuma voz em %1$s está instalada para a conversão de texto em voz do Android, então isto não foi lido em voz alta. Instale-a com Testar voz em Configurações → Voz e fala.</string>
     <string name="speech_android_tts_engine">Mecanismo de texto em voz</string>
     <string name="speech_android_stt_engine">Reconhecimento de voz</string>
     <string name="speech_android_phone_default">Escolha do celular (%1$s)</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">Somente no dispositivo precisa do Android 12 ou mais recente.</string>
     <string name="speech_android_tts_settings">Configurações de texto em voz do Android</string>
     <string name="speech_android_voice_input_settings">Configurações de entrada de voz do Android</string>
-    <string name="stt_on_device_unavailable">Este celular não consegue reconhecer fala no dispositivo. Desative Somente no dispositivo em Configurações → IA → Voz.</string>
-    <string name="stt_language_not_on_device">%1$s não foi baixado para o reconhecimento de voz no dispositivo. Baixe nas configurações do Android ou desative Somente no dispositivo em Configurações → IA → Voz.</string>
-    <string name="stt_language_unsupported">O reconhecimento de voz não consegue reconhecer %1$s. Escolha outro em Configurações → IA → Voz.</string>
+    <string name="stt_on_device_unavailable">Este celular não consegue reconhecer fala no dispositivo. Desative Somente no dispositivo em Configurações → Voz e fala.</string>
+    <string name="stt_language_not_on_device">%1$s não foi baixado para o reconhecimento de voz no dispositivo. Baixe nas configurações do Android ou desative Somente no dispositivo em Configurações → Voz e fala.</string>
+    <string name="stt_language_unsupported">O reconhecimento de voz não consegue reconhecer %1$s. Escolha outro em Configurações → Voz e fala.</string>
     <string name="speech_check_android_stt_not_on_device">Somente no dispositivo está ativado, mas este celular ainda não consegue reconhecer %1$s, então a entrada de voz vai parar com uma mensagem. Baixe nas configurações do Android ou desative Somente no dispositivo.</string>
     <string name="referral_copied">Código de convite copiado: %1$s</string>
     <string name="referral_share_text">Experimente o Gotcha: use meu código de convite %1$s para ganhar créditos bônus: %2$s</string>
@@ -1548,7 +1548,7 @@
     <string name="scheduled_needs_tap_public_title">Hora de uma tarefa agendada</string>
     <string name="scheduled_task_gone">Esta tarefa não existe mais.</string>
     <string name="scheduled_task_files_missing">Os arquivos salvos com esta tarefa não podem mais ser lidos. Adicione-os de novo nas Configurações.</string>
-    <string name="scheduled_task_ai_not_set_up">A IA do Gotcha não está configurada. Entre ou adicione uma chave de API em Configurações ▸ IA.</string>
+    <string name="scheduled_task_ai_not_set_up">A IA do Gotcha não está configurada. Entre ou adicione uma chave de API em Configurações ▸ Modelo de IA.</string>
     <string name="scheduled_task_needs_exact_alarms">Aguardando um toque: o Gotcha não pode definir alarmes exatos.</string>
     <string name="settings_page_scheduled_tasks">Tarefas agendadas</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts que o Gotcha roda sozinho em horários definidos</string>
@@ -1660,7 +1660,7 @@
     <string name="samosa_sign_in_cancelled">Login cancelado.</string>
     <string name="samosa_session_ended">Você saiu do Samosa AI. Entre novamente para continuar usando.</string>
     <string name="samosa_session_deactivated">Esta conta do Samosa AI foi desativada.</string>
-    <string name="error_out_of_credits_http_402">Sem créditos (HTTP 402). Adicione créditos para continuar. No Samosa AI: Configurações → Configuração de IA → Adicionar créditos.</string>
+    <string name="error_out_of_credits_http_402">Sem créditos (HTTP 402). Adicione créditos para continuar. Para o Samosa AI, abra sua conta no topo de Configurações e toque em Adicionar créditos.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">Terminal</string>
@@ -1829,7 +1829,7 @@
     <string name="upsell_samosa_feature_credits">Créditos grátis para começar</string>
     <string name="upsell_samosa_feature_tuned">Modelos escolhidos e configurados para o Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro quando quiser mais: o shell Linux, modelos mais capazes e limites maiores</string>
-    <string name="upsell_samosa_footnote">Você pode trocar de provedor de IA a qualquer momento em Configuração de IA.</string>
+    <string name="upsell_samosa_footnote">Você pode trocar de provedor de IA a qualquer momento em Modelo de IA.</string>
     <string name="upsell_samosa_action">Experimentar o Samosa AI</string>
     <string name="upsell_samosa_see">Conheça o Samosa AI</string>
     <string name="upsell_not_now">Agora não</string>

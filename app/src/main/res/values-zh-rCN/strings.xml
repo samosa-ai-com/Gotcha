@@ -185,7 +185,7 @@
     <string name="personal_info_background">背景</string>
     <string name="personal_info_reply_style">回复风格</string>
     <string name="personal_info_preferred_currency">首选货币</string>
-    <string name="personal_info_save_personal_info">保存个人信息</string>
+    <string name="personal_info_save_personal_info">保存</string>
     <string name="personal_info_about_you">关于你</string>
     <string name="personal_info_everything_here_is_optional_stays">这里的所有内容都是可选的，只保存在此设备上，并会在每次对话开始时提供给助手，这样它就不必再问你。</string>
     <string name="personal_info_for_more_personalized_results_keep">想要更个性化的结果，请保持此资料最新，或让 Gotcha 帮你保存网站、GitHub 链接或简历 (PDF) 等内容。</string>
@@ -197,7 +197,7 @@
     <string name="appearance_brightness_light">浅色</string>
     <string name="appearance_brightness_dark">深色</string>
     <string name="appearance_skin_description">%1$s，%2$s主题</string>
-    <string name="personal_info_saved">个人信息已保存。</string>
+    <string name="personal_info_saved">已保存。</string>
     <string name="ai_config_llm_provider">LLM 提供商</string>
     <string name="ai_config_api_key">API 密钥</string>
     <string name="ai_config_base_url_openai_compatible">基础 URL（OpenAI 兼容）</string>
@@ -901,7 +901,7 @@
     <string name="tour_grant_overlay_title">还有一项给悬浮球</string>
     <string name="tour_grant_overlay_body">“显示在其他应用上层”让悬浮球和 Screen Lens 可以出现在你正在使用的任何应用上方。</string>
     <string name="tour_open_personal_info_title">最后：你是谁？</string>
-    <string name="tour_open_personal_info_body">打开个人信息。你在这里填写的内容会用于每次回复：你的语言、单位和货币。</string>
+    <string name="tour_open_personal_info_body">打开“关于你”。你在这里填写的内容会体现在每条回复中——你的单位、货币，以及你喜欢的回答风格。</string>
     <string name="tour_fill_personal_info_title">告诉它你的名字</string>
     <string name="tour_fill_personal_info_body">填写你希望被如何称呼。此页面的所有内容都是可选的，每多填一项，回复就更贴合你。</string>
     <string name="tour_save_personal_info_title">保存</string>
@@ -1035,11 +1035,11 @@
     <string name="call_confirmation_needed">需要确认：%1$s</string>
     <string name="call_stt_label">语音转写</string>
     <string name="call_tts_label">文字转语音</string>
-    <string name="call_audio_not_configured">%1$s未配置。请在 Gotcha → 设置 → 语音 (TTS / STT) 中配置。</string>
-    <string name="call_audio_samosa_not_configured">Samosa AI %1$s未配置。请在 Gotcha → 设置 → 语音 (TTS / STT) 中登录。</string>
-    <string name="call_audio_model_missing">未选择%1$s模型。请在 Gotcha → 设置 → 语音 (TTS / STT) 中选择。</string>
-    <string name="call_audio_url_invalid">%1$s API URL 缺失或无效。请在 Gotcha → 设置 → 语音 (TTS / STT) 中修正。</string>
-    <string name="call_audio_api_model_missing">未选择%1$s API 模型。请在 Gotcha → 设置 → 语音 (TTS / STT) 中选择。</string>
+    <string name="call_audio_not_configured">%1$s未配置。请在 Gotcha → 设置 → 语音与朗读 中配置。</string>
+    <string name="call_audio_samosa_not_configured">Samosa AI %1$s未配置。请在 Gotcha → 设置 → 语音与朗读 中登录。</string>
+    <string name="call_audio_model_missing">未选择%1$s模型。请在 Gotcha → 设置 → 语音与朗读 中选择。</string>
+    <string name="call_audio_url_invalid">%1$s API URL 缺失或无效。请在 Gotcha → 设置 → 语音与朗读 中修正。</string>
+    <string name="call_audio_api_model_missing">未选择%1$s API 模型。请在 Gotcha → 设置 → 语音与朗读 中选择。</string>
     <string name="screenshot_channel">截图</string>
     <string name="screenshot_channel_description">单次屏幕截图</string>
     <string name="screenshot_capturing">正在截图…</string>
@@ -1155,7 +1155,7 @@
     <string name="chat_vm_no_api_key_configured_open">未配置 API 密钥。打开设置添加一个。</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">未授予麦克风权限。请在 设置 → 权限 中开启。</string>
     <string name="chat_vm_failed_to_start_speech_recognition">无法启动语音识别。</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT 未配置。请在 设置 → 语音 中登录。</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT 未配置。请在 设置 → 语音与朗读 中登录。</string>
     <string name="chat_vm_no_stt_api_url_configured">设置中没有 STT API URL。</string>
     <string name="chat_vm_no_stt_model_selected_refresh">未选择 STT 模型。请在设置中刷新音频模型。</string>
     <string name="chat_vm_failed_to_start_recording">无法开始录音。</string>
@@ -1256,7 +1256,7 @@
     <string name="error_network_problem">网络问题：%1$s</string>
     <string name="error_an_unexpected_error_occurred">发生意外错误（%1$s）。</string>
     <string name="error_generic">错误：%1$s</string>
-    <string name="error_model_timeout">模型未能及时响应。请重试，或在 设置 → AI → AI 配置 中延长 API 超时。</string>
+    <string name="error_model_timeout">模型未能及时响应。请重试，或在 设置 → AI 模型 中延长 API 超时。</string>
     <string name="connector_not_connected">未连接</string>
     <string name="connector_connected_to">已连接到 %1$s</string>
     <string name="connector_connected_as">已以 %1$s 身份连接</string>
@@ -1293,7 +1293,7 @@
     <string name="speech_check_android_tts_missing">Android 文字转语音没有安装 %1$s 语音，因此%1$s回复不会被朗读。请在 Android 的文字转语音设置中安装语音数据，或选择带有该语音的引擎。</string>
     <string name="speech_check_android_stt_unsupported">Android 语音识别未列出%1$s，因此可能无法正确转写你说的%1$s。请在 Android 设置中选择其他语音输入服务。</string>
     <string name="speech_android_voice_input_settings_failed">无法打开语音输入设置。</string>
-    <string name="speech_voice_not_installed">Android 文字转语音没有安装 %1$s 语音，因此未朗读此内容。请在 设置 → 语言 中通过“试听声音”安装。</string>
+    <string name="speech_voice_not_installed">Android 文字转语音没有安装 %1$s 语音，因此未朗读此内容。请在 设置 → 语音与朗读 中通过“试听声音”安装。</string>
     <string name="speech_android_tts_engine">文字转语音引擎</string>
     <string name="speech_android_stt_engine">语音识别</string>
     <string name="speech_android_phone_default">手机默认（%1$s）</string>
@@ -1319,9 +1319,9 @@
     <string name="speech_android_on_device_needs_12">“仅限设备端”需要 Android 12 或更高版本。</string>
     <string name="speech_android_tts_settings">Android 文字转语音设置</string>
     <string name="speech_android_voice_input_settings">Android 语音输入设置</string>
-    <string name="stt_on_device_unavailable">此手机无法在设备端识别语音。请在 设置 → AI → 语音 中关闭“仅限设备端”。</string>
-    <string name="stt_language_not_on_device">设备端语音识别尚未下载%1$s。请在 Android 设置中下载，或在 设置 → AI → 语音 中关闭“仅限设备端”。</string>
-    <string name="stt_language_unsupported">语音识别无法识别%1$s。请在 设置 → AI → 语音 中选择其他语音识别。</string>
+    <string name="stt_on_device_unavailable">此手机无法在设备端识别语音。请在 设置 → 语音与朗读 中关闭“仅限设备端”。</string>
+    <string name="stt_language_not_on_device">设备端语音识别尚未下载%1$s。请在 Android 设置中下载，或在 设置 → 语音与朗读 中关闭“仅限设备端”。</string>
+    <string name="stt_language_unsupported">语音识别无法识别%1$s。请在 设置 → 语音与朗读 中选择其他语音识别。</string>
     <string name="speech_check_android_stt_not_on_device">“仅限设备端”已开启，但此手机还无法识别%1$s，因此语音输入会停止并显示提示。请在 Android 设置中下载，或关闭“仅限设备端”。</string>
     <string name="referral_copied">邀请码已复制：%1$s</string>
     <string name="referral_share_text">试试 Gotcha：使用我的邀请码 %1$s 获得奖励积分：%2$s</string>
@@ -1509,7 +1509,7 @@
     <string name="scheduled_needs_tap_public_title">有一个定时任务到时间了</string>
     <string name="scheduled_task_gone">此任务已不存在。</string>
     <string name="scheduled_task_files_missing">随此任务保存的文件已无法读取。请在设置中重新添加。</string>
-    <string name="scheduled_task_ai_not_set_up">Gotcha 的 AI 尚未设置。请在设置 ▸ AI 中登录或添加 API 密钥。</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha 的 AI 尚未设置。请在设置 ▸ AI 模型 中登录或添加 API 密钥。</string>
     <string name="scheduled_task_needs_exact_alarms">等待点按：Gotcha 无法设置精确闹钟。</string>
     <string name="settings_page_scheduled_tasks">定时任务</string>
     <string name="settings_page_scheduled_tasks_summary">Gotcha 在设定时间自行运行的提示词</string>
@@ -1615,7 +1615,7 @@
     <string name="samosa_sign_in_cancelled">已取消登录。</string>
     <string name="samosa_session_ended">你已退出 Samosa AI。请重新登录以继续使用。</string>
     <string name="samosa_session_deactivated">此 Samosa AI 账号已停用。</string>
-    <string name="error_out_of_credits_http_402">额度已用完 (HTTP 402)。请添加额度后继续。Samosa AI：设置 → AI 配置 → 添加额度。</string>
+    <string name="error_out_of_credits_http_402">额度已用完（HTTP 402）。请添加额度以继续。对于 Samosa AI，请打开设置顶部的账户，然后点按“添加额度”。</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">终端</string>
@@ -1784,7 +1784,7 @@
     <string name="upsell_samosa_feature_credits">免费额度助你起步</string>
     <string name="upsell_samosa_feature_tuned">为 Gotcha 精选并配置的模型</string>
     <string name="upsell_samosa_feature_pro">需要更多时选择 Pro：Linux shell、更强大的模型和更高的上限</string>
-    <string name="upsell_samosa_footnote">你可以随时在 AI 配置中更换 AI 服务商。</string>
+    <string name="upsell_samosa_footnote">你可以随时在 AI 模型中更换 AI 服务商。</string>
     <string name="upsell_samosa_action">试用 Samosa AI</string>
     <string name="upsell_samosa_see">了解 Samosa AI</string>
     <string name="upsell_not_now">以后再说</string>

@@ -290,7 +290,7 @@
     <string name="personal_info_background">الخلفية</string>
     <string name="personal_info_reply_style">أسلوب الرد</string>
     <string name="personal_info_preferred_currency">العملة المفضلة</string>
-    <string name="personal_info_save_personal_info">حفظ المعلومات الشخصية</string>
+    <string name="personal_info_save_personal_info">حفظ</string>
     <string name="personal_info_about_you">عنك</string>
     <string name="personal_info_everything_here_is_optional_stays">كل شيء هنا اختياري، يبقى على هذا الجهاز، ويُعطى للمساعد في بداية كل محادثة حتى لا يضطر للسؤال.</string>
     <string name="personal_info_for_more_personalized_results_keep">لنتائج أكثر تخصيصًا، حافظ على تحديث هذا الملف — أو اطلب من Gotcha تسجيل أشياء مثل موقعك الشخصي أو رابط GitHub أو سيرتك الذاتية (PDF) في ملفك.</string>
@@ -304,7 +304,7 @@
     <string name="appearance_brightness_light">فاتح</string>
     <string name="appearance_brightness_dark">داكن</string>
     <string name="appearance_skin_description">مظهر %1$s، %2$s</string>
-    <string name="personal_info_saved">تم حفظ المعلومات الشخصية.</string>
+    <string name="personal_info_saved">تم الحفظ.</string>
 
     <!-- AiConfigScreen -->
     <string name="ai_config_llm_provider">مزوّد LLM</string>
@@ -1274,7 +1274,7 @@
     <string name="tour_grant_overlay_title">وواحد للكرة العائمة</string>
     <string name="tour_grant_overlay_body">‏\"العرض فوق التطبيقات الأخرى\" يتيح ظهور الكرة المساعدة وعدسة الشاشة فوق أي شيء تستخدمه.</string>
     <string name="tour_open_personal_info_title">آخر شيء: من أنت؟</string>
-    <string name="tour_open_personal_info_body">افتح المعلومات الشخصية. ما تضعه هنا يصل إلى كل رد — لغتك ووحداتك وعملتك.</string>
+    <string name="tour_open_personal_info_body">افتح عنك. ما تكتبه هنا يصل إلى كل رد — وحداتك وعملتك وطريقة الكتابة التي تفضلها.</string>
     <string name="tour_fill_personal_info_title">أخبره باسمك</string>
     <string name="tour_fill_personal_info_body">اكتب ما تحب أن يُنادى به. كل شيء في هذه الصفحة اختياري، وكلّه يجعل الإجابات تناسبك أكثر.</string>
     <string name="tour_save_personal_info_title">احفظه</string>
@@ -1420,11 +1420,11 @@
     <string name="call_confirmation_needed">التأكيد مطلوب: %1$s</string>
     <string name="call_stt_label">تحويل الكلام إلى نص</string>
     <string name="call_tts_label">تحويل النص إلى كلام</string>
-    <string name="call_audio_not_configured">%1$s غير مُهيأ. قم بإعداده من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s Samosa AI غير مُهيأ. سجّل الدخول من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_model_missing">لم يتم اختيار نموذج %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_url_invalid">رابط API الخاص بـ %1$s مفقود أو غير صالح. صحّحه من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">لم يتم اختيار نموذج API الخاص بـ %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s غير مُهيأ. قم بإعداده من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI غير مُهيأ. سجّل الدخول من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_model_missing">لم يتم اختيار نموذج %1$s. اختر واحداً من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_url_invalid">رابط API الخاص بـ %1$s مفقود أو غير صالح. صحّحه من Gotcha ← الإعدادات ← الصوت والكلام.</string>
+    <string name="call_audio_api_model_missing">لم يتم اختيار نموذج API الخاص بـ %1$s. اختر واحداً من Gotcha ← الإعدادات ← الصوت والكلام.</string>
     <string name="screenshot_channel">التقاط لقطة شاشة</string>
     <string name="screenshot_channel_description">التقاط لقطة شاشة لمرة واحدة</string>
     <string name="screenshot_capturing">جارٍ التقاط لقطة الشاشة…</string>
@@ -1556,7 +1556,7 @@
     <string name="chat_vm_no_api_key_configured_open">لا مفتاح API مُهيّأ. افتح الإعدادات لإضافة واحد.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">إذن الميكروفون غير ممنوح. فعّله من الإعدادات ← الأذونات.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">فشل بدء التعرّف على الكلام.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT غير مُهيّأ. سجّل الدخول من الإعدادات ← الكلام.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT غير مُهيّأ. سجّل الدخول من الإعدادات ← الصوت والكلام.</string>
     <string name="chat_vm_no_stt_api_url_configured">لا عنوان URL لواجهة STT مُهيّأ في الإعدادات.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">لم يُحدَّد نموذج STT. حدّث نماذج الصوت في الإعدادات.</string>
     <string name="chat_vm_failed_to_start_recording">فشل بدء التسجيل.</string>
@@ -1693,7 +1693,7 @@
     <string name="error_generic">خطأ: %1$s</string>
 
     <!-- Errors: model timeout -->
-    <string name="error_model_timeout">النموذج لم يستجب في الوقت المحدد. حاول مجددًا، أو ارفع مهلة API من الإعدادات ← AI ← إعدادات AI.</string>
+    <string name="error_model_timeout">النموذج لم يستجب في الوقت المحدد. حاول مجددًا، أو ارفع مهلة API من الإعدادات ← نموذج الذكاء الاصطناعي.</string>
 
     <!-- Connectors: status lines and connect results -->
     <string name="connector_not_connected">غير متصل</string>
@@ -1742,7 +1742,7 @@
     <string name="speech_check_android_tts_missing">تحويل النص إلى كلام في Android لا يملك صوت %1$s مثبتًا، لذا لن تُقرأ ردود %1$s بصوت عالٍ. ثبّت بيانات الصوت، أو اختر محركًا يملكه، من إعدادات تحويل النص إلى كلام في Android.</string>
     <string name="speech_check_android_stt_unsupported">مُعرّف الكلام في Android لا يدرج %1$s، لذا قد ينسخ كلام %1$s خطأً. اختر خدمة إدخال صوتي أخرى من إعدادات Android.</string>
     <string name="speech_android_voice_input_settings_failed">تعذّر فتح إعدادات الإدخال الصوتي.</string>
-    <string name="speech_voice_not_installed">لا يوجد صوت %1$s مثبت لتحويل النص إلى كلام في Android، لذا لم يُقرأ هذا بصوت عالٍ. ثبّته عبر اختبار الصوت في الإعدادات ← اللغة.</string>
+    <string name="speech_voice_not_installed">لا يوجد صوت %1$s مثبت لتحويل النص إلى كلام في Android، لذا لم يُقرأ هذا بصوت عالٍ. ثبّته عبر اختبار الصوت في الإعدادات ← الصوت والكلام.</string>
     <string name="speech_android_tts_engine">محرك تحويل النص إلى كلام</string>
     <string name="speech_android_stt_engine">مُعرّف الكلام</string>
     <string name="speech_android_phone_default">اختيار الهاتف (%1$s)</string>
@@ -1768,9 +1768,9 @@
     <string name="speech_android_on_device_needs_12">يتطلب «على الجهاز فقط» Android 12 أو أحدث.</string>
     <string name="speech_android_tts_settings">إعدادات تحويل النص إلى كلام في Android</string>
     <string name="speech_android_voice_input_settings">إعدادات إدخال الصوت في Android</string>
-    <string name="stt_on_device_unavailable">هذا الهاتف لا يستطيع التعرّف على الكلام على الجهاز. أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
-    <string name="stt_language_not_on_device">%1$s غير مُنزَّل للتعرّف على الكلام على الجهاز. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
-    <string name="stt_language_unsupported">مُتعرِّف الكلام لا يستطيع التعرّف على %1$s. اختر لغة أخرى من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
+    <string name="stt_on_device_unavailable">هذا الهاتف لا يستطيع التعرّف على الكلام على الجهاز. أوقف «على الجهاز فقط» من الإعدادات → الصوت والكلام.</string>
+    <string name="stt_language_not_on_device">%1$s غير مُنزَّل للتعرّف على الكلام على الجهاز. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط» من الإعدادات → الصوت والكلام.</string>
+    <string name="stt_language_unsupported">مُتعرِّف الكلام لا يستطيع التعرّف على %1$s. اختر لغة أخرى من الإعدادات → الصوت والكلام.</string>
     <string name="speech_check_android_stt_not_on_device">«على الجهاز فقط» مفعّل، لكن %1$s لا يمكن التعرّف عليه على هذا الهاتف بعد، لذا سيتوقف إدخال الصوت برسالة. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط».</string>
 
     <!-- Referral sharing -->
@@ -1906,7 +1906,7 @@
     <string name="scheduled_needs_tap_public_title">حان وقت مهمة مجدولة</string>
     <string name="scheduled_task_gone">لم تعد هذه المهمة موجودة.</string>
     <string name="scheduled_task_files_missing">تعذّرت قراءة الملفات المحفوظة مع هذه المهمة. أضفها مرة أخرى في الإعدادات.</string>
-    <string name="scheduled_task_ai_not_set_up">لم يتم إعداد ذكاء Gotcha. سجّل الدخول أو أضف مفتاح API في الإعدادات ▸ AI.</string>
+    <string name="scheduled_task_ai_not_set_up">لم يتم إعداد ذكاء Gotcha. سجّل الدخول أو أضف مفتاح API في الإعدادات ▸ نموذج الذكاء الاصطناعي.</string>
     <string name="scheduled_task_needs_exact_alarms">بانتظار نقرة: قد لا يضبط Gotcha المنبهات الدقيقة.</string>
     <string name="settings_page_scheduled_tasks">المهام المجدولة</string>
     <string name="settings_page_scheduled_tasks_summary">أوامر يشغّلها Gotcha بنفسه في أوقات محددة</string>
@@ -2032,7 +2032,7 @@
     <string name="samosa_sign_in_cancelled">تم إلغاء تسجيل الدخول.</string>
     <string name="samosa_session_ended">تم تسجيل خروجك من Samosa AI. سجّل الدخول مرة أخرى لمواصلة استخدامه.</string>
     <string name="samosa_session_deactivated">تم إلغاء تنشيط حساب Samosa AI هذا.</string>
-    <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. في Samosa AI: الإعدادات ← إعداد الذكاء الاصطناعي ← إضافة رصيد.</string>
+    <string name="error_out_of_credits_http_402">نفد الرصيد (HTTP 402). أضف رصيدًا للمتابعة. لـ Samosa AI، افتح حسابك أعلى الإعدادات واضغط إضافة رصيد.</string>
 
     <!-- Linux shell ▸ Terminal -->
     <string name="settings_page_linux_terminal">الطرفية</string>
@@ -2201,7 +2201,7 @@
     <string name="upsell_samosa_feature_credits">رصيد مجاني للبدء</string>
     <string name="upsell_samosa_feature_tuned">نماذج مختارة ومُعدّة لـ Gotcha</string>
     <string name="upsell_samosa_feature_pro">Pro عندما تريد المزيد: صدفة Linux ونماذج أكثر قدرة وحدود أعلى</string>
-    <string name="upsell_samosa_footnote">يمكنك تغيير مزوّد الذكاء الاصطناعي في أي وقت من إعدادات الذكاء الاصطناعي.</string>
+    <string name="upsell_samosa_footnote">يمكنك تغيير مزوّد الذكاء الاصطناعي في أي وقت من نموذج الذكاء الاصطناعي.</string>
     <string name="upsell_samosa_action">جرّب Samosa AI</string>
     <string name="upsell_samosa_see">اكتشف Samosa AI</string>
     <string name="upsell_not_now">ليس الآن</string>

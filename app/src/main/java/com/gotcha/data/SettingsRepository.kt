@@ -278,7 +278,7 @@ data class Settings(
     val proactiveOtpEnabled: Boolean = true,
     val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet(),
-    // ---- Personal info (Settings ▸ Personal Info) ----
+    // ---- Personal info (Settings ▸ About you) ----
     // Everything the user chooses to tell the agent about themselves. All of it
     // is optional, and all of it reaches the model's system prompt — see
     // AgentEngine's <user_profile> block and the style directive.
