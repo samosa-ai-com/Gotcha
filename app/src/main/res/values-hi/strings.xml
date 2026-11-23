@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">टेक्स्ट-टू-स्पीच सेटिंग नहीं खुल सकी।</string>
     <string name="language_reply_title">AI जवाब की भाषा</string>
     <string name="language_reply_description">असिस्टेंट अपने जवाब किस भाषा में लिखता है। टूल के नाम, कमांड और फ़ाइल पाथ अंग्रेज़ी में ही रहते हैं ताकि वे काम करते रहें।</string>
-    <string name="language_saved">भाषा सेटिंग सहेजी गई।</string>
-    <string name="language_save">भाषा सेटिंग सहेजें</string>
     <string name="action_cancel">रद्द करें</string>
     <string name="settings_page_personal_info">व्यक्तिगत जानकारी</string>
     <string name="settings_page_personal_info_summary">आप कौन हैं, मुद्रा, जवाब की शैली</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">स्क्रीनशॉट के लिए नाइट लाइट बंद</string>
     <string name="settings_title">सेटिंग</string>
     <string name="settings_search_hint">सेटिंग खोजें</string>
+    <string name="settings_unsaved_title">बदलाव सेव करें?</string>
+    <string name="settings_unsaved_message">आपने इस पेज में बदलाव किए हैं पर सेव नहीं किए।</string>
+    <string name="settings_unsaved_save">सेव करें</string>
+    <string name="settings_unsaved_discard">छोड़ दें</string>
     <string name="settings_search_clear">खोज साफ़ करें</string>
     <string name="settings_search_empty">“%1$s” से कोई सेटिंग मेल नहीं खाती</string>
     <string name="settings_feature_tour">फ़ीचर टूर</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">मॉडल सोचने का काम करता है; स्पीच उसे आवाज़ और कान देती है। एक ही प्रदाता दोनों संभाल सकता है। वह किस भाषा में बोलता और जवाब देता है, यह सेटिंग → भाषा में है।</string>
     <string name="appearance_theme">थीम</string>
     <string name="appearance_every_theme_works_on_every">हर थीम हर डिवाइस पर काम करती है। जहाँ लाइव ब्लर उपलब्ध नहीं है, वहाँ ग्लास बंद करने के बजाय हल्के तरीके से बनाया जाता है।</string>
-    <string name="proactive_save_proactive_settings">सक्रिय सहायता सेटिंग सहेजें</string>
     <string name="proactive_master_proactive_offers">सक्रिय सुझाव (मुख्य स्विच)</string>
     <string name="proactive_scan_screen_content">स्क्रीन की सामग्री स्कैन करें</string>
     <string name="proactive_scan_clipboard">क्लिपबोर्ड स्कैन करें</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">हल्की</string>
     <string name="appearance_brightness_dark">गहरी</string>
     <string name="appearance_skin_description">%1$s, %2$s थीम</string>
-    <string name="proactive_saved">सक्रिय सहायता सेटिंग सहेजी गईं।</string>
     <string name="personal_info_saved">व्यक्तिगत जानकारी सहेजी गई।</string>
     <string name="ai_config_llm_provider">LLM प्रदाता</string>
     <string name="ai_config_api_key">API कुंजी</string>

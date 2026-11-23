@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">Die Sprachausgabe-Einstellungen konnten nicht geöffnet werden.</string>
     <string name="language_reply_title">Antwortsprache der KI</string>
     <string name="language_reply_description">Die Sprache, in der der Assistent antwortet. Tool-Namen, Befehle und Dateipfade bleiben auf Englisch, damit sie funktionieren.</string>
-    <string name="language_saved">Spracheinstellungen gespeichert.</string>
-    <string name="language_save">Spracheinstellungen speichern</string>
     <string name="action_cancel">Abbrechen</string>
     <string name="settings_page_personal_info">Persönliche Infos</string>
     <string name="settings_page_personal_info_summary">Wer du bist, Währung, Antwortstil</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">Nachtlicht für Screenshots aus</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_search_hint">Einstellungen durchsuchen</string>
+    <string name="settings_unsaved_title">Änderungen speichern?</string>
+    <string name="settings_unsaved_message">Du hast diese Seite geändert, ohne zu speichern.</string>
+    <string name="settings_unsaved_save">Speichern</string>
+    <string name="settings_unsaved_discard">Verwerfen</string>
     <string name="settings_search_clear">Suche löschen</string>
     <string name="settings_search_empty">Keine Einstellung passt zu „%1$s“</string>
     <string name="settings_feature_tour">Funktionstour</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">Das Modell denkt; die Sprache gibt ihm Stimme und Ohren. Ein Anbieter kann beides übernehmen. In welcher Sprache es spricht und antwortet, steht unter Einstellungen → Sprache.</string>
     <string name="appearance_theme">Design</string>
     <string name="appearance_every_theme_works_on_every">Jedes Design funktioniert auf jedem Gerät. Wo kein Live-Weichzeichner verfügbar ist, wird das Glas sparsamer dargestellt statt abgeschaltet.</string>
-    <string name="proactive_save_proactive_settings">Proaktive Einstellungen speichern</string>
     <string name="proactive_master_proactive_offers">Proaktive Vorschläge (Hauptschalter)</string>
     <string name="proactive_scan_screen_content">Bildschirminhalt scannen</string>
     <string name="proactive_scan_clipboard">Zwischenablage scannen</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">hell</string>
     <string name="appearance_brightness_dark">dunkel</string>
     <string name="appearance_skin_description">%1$s, Design: %2$s</string>
-    <string name="proactive_saved">Proaktive Einstellungen gespeichert.</string>
     <string name="personal_info_saved">Persönliche Infos gespeichert.</string>
     <string name="ai_config_llm_provider">LLM-Anbieter</string>
     <string name="ai_config_api_key">API-Schlüssel</string>

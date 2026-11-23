@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">无法打开文字转语音设置。</string>
     <string name="language_reply_title">AI 回复语言</string>
     <string name="language_reply_description">助手撰写回复所用的语言。工具名称、命令和文件路径保持英文，以确保正常工作。</string>
-    <string name="language_saved">语言设置已保存。</string>
-    <string name="language_save">保存语言设置</string>
     <string name="action_cancel">取消</string>
     <string name="settings_page_personal_info">个人信息</string>
     <string name="settings_page_personal_info_summary">你是谁、货币、回复风格</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">截图时关闭护眼模式</string>
     <string name="settings_title">设置</string>
     <string name="settings_search_hint">搜索设置</string>
+    <string name="settings_unsaved_title">保存更改？</string>
+    <string name="settings_unsaved_message">你更改了此页面但尚未保存。</string>
+    <string name="settings_unsaved_save">保存</string>
+    <string name="settings_unsaved_discard">放弃</string>
     <string name="settings_search_clear">清除搜索</string>
     <string name="settings_search_empty">没有与“%1$s”匹配的设置</string>
     <string name="settings_feature_tour">功能导览</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">模型负责思考，语音为它提供嘴巴和耳朵。一个提供商可以同时负责两者。它说话和回复的语言在 设置 → 语言 中设置。</string>
     <string name="appearance_theme">主题</string>
     <string name="appearance_every_theme_works_on_every">每个主题都适用于所有设备。在不支持实时模糊的设备上，玻璃效果会以较轻的方式呈现，而不是被关闭。</string>
-    <string name="proactive_save_proactive_settings">保存主动协助设置</string>
     <string name="proactive_master_proactive_offers">主动建议（总开关）</string>
     <string name="proactive_scan_screen_content">扫描屏幕内容</string>
     <string name="proactive_scan_clipboard">扫描剪贴板</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">浅色</string>
     <string name="appearance_brightness_dark">深色</string>
     <string name="appearance_skin_description">%1$s，%2$s主题</string>
-    <string name="proactive_saved">主动协助设置已保存。</string>
     <string name="personal_info_saved">个人信息已保存。</string>
     <string name="ai_config_llm_provider">LLM 提供商</string>
     <string name="ai_config_api_key">API 密钥</string>

@@ -63,8 +63,6 @@
     <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
     <string name="language_reply_title">AI reply language</string>
     <string name="language_reply_description">The language the assistant writes its answers in. Tool names, commands and file paths stay in English so they keep working.</string>
-    <string name="language_saved">Saved language settings.</string>
-    <string name="language_save">Save Language Settings</string>
 
     <!-- Shared actions -->
     <string name="action_cancel">Cancel</string>
@@ -290,6 +288,10 @@
     <!-- Settings home -->
     <string name="settings_title">Settings</string>
     <string name="settings_search_hint">Search settings</string>
+    <string name="settings_unsaved_title">Save your changes?</string>
+    <string name="settings_unsaved_message">You changed this page without saving.</string>
+    <string name="settings_unsaved_save">Save</string>
+    <string name="settings_unsaved_discard">Discard</string>
     <string name="settings_search_clear">Clear search</string>
     <string name="settings_search_empty">No settings match “%1$s”</string>
     <string name="settings_feature_tour">Feature Tour</string>
@@ -305,7 +307,6 @@
     <string name="appearance_every_theme_works_on_every">Every theme works on every device. Where live blur isn\'t available, the glass is made a cheaper way rather than switched off.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_save_proactive_settings">Save Proactive Settings</string>
     <string name="proactive_master_proactive_offers">Master Proactive Offers</string>
     <string name="proactive_scan_screen_content">Scan Screen Content</string>
     <string name="proactive_scan_clipboard">Scan Clipboard</string>
@@ -338,7 +339,6 @@
     <string name="appearance_brightness_light">light</string>
     <string name="appearance_brightness_dark">dark</string>
     <string name="appearance_skin_description">%1$s, %2$s theme</string>
-    <string name="proactive_saved">Saved Proactive Settings.</string>
     <string name="personal_info_saved">Saved Personal Info.</string>
 
     <!-- AiConfigScreen -->

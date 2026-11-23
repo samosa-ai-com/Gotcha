@@ -27,12 +27,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,6 +49,7 @@ import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.provider.Settings as AndroidSettings
 
@@ -129,6 +130,24 @@ fun LanguageScreen(
         voiceLanguage = voiceLanguage,
         sttLanguage = sttLanguage.trim()
     )
+
+    // Every choice here saves itself: the pickers at once, the typed transcription
+    // language a moment after typing stops, and whatever is still pending when
+    // the page closes — so there is no Save button for Back to skip past.
+    var baseline by remember { mutableStateOf(initial) }
+    val latestSave by rememberUpdatedState {
+        if (applyLanguages(baseline) != baseline) {
+            onSave { applyLanguages(it) }
+            baseline = applyLanguages(baseline)
+        }
+    }
+    LaunchedEffect(preferredLanguage, voiceLanguage, sttLanguage) {
+        if (applyLanguages(baseline) != baseline) {
+            delay(LANGUAGE_AUTOSAVE_DELAY_MS)
+            latestSave()
+        }
+    }
+    DisposableEffect(Unit) { onDispose { latestSave() } }
 
     /** What the voice would actually use right now, without waiting for a save. */
     val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
@@ -419,16 +438,6 @@ fun LanguageScreen(
                 }
             }
         }
-
-        Button(
-            onClick = {
-                onSave { applyLanguages(it) }
-                overlay.show(localContext.getString(R.string.language_saved))
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("settings_save_language")
-        ) { Text(stringResource(R.string.language_save)) }
     }
 }
 
@@ -509,3 +518,6 @@ private fun declaresAppLocales(context: Context): Boolean {
         false
     }
 }
+
+/** How long Language waits after the last keystroke before saving a typed value. */
+private const val LANGUAGE_AUTOSAVE_DELAY_MS = 600L

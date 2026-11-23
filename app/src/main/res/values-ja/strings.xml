@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">テキスト読み上げの設定を開けませんでした。</string>
     <string name="language_reply_title">AI の回答の言語</string>
     <string name="language_reply_description">アシスタントが回答を書く言語です。ツール名、コマンド、ファイルパスは動作を保つため英語のままです。</string>
-    <string name="language_saved">言語設定を保存しました。</string>
-    <string name="language_save">言語設定を保存</string>
     <string name="action_cancel">キャンセル</string>
     <string name="settings_page_personal_info">個人情報</string>
     <string name="settings_page_personal_info_summary">あなたについて、通貨、回答のスタイル</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">スクリーンショット時に夜間モードをオフ</string>
     <string name="settings_title">設定</string>
     <string name="settings_search_hint">設定を検索</string>
+    <string name="settings_unsaved_title">変更を保存しますか？</string>
+    <string name="settings_unsaved_message">このページの変更はまだ保存されていません。</string>
+    <string name="settings_unsaved_save">保存</string>
+    <string name="settings_unsaved_discard">破棄</string>
     <string name="settings_search_clear">検索をクリア</string>
     <string name="settings_search_empty">「%1$s」に一致する設定はありません</string>
     <string name="settings_feature_tour">機能ツアー</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">考えるのはモデル、音声はその口と耳です。一つのプロバイダで両方をまかなえます。話す言語と回答の言語は 設定 → 言語 にあります。</string>
     <string name="appearance_theme">テーマ</string>
     <string name="appearance_every_theme_works_on_every">どのテーマもすべてのデバイスで使えます。リアルタイムのぼかしが使えない場合は、無効にする代わりに軽めのガラス表現で描画します。</string>
-    <string name="proactive_save_proactive_settings">先回り設定を保存</string>
     <string name="proactive_master_proactive_offers">先回りの提案 (全体)</string>
     <string name="proactive_scan_screen_content">画面の内容をスキャン</string>
     <string name="proactive_scan_clipboard">クリップボードをスキャン</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">ライト</string>
     <string name="appearance_brightness_dark">ダーク</string>
     <string name="appearance_skin_description">%1$s、%2$s テーマ</string>
-    <string name="proactive_saved">先回り設定を保存しました。</string>
     <string name="personal_info_saved">個人情報を保存しました。</string>
     <string name="ai_config_llm_provider">LLM プロバイダ</string>
     <string name="ai_config_api_key">API キー</string>

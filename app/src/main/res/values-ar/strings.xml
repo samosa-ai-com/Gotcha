@@ -60,8 +60,6 @@
     <string name="language_tts_settings_failed">تعذّر فتح إعدادات تحويل النص إلى كلام.</string>
     <string name="language_reply_title">لغة رد الذكاء الاصطناعي</string>
     <string name="language_reply_description">اللغة التي يكتب بها المساعد إجاباته. تبقى أسماء الأدوات والأوامر ومسارات الملفات بالإنجليزية لتبقى تعمل.</string>
-    <string name="language_saved">تم حفظ إعدادات اللغة.</string>
-    <string name="language_save">حفظ إعدادات اللغة</string>
 
     <!-- Shared actions -->
     <string name="action_cancel">إلغاء</string>
@@ -243,6 +241,10 @@
     <!-- Settings home -->
     <string name="settings_title">الإعدادات</string>
     <string name="settings_search_hint">ابحث في الإعدادات</string>
+    <string name="settings_unsaved_title">هل تحفظ تغييراتك؟</string>
+    <string name="settings_unsaved_message">غيّرت هذه الصفحة دون حفظ.</string>
+    <string name="settings_unsaved_save">حفظ</string>
+    <string name="settings_unsaved_discard">تجاهل</string>
     <string name="settings_search_clear">مسح البحث</string>
     <string name="settings_search_empty">لا توجد إعدادات تطابق "%1$s"</string>
     <string name="settings_feature_tour">جولة الميزات</string>
@@ -258,7 +260,6 @@
     <string name="appearance_every_theme_works_on_every">كل مظهر يعمل على كل جهاز. حيث لا يتوفر التمويه المباشر، يُصنع الزجاج بطريقة أرخص بدلًا من إيقافه.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_save_proactive_settings">حفظ إعدادات الاستباقية</string>
     <string name="proactive_master_proactive_offers">العروض الاستباقية الرئيسية</string>
     <string name="proactive_scan_screen_content">فحص محتوى الشاشة</string>
     <string name="proactive_scan_clipboard">فحص الحافظة</string>
@@ -291,7 +292,6 @@
     <string name="appearance_brightness_light">فاتح</string>
     <string name="appearance_brightness_dark">داكن</string>
     <string name="appearance_skin_description">مظهر %1$s، %2$s</string>
-    <string name="proactive_saved">تم حفظ الإعدادات الاستباقية.</string>
     <string name="personal_info_saved">تم حفظ المعلومات الشخصية.</string>
 
     <!-- AiConfigScreen -->

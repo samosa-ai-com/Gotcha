@@ -100,6 +100,56 @@ class SettingsFlowTest {
         assertEquals("No bullet lists.", persisted.userResponseStyle)
     }
 
+    /** Opens About you from a fresh first run, with "Ada" typed and not saved. */
+    private fun openPersonalInfoWithUnsavedName() {
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_user_name").performTextReplacement("Ada")
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun personalInfo_backWithUnsavedEdits_asksAndDiscardLeavesStorageAlone() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+        openPersonalInfoWithUnsavedName()
+
+        // Back used to drop the edit without a word; now it asks first.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_unsaved_dialog").assertExists()
+        composeRule.onNodeWithTag("settings_unsaved_discard").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_personal_info_row").assertExists()
+
+        scenario?.close()
+        assertEquals("", SettingsRepository(context).load().userName)
+    }
+
+    @Test
+    fun personalInfo_backWithUnsavedEdits_saveFromTheDialogPersists() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+        openPersonalInfoWithUnsavedName()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_unsaved_save").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_personal_info_row").assertExists()
+
+        scenario?.close()
+        assertEquals("Ada", SettingsRepository(context).load().userName)
+    }
+
     @Test
     fun languagePage_showsTheThreeLanguagesApartAndPersistsThem() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -131,7 +181,8 @@ class SettingsFlowTest {
         composeRule.onNodeWithText("Hindi").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings_save_language").performScrollTo().performClick()
+        // No Save button: the choice saves itself.
+        composeRule.mainClock.advanceTimeBy(1_000)
         composeRule.waitForIdle()
         scenario?.close()
 

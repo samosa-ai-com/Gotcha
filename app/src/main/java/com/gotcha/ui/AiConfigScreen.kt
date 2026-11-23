@@ -177,6 +177,21 @@ fun AiConfigScreen(
     )
 
     /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applyAiConfig(initial)) }
+    val dirty = applyAiConfig(baseline) != baseline
+
+    fun commit() {
+        onSave { applyAiConfig(it) }
+        baseline = applyAiConfig(baseline)
+    }
+    val guardedBack = rememberUnsavedChangesGuard(dirty = dirty, onSave = ::commit, onLeave = onBack)
+
+    /**
      * The settings as they stand on screen, for calls that must see unsaved edits
      * (connection tests, model discovery) rather than what is in storage.
      */
@@ -231,7 +246,7 @@ fun AiConfigScreen(
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = guardedBack, overlay = overlay) {
         // ---- Provider / model guidance ----
         Text(
             stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
@@ -592,7 +607,7 @@ fun AiConfigScreen(
         }
         Button(
             onClick = {
-                onSave { applyAiConfig(it) }
+                commit()
                 Telemetry.track(
                     FeatureEvents.setup(
                         SetupAction.SAVED,

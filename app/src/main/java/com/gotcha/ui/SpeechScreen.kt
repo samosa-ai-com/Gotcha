@@ -180,6 +180,27 @@ fun SpeechScreen(
         autoReadVoiceReplies = autoReadVoiceReplies
     )
 
+    /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applySpeech(initial)) }
+    val dirty = applySpeech(baseline) != baseline
+
+    fun commit() {
+        onSave { applySpeech(it) }
+        baseline = applySpeech(baseline)
+    }
+
+    /** Switches save as they flip, like every other settings switch; [baseline] follows. */
+    fun saveSwitch(change: (Settings) -> Settings) {
+        onSave(change)
+        baseline = change(baseline)
+    }
+    val guardedBack = rememberUnsavedChangesGuard(dirty = dirty, onSave = ::commit, onLeave = onBack)
+
     /** As stored, plus the unsaved edits — audio-model discovery needs both. */
     fun draftSpeech(): Settings = applySpeech(load())
 
@@ -272,7 +293,7 @@ fun SpeechScreen(
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = guardedBack, overlay = overlay) {
         // ---- Voice / speech recommendations ----
         Text(
             stringResource(R.string.speech_for_mixed_language_text_like),
@@ -581,7 +602,10 @@ fun SpeechScreen(
                 service = androidSttService,
                 onService = { androidSttService = it },
                 onDeviceOnly = androidSttOnDeviceOnly,
-                onOnDeviceOnly = { androidSttOnDeviceOnly = it }
+                onOnDeviceOnly = { on ->
+                    androidSttOnDeviceOnly = on
+                    saveSwitch { it.copy(androidSttOnDeviceOnly = on) }
+                }
             )
             AudioProvider.NONE -> Unit
         }
@@ -608,7 +632,10 @@ fun SpeechScreen(
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_replies_aloud),
             checked = autoReadReplies,
-            onCheckedChange = { autoReadReplies = it },
+            onCheckedChange = { on ->
+                autoReadReplies = on
+                saveSwitch { it.copy(autoReadReplies = on) }
+            },
             isLarge = true,
             switchTestTag = "settings_auto_read_replies"
         )
@@ -616,14 +643,17 @@ fun SpeechScreen(
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_voice_replies),
             checked = autoReadVoiceReplies || autoReadReplies,
-            onCheckedChange = { autoReadVoiceReplies = it },
+            onCheckedChange = { on ->
+                autoReadVoiceReplies = on
+                saveSwitch { it.copy(autoReadVoiceReplies = on) }
+            },
             isLarge = true,
             enabled = !autoReadReplies,
             switchTestTag = "settings_auto_read_voice_replies"
         )
         Button(
             onClick = {
-                onSave { applySpeech(it) }
+                commit()
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },

@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">Não foi possível abrir as configurações de conversão de texto em voz.</string>
     <string name="language_reply_title">Idioma das respostas da IA</string>
     <string name="language_reply_description">O idioma em que o assistente escreve as respostas. Nomes de ferramentas, comandos e caminhos de arquivos continuam em inglês para seguir funcionando.</string>
-    <string name="language_saved">Configurações de idioma salvas.</string>
-    <string name="language_save">Salvar configurações de idioma</string>
     <string name="action_cancel">Cancelar</string>
     <string name="settings_page_personal_info">Informações pessoais</string>
     <string name="settings_page_personal_info_summary">Quem você é, moeda, estilo das respostas</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">Luz noturna desligada nas capturas de tela</string>
     <string name="settings_title">Configurações</string>
     <string name="settings_search_hint">Pesquisar configurações</string>
+    <string name="settings_unsaved_title">Salvar as alterações?</string>
+    <string name="settings_unsaved_message">Você alterou esta página sem salvar.</string>
+    <string name="settings_unsaved_save">Salvar</string>
+    <string name="settings_unsaved_discard">Descartar</string>
     <string name="settings_search_clear">Limpar pesquisa</string>
     <string name="settings_search_empty">Nenhuma configuração corresponde a “%1$s”</string>
     <string name="settings_feature_tour">Tour pelos recursos</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">O modelo pensa; a voz dá a ele boca e ouvidos. Um único provedor pode cuidar dos dois. O idioma em que ele fala e responde fica em Configurações → Idioma.</string>
     <string name="appearance_theme">Tema</string>
     <string name="appearance_every_theme_works_on_every">Todos os temas funcionam em qualquer dispositivo. Onde o desfoque em tempo real não está disponível, o vidro é renderizado de forma mais leve em vez de ser desativado.</string>
-    <string name="proactive_save_proactive_settings">Salvar configurações proativas</string>
     <string name="proactive_master_proactive_offers">Sugestões proativas (geral)</string>
     <string name="proactive_scan_screen_content">Analisar o conteúdo da tela</string>
     <string name="proactive_scan_clipboard">Analisar a área de transferência</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">claro</string>
     <string name="appearance_brightness_dark">escuro</string>
     <string name="appearance_skin_description">%1$s, tema %2$s</string>
-    <string name="proactive_saved">Configurações proativas salvas.</string>
     <string name="personal_info_saved">Informações pessoais salvas.</string>
     <string name="ai_config_llm_provider">Provedor de LLM</string>
     <string name="ai_config_api_key">Chave de API</string>

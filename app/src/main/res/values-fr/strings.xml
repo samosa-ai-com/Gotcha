@@ -41,8 +41,6 @@
     <string name="language_tts_settings_failed">Impossible d\'ouvrir les paramètres de synthèse vocale.</string>
     <string name="language_reply_title">Langue des réponses de l\'IA</string>
     <string name="language_reply_description">La langue dans laquelle l\'assistant écrit ses réponses. Les noms d\'outils, les commandes et les chemins de fichiers restent en anglais pour continuer à fonctionner.</string>
-    <string name="language_saved">Paramètres de langue enregistrés.</string>
-    <string name="language_save">Enregistrer les paramètres de langue</string>
     <string name="action_cancel">Annuler</string>
     <string name="settings_page_personal_info">Infos personnelles</string>
     <string name="settings_page_personal_info_summary">Qui vous êtes, devise, style de réponse</string>
@@ -152,6 +150,10 @@
     <string name="settings_field_pause_night_light">Éclairage nocturne coupé pour les captures</string>
     <string name="settings_title">Paramètres</string>
     <string name="settings_search_hint">Rechercher dans les paramètres</string>
+    <string name="settings_unsaved_title">Enregistrer les modifications ?</string>
+    <string name="settings_unsaved_message">Vous avez modifié cette page sans enregistrer.</string>
+    <string name="settings_unsaved_save">Enregistrer</string>
+    <string name="settings_unsaved_discard">Ignorer</string>
     <string name="settings_search_clear">Effacer la recherche</string>
     <string name="settings_search_empty">Aucun paramètre ne correspond à « %1$s »</string>
     <string name="settings_feature_tour">Visite guidée</string>
@@ -161,7 +163,6 @@
     <string name="ai_hub_the_model_does_the_thinking">Le modèle réfléchit ; la voix lui donne une bouche et des oreilles. Un même fournisseur peut gérer les deux. La langue dans laquelle il parle et répond se règle dans Paramètres → Langue.</string>
     <string name="appearance_theme">Thème</string>
     <string name="appearance_every_theme_works_on_every">Tous les thèmes fonctionnent sur tous les appareils. Quand le flou en direct n\'est pas disponible, le verre est rendu de façon plus légère au lieu d\'être désactivé.</string>
-    <string name="proactive_save_proactive_settings">Enregistrer les paramètres proactifs</string>
     <string name="proactive_master_proactive_offers">Suggestions proactives (général)</string>
     <string name="proactive_scan_screen_content">Analyser le contenu de l\'écran</string>
     <string name="proactive_scan_clipboard">Analyser le presse-papiers</string>
@@ -190,7 +191,6 @@
     <string name="appearance_brightness_light">clair</string>
     <string name="appearance_brightness_dark">sombre</string>
     <string name="appearance_skin_description">%1$s, thème %2$s</string>
-    <string name="proactive_saved">Paramètres proactifs enregistrés.</string>
     <string name="personal_info_saved">Infos personnelles enregistrées.</string>
     <string name="ai_config_llm_provider">Fournisseur de LLM</string>
     <string name="ai_config_api_key">Clé API</string>
