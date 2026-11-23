@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">需要 Health Connect 权限</string>
     <string name="permissions_open_health_connect">打开 Health Connect</string>
     <string name="permissions_not_now">暂不</string>
-    <string name="permissions_nothing_here_is_required_up">这里的权限都不需要预先授予：助手会在首次需要某项权限时提出请求并说明原因。本页用于提前授予、查看已开启的权限，以及关闭任何你不想要的权限。运行时权限在开启时会弹出系统对话框；特殊访问权限会打开设置界面进行一次性设置。</string>
+    <string name="permissions_nothing_here_is_required_up">这里没有必须提前开启的项：助手首次需要某项权限时才会请求。你可以在此提前授予或关闭权限。</string>
     <string name="permissions_guided_setup">引导设置 ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha 还无法读取你的健康数据。打开 Health Connect，在应用权限中找到 Gotcha，允许你想共享的数据类型，然后返回这里。</string>
     <string name="permissions_open_settings_screen">打开设置界面</string>

@@ -605,7 +605,7 @@
     <string name="permissions_health_connect_permission_needed">Health Connect permission needed</string>
     <string name="permissions_open_health_connect">Open Health Connect</string>
     <string name="permissions_not_now">Not now</string>
-    <string name="permissions_nothing_here_is_required_up">Nothing here is required up front — the assistant asks for a permission when it first needs one, and says why. This page is for granting them ahead of time, seeing what is on, and turning anything back off. Runtime permissions show a system dialog when toggled on; special-access permissions open a Settings screen for one-time setup.</string>
+    <string name="permissions_nothing_here_is_required_up">Nothing here is required up front: the assistant asks for a permission when it first needs one. Use this page to grant one early or turn one off.</string>
     <string name="permissions_guided_setup">Guided setup ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha can\'t read your health data yet. Open Health Connect, find Gotcha under App permissions, and allow the data types you\'re comfortable sharing, then return here.</string>
     <string name="permissions_open_settings_screen">Open settings screen</string>

@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">Health Connect की अनुमति चाहिए</string>
     <string name="permissions_open_health_connect">Health Connect खोलें</string>
     <string name="permissions_not_now">अभी नहीं</string>
-    <string name="permissions_nothing_here_is_required_up">यहाँ कुछ भी पहले से ज़रूरी नहीं है — असिस्टेंट को जब पहली बार किसी अनुमति की ज़रूरत होती है, तब वह माँगता है और कारण बताता है। यह पेज अनुमतियाँ पहले से देने, यह देखने कि क्या चालू है, और किसी भी चीज़ को फिर से बंद करने के लिए है। रनटाइम अनुमतियाँ चालू करने पर सिस्टम डायलॉग दिखता है; विशेष पहुँच वाली अनुमतियाँ एक बार के सेटअप के लिए सेटिंग स्क्रीन खोलती हैं।</string>
+    <string name="permissions_nothing_here_is_required_up">यहाँ कुछ भी पहले से ज़रूरी नहीं: असिस्टेंट किसी अनुमति की पहली ज़रूरत पर ही पूछता है। इस पेज से अनुमति पहले दें या बंद करें।</string>
     <string name="permissions_guided_setup">मार्गदर्शित सेटअप ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha अभी आपका स्वास्थ्य डेटा नहीं पढ़ सकता। Health Connect खोलें, ऐप अनुमतियों में Gotcha ढूँढें, और जो डेटा आप शेयर करना चाहते हैं उसकी अनुमति दें, फिर यहाँ लौटें।</string>
     <string name="permissions_open_settings_screen">सेटिंग स्क्रीन खोलें</string>

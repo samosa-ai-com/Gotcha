@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">Serve l\'autorizzazione di Health Connect</string>
     <string name="permissions_open_health_connect">Apri Health Connect</string>
     <string name="permissions_not_now">Non ora</string>
-    <string name="permissions_nothing_here_is_required_up">Niente qui è obbligatorio in anticipo: l\'assistente chiede un\'autorizzazione la prima volta che gli serve e spiega perché. Questa pagina serve a concederle prima, vedere cosa è attivo e disattivare ciò che vuoi. Le autorizzazioni di runtime mostrano una finestra di sistema quando le attivi; quelle ad accesso speciale aprono una schermata delle Impostazioni per una configurazione una tantum.</string>
+    <string name="permissions_nothing_here_is_required_up">Niente qui è obbligatorio da subito: l\'assistente chiede un\'autorizzazione la prima volta che gli serve. Usa questa pagina per concederla prima o revocarla.</string>
     <string name="permissions_guided_setup">Configurazione guidata ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha non può ancora leggere i tuoi dati sulla salute. Apri Health Connect, trova Gotcha in Autorizzazioni app, consenti i tipi di dati che vuoi condividere e torna qui.</string>
     <string name="permissions_open_settings_screen">Apri schermata impostazioni</string>

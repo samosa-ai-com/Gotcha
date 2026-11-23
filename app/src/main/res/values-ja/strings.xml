@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">ヘルスコネクトの権限が必要です</string>
     <string name="permissions_open_health_connect">ヘルスコネクトを開く</string>
     <string name="permissions_not_now">後で</string>
-    <string name="permissions_nothing_here_is_required_up">ここで事前に必要なものはありません。アシスタントは権限が初めて必要になったときに、理由を説明して許可を求めます。このページでは、先に許可したり、有効なものを確認したり、不要なものをオフにしたりできます。実行時の権限はオンにするとシステムのダイアログが表示され、特別なアクセスは一度だけの設定のために設定画面が開きます。</string>
+    <string name="permissions_nothing_here_is_required_up">ここで事前に必要なものはありません。アシスタントは初めて必要になったときに権限を求めます。このページでは先に許可したり、オフにしたりできます。</string>
     <string name="permissions_guided_setup">ガイド付きセットアップ ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha はまだ健康データを読み取れません。ヘルスコネクトを開き、アプリの権限で Gotcha を見つけて、共有したいデータの種類を許可してから、ここに戻ってください。</string>
     <string name="permissions_open_settings_screen">設定画面を開く</string>

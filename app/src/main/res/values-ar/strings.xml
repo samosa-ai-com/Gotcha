@@ -558,7 +558,7 @@
     <string name="permissions_health_connect_permission_needed">مطلوب إذن Health Connect</string>
     <string name="permissions_open_health_connect">افتح Health Connect</string>
     <string name="permissions_not_now">ليس الآن</string>
-    <string name="permissions_nothing_here_is_required_up">لا شيء هنا مطلوب مسبقًا — يطلب المساعد الإذن عند أول حاجة إليه، ويوضّح السبب. هذه الصفحة لمنحها مسبقًا، ورؤية المُفعَّل، وإيقاف أي شيء. تُظهر أذونات وقت التشغيل نافذة نظام عند تفعيلها؛ أما أذونات الوصول الخاص فتفتح شاشة الإعدادات لإعداد لمرة واحدة.</string>
+    <string name="permissions_nothing_here_is_required_up">لا شيء هنا مطلوب مسبقًا: يطلب المساعد الإذن عندما يحتاجه أول مرة. استخدم هذه الصفحة لمنح إذن مبكرًا أو إيقافه.</string>
     <string name="permissions_guided_setup">إعداد موجَّه ›</string>
     <string name="permissions_gotcha_can_t_read_your">لا يستطيع Gotcha قراءة بياناتك الصحية بعد. افتح Health Connect، وابحث عن Gotcha ضمن أذونات التطبيق، واسمح بأنواع البيانات التي ترتاح لمشاركتها، ثم عُد هنا.</string>
     <string name="permissions_open_settings_screen">افتح شاشة الإعدادات</string>

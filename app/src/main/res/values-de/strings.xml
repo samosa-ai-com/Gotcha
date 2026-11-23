@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">Health-Connect-Berechtigung erforderlich</string>
     <string name="permissions_open_health_connect">Health Connect öffnen</string>
     <string name="permissions_not_now">Jetzt nicht</string>
-    <string name="permissions_nothing_here_is_required_up">Nichts hier ist vorab nötig – der Assistent fragt nach einer Berechtigung, wenn er sie zum ersten Mal braucht, und sagt warum. Auf dieser Seite kannst du sie vorab erteilen, sehen, was aktiv ist, und alles wieder abschalten. Laufzeitberechtigungen zeigen beim Einschalten einen Systemdialog; Sonderzugriffe öffnen einen Einstellungsbildschirm für die einmalige Einrichtung.</string>
+    <string name="permissions_nothing_here_is_required_up">Nichts hier ist vorab nötig: Der Assistent fragt nach einer Berechtigung, wenn er sie zum ersten Mal braucht. Hier kannst du sie vorher erteilen oder wieder entziehen.</string>
     <string name="permissions_guided_setup">Geführte Einrichtung ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha kann deine Gesundheitsdaten noch nicht lesen. Öffne Health Connect, suche Gotcha unter App-Berechtigungen, erlaube die Datentypen, die du teilen möchtest, und komm dann zurück.</string>
     <string name="permissions_open_settings_screen">Einstellungsbildschirm öffnen</string>

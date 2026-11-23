@@ -411,7 +411,7 @@
     <string name="permissions_health_connect_permission_needed">É necessária a permissão do Health Connect</string>
     <string name="permissions_open_health_connect">Abrir Health Connect</string>
     <string name="permissions_not_now">Agora não</string>
-    <string name="permissions_nothing_here_is_required_up">Nada aqui é obrigatório de antemão: o assistente pede uma permissão na primeira vez que precisa dela e explica o porquê. Esta página serve para concedê-las antes, ver o que está ativo e desativar o que quiser. Permissões de execução mostram uma janela do sistema ao ativar; as de acesso especial abrem uma tela das Configurações para uma configuração única.</string>
+    <string name="permissions_nothing_here_is_required_up">Nada aqui é obrigatório de início: o assistente pede uma permissão quando precisa dela pela primeira vez. Use esta página para concedê-la antes ou desativá-la.</string>
     <string name="permissions_guided_setup">Configuração guiada ›</string>
     <string name="permissions_gotcha_can_t_read_your">O Gotcha ainda não consegue ler seus dados de saúde. Abra o Health Connect, encontre o Gotcha em Permissões de apps, permita os tipos de dados que quer compartilhar e volte aqui.</string>
     <string name="permissions_open_settings_screen">Abrir tela de configurações</string>
