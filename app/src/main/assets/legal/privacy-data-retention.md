@@ -1,12 +1,13 @@
 DATA RETENTION AND PRIVACY POLICY
 
-Last updated: [effective date]
+Last updated: 23 November 2026
 
 This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short
 version: the App itself does not collect or retain your content on
 our servers — everything stays on your device unless you choose to use
-a backend that transmits data to a third-party AI provider. On first
+a backend that transmits it, such as Samosa AI (Section 4.2) or an AI
+provider you configure yourself. On first
 launch the App registers the install with us; that registration
 describes the build and the device in broad terms and identifies no
 one. Usage data, which is counts and outcomes only, is on by default
@@ -54,14 +55,15 @@ and can be turned off; see Section 11.
 
 3. WHAT WE KEEP ON OUR SIDE
 
-   3.1 We do not operate a server that retains your chats, calls,
-       screenshots, prompts, completions, or credentials, and the App
-       never sends them to us. We keep the install registration and,
-       when usage data is on, the counts and outcomes described in
-       Section 11. That data is kept indefinitely in anonymised form;
-       recent data sits in a rolling 30-day working window used for
-       day-to-day analysis. Nothing in it identifies you, so there is
-       no per-person record to delete.
+   3.1 The App never sends your chats, calls, screenshots, prompts,
+       completions, or credentials to Gotcha. The one exception is when
+       you choose Samosa AI as your backend: the requests you send it
+       are handled by Samosa AIR as described in Section 4.2. We keep
+       the install registration and, when usage data is on, the counts
+       and outcomes described in Section 11. That data is kept
+       indefinitely in anonymised form; recent data sits in a rolling
+       30-day working window used for day-to-day analysis. Nothing in
+       it identifies you, so there is no per-person record to delete.
    3.2 If you want to remove local data, uninstall the App, or use the
        in-app controls (e.g. "Clear chat," "Clear LLM cache").
 
@@ -72,29 +74,26 @@ and can be turned off; see Section 11.
        practices. Once a request leaves your device, the backend's
        terms apply.
 
-   4.2 Samosa AI (the Samosa AIR proxy):
-         (a) Samosa AI is operated independently of Gotcha. By
-             using Samosa AI as your backend, you accept Samosa AI's
-             own terms and privacy policy, in addition to these.
-         (b) Samosa AI routes requests to underlying model providers.
-             Samosa AI is designed to minimize what is forwarded:
-             identifying metadata such as your IP address is not
-             included in the prompt payload sent to the underlying
-             model provider.
-         (c) However, Samosa AI cannot fully eliminate provider-side
+   4.2 Samosa AI (the Samosa AIR service):
+         (a) Samosa AIR is a separate service, operated by Samosa AI,
+             with its own Samosa AIR Terms of Service, shown in the
+             App under Settings ▸ About ▸ Legal. When you sign in to
+             Samosa AI, you accept those terms in addition to these.
+             They are the authoritative description of what Samosa AIR
+             keeps.
+         (b) In short: Samosa AIR keeps logs of the requests you send
+             and the responses it returns on its live servers for up to
+             30 days. Your account details, plan, credits, and usage
+             and sign-in records are kept while your account exists,
+             and backups may hold data for longer.
+         (c) Samosa AIR routes requests to underlying model providers.
+             Before forwarding, it removes your account details and IP
+             address from the request.
+         (d) However, Samosa AIR cannot fully eliminate provider-side
              exposure. The underlying model provider will receive the
              contents of your prompt and may receive provider-managed
              identifiers (request IDs, abuse-prevention tokens) for the
              purpose of operating the service.
-         (d) Underlying model providers may, under their own policies,
-             retain prompts and completions, and may use them to train
-             and improve their models. Samosa AI uses providers that
-             commit not to train on inputs delivered via the Samosa
-             AIR proxy, but those commitments are governed by the
-             provider's terms and may change.
-         (e) You should review Samosa AI's privacy policy directly for
-             the current, authoritative description of how Samosa AI
-             and its underlying providers handle your data.
 
    4.3 User-Provided Providers (your own OpenAI-compatible endpoint):
          (a) When you supply your own API key and base URL, requests
@@ -228,28 +227,33 @@ and can be turned off; see Section 11.
          no feature.
 
     11.3 Purpose: to learn which features are used and where the App
-         fails or crashes, so we can fix and improve it. It is never
-         sold, and never used for advertising.
+         fails or crashes, so we can fix and improve it.
 
-    11.4 What is sent: counts and outcomes only. Each event is one of a
-         fixed list, and each of its values is a yes/no, a range (for
-         example "6–30 seconds"), or a word from a fixed list. The full
-         list of events is shown in the App under Settings → Privacy →
-         "What we send". With each batch the App also sends its version,
-         the Android version, the language setting and whether the
-         device is a phone or a tablet.
+    11.4 What is sent. Usage data includes, but is not restricted to,
+         these kinds of information:
+           (a) app use, such as how long the App takes to start and how
+               long a session lasts;
+           (b) assistant and AI activity, such as the kind of AI service
+               and model used, and whether a request succeeded;
+           (c) features, such as which built-in tools, connectors or
+               permissions were used; and
+           (d) crashes, such as the type of error and where in the App
+               it happened.
+         With each batch the App also sends basic details such as its
+         version and the Android version. The full list of events is
+         shown in the App under Settings → Privacy → "What we send".
 
-    11.5 What is never sent: your messages or the assistant's replies,
-         what is on your screen, files or file names, contacts, text
-         messages, call logs, calendar entries, notifications, location,
-         health data, shell commands or their output, the names of your
-         apps, web addresses, your API key, your Samosa AI account or
-         email, and any device identifier (Android ID, IMEI, serial
-         number or advertising ID). The text of an error is never sent;
-         for a crash, only the type of error and the name of the method
-         it came from. Usage data never carries your content, and none
-         of the content you type, say, see, save or run leaves the
-         phone as part of it.
+    11.5 What is never sent: the content of your AI requests and their
+         replies, or the API calls themselves; your messages, what is on
+         your screen, files or file names, contacts, text messages, call
+         logs, calendar entries, notifications, location, health data,
+         shell commands or their output, the names of your apps, web
+         addresses, your API key, your Samosa AI account or email, and
+         any device identifier (Android ID, IMEI, serial number or
+         advertising ID). The text of an error is never sent. None of
+         the content you type, say, see, save or run leaves the phone as
+         part of usage data. Usage data is anonymised before it is sent,
+         so no personally identifiable information is collected.
 
     11.6 Identifier: the install registration gives the App a random
          install id and a token. They are not derived from your device

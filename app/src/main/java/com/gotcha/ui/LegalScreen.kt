@@ -33,12 +33,12 @@ import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 
 /**
- * The Legal page: shows the Terms, Disclaimer, and Data Retention documents
- * and lets the user re-affirm acceptance from here.
+ * The Legal page: shows the Terms, Disclaimer, Data Retention and Samosa AIR
+ * Terms documents and lets the user re-affirm acceptance from here.
  *
- * The three documents are loaded once from `assets/legal/{terms,disclaimer,
- * privacy-data-retention}.md` and rendered with a small, dependency-free
- * Markdown pass (headings, blockquotes, bold). An "I agree" button writes
+ * The documents are loaded once from `assets/legal/{terms,disclaimer,
+ * privacy-data-retention,samosa-air-terms,third-party-notices}.md` and
+ * rendered with a small, dependency-free Markdown pass (headings, blockquotes, bold). An "I agree" button writes
  * [Settings.legalAcceptedVersion] so the user never sees the first-launch
  * gate again unless the documents change.
  */
@@ -55,12 +55,14 @@ fun LegalScreen(
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
+    var airTermsText by remember { mutableStateOf<String?>(null) }
     var noticesText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         termsText = readAsset(context, "legal/terms.md")
         disclaimerText = readAsset(context, "legal/disclaimer.md")
         privacyText = readAsset(context, "legal/privacy-data-retention.md")
+        airTermsText = readAsset(context, "legal/samosa-air-terms.md")
         noticesText = readAsset(context, "legal/third-party-notices.md")
     }
 
@@ -74,6 +76,7 @@ fun LegalScreen(
         LegalSection(label = stringResource(R.string.legal_consent_section_terms), markdown = termsText)
         LegalSection(label = stringResource(R.string.legal_consent_section_disclaimer), markdown = disclaimerText)
         LegalSection(label = stringResource(R.string.legal_consent_section_privacy), markdown = privacyText)
+        LegalSection(label = stringResource(R.string.legal_consent_section_air_terms), markdown = airTermsText)
         // Apache-2.0 requires Apache Commons Compress's notice to be reproduced, and the
         // companion's APK is where that library is bundled, so its notice travels with it.
         LegalSection(label = stringResource(R.string.legal_consent_section_third_party), markdown = noticesText)

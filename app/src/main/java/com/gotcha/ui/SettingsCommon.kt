@@ -905,6 +905,14 @@ fun SamosaAuthSection(
                 ),
                 style = MaterialTheme.typography.bodySmall
             )
+            // Every sign-in button is in this section, so the notice reaches
+            // all of them. The full text is on the Legal page.
+            Text(
+                text = stringResource(R.string.samosa_sign_in_terms_notice),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("samosa_sign_in_terms_notice")
+            )
         }
         if (signedIn) {
             OutlinedButton(

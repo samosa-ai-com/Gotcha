@@ -1094,9 +1094,9 @@ class SettingsRepository(context: Context) : SettingsStore {
 }
 
 /**
- * Bump this whenever any of the three legal documents in `assets/legal/`
- * changes in a way the user must re-acknowledge. The first-launch consent
- * dialog re-prompts whenever the stored accepted version is older than this
+ * Bump this whenever a legal document the consent dialog shows (in
+ * `assets/legal/`) changes in a way the user must re-acknowledge. The
+ * first-launch consent dialog re-prompts whenever the stored accepted version is older than this
  * constant, so non-material edits (typo fixes, formatting) should leave it
  * unchanged.
  *
@@ -1107,5 +1107,9 @@ class SettingsRepository(context: Context) : SettingsStore {
  * Version 3: the data retention policy gained Section 11 (optional usage
  * data) and no longer says the app has no telemetry endpoint. A material
  * change, so everyone accepts again, and with it confirms their age.
+ *
+ * Version 5: the Samosa AIR Terms of Service join the documents, and the
+ * privacy policy now says what Samosa AIR keeps and for how long, and
+ * describes the kinds of usage data the App sends.
  */
-const val LEGAL_VERSION: String = "4"
+const val LEGAL_VERSION: String = "5"

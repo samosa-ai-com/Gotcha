@@ -44,9 +44,10 @@ import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
  * First-launch / re-acceptance gate. Non-dismissable: the only way out is the
- * "I agree" button. All three legal documents (Terms, Disclaimer, Data
- * Retention) are shown inline up front, and the "I have read and accept…"
- * checkbox sits at the very end, after the documents, since it attests to
+ * "I agree" button. All four legal documents (Terms, Disclaimer, Data
+ * Retention, and the Samosa AIR Terms that bind Samosa AI sign-ins) are shown
+ * inline up front, and the "I have read and accept…" checkbox sits at the
+ * very end, after the documents, since it attests to
  * having read them, followed by an "I am at least 18" checkbox and an optional
  * usage-data choice. The button stays disabled until both required boxes are
  * ticked; the usage-data box never gates it. The age checkbox reaches new
@@ -75,11 +76,13 @@ internal fun LegalConsentDialogContent(onAgree: () -> Unit, region: String?) {
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
+    var airTermsText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         termsText = readAsset(context, "legal/terms.md")
         disclaimerText = readAsset(context, "legal/disclaimer.md")
         privacyText = readAsset(context, "legal/privacy-data-retention.md")
+        airTermsText = readAsset(context, "legal/samosa-air-terms.md")
     }
 
     val bullets = stringArrayResource(R.array.legal_consent_bullets)
@@ -145,6 +148,11 @@ internal fun LegalConsentDialogContent(onAgree: () -> Unit, region: String?) {
                 DocumentBlock(
                     title = stringResource(R.string.legal_consent_section_privacy),
                     body = privacyText,
+                    loadingLabel = loadingLabel
+                )
+                DocumentBlock(
+                    title = stringResource(R.string.legal_consent_section_air_terms),
+                    body = airTermsText,
                     loadingLabel = loadingLabel
                 )
 
