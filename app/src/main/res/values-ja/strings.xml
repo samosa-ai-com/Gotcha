@@ -375,6 +375,7 @@
     <string name="skills_add_host">ホストを追加</string>
     <string name="skills_add">追加</string>
     <string name="skills_community_skills">コミュニティスキル</string>
+    <string name="skills_all_skills">すべてのスキル（%1$d）</string>
     <string name="skills_paste_community_skill_json">コミュニティスキルの JSON を貼り付け</string>
     <string name="skills_no_community_skills_imported_yet">インポートしたコミュニティスキルはまだありません。</string>
     <string name="skills_allowed_community_skill_hosts">コミュニティスキルを許可するホスト</string>

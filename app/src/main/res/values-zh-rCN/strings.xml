@@ -375,6 +375,7 @@
     <string name="skills_add_host">添加主机</string>
     <string name="skills_add">添加</string>
     <string name="skills_community_skills">社区技能</string>
+    <string name="skills_all_skills">全部技能（%1$d）</string>
     <string name="skills_paste_community_skill_json">粘贴社区技能 JSON</string>
     <string name="skills_no_community_skills_imported_yet">尚未导入社区技能。</string>
     <string name="skills_allowed_community_skill_hosts">允许的社区技能主机</string>

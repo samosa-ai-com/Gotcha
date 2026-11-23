@@ -375,6 +375,7 @@
     <string name="skills_add_host">Aggiungi host</string>
     <string name="skills_add">Aggiungi</string>
     <string name="skills_community_skills">Competenze della community</string>
+    <string name="skills_all_skills">Tutte le competenze (%1$d)</string>
     <string name="skills_paste_community_skill_json">Incolla il JSON della competenza</string>
     <string name="skills_no_community_skills_imported_yet">Nessuna competenza della community importata.</string>
     <string name="skills_allowed_community_skill_hosts">Host consentiti per le competenze della community</string>

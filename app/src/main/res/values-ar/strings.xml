@@ -514,6 +514,7 @@
     <string name="skills_add_host">إضافة مضيف</string>
     <string name="skills_add">إضافة</string>
     <string name="skills_community_skills">مهارات المجتمع</string>
+    <string name="skills_all_skills">كل المهارات (%1$d)</string>
     <string name="skills_paste_community_skill_json">الصق JSON مهارة المجتمع</string>
     <string name="skills_no_community_skills_imported_yet">لم تُستورد مهارات مجتمع بعد.</string>
     <string name="skills_allowed_community_skill_hosts">مضيفو مهارات المجتمع المسموحون</string>

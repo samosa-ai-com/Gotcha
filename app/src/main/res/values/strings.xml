@@ -561,6 +561,7 @@
     <string name="skills_add_host">Add host</string>
     <string name="skills_add">Add</string>
     <string name="skills_community_skills">Community Skills</string>
+    <string name="skills_all_skills">All skills (%1$d)</string>
     <string name="skills_paste_community_skill_json">Paste community skill JSON</string>
     <string name="skills_no_community_skills_imported_yet">No community skills imported yet.</string>
     <string name="skills_allowed_community_skill_hosts">Allowed community skill hosts</string>
