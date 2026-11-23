@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">改善してほしい点を教えてください</string>
     <string name="appearance_theme">テーマ</string>
     <string name="appearance_every_theme_works_on_every">どのテーマもすべてのデバイスで使えます。リアルタイムのぼかしが使えない場合は、無効にする代わりに軽めのガラス表現で描画します。</string>
-    <string name="proactive_master_proactive_offers">先回りの提案 (全体)</string>
+    <string name="proactive_master_proactive_offers">先回りの提案</string>
     <string name="proactive_scan_screen_content">画面の内容をスキャン</string>
     <string name="proactive_scan_clipboard">クリップボードをスキャン</string>
     <string name="proactive_scan_notifications">通知をスキャン</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">あらかじめ知っておいてほしいこと: 使っているツール、一緒に働く人、よく頼むこと</string>
     <string name="personal_info_how_replies_should_be_written">回答の書き方</string>
     <string name="personal_info_e_g_keep_it_to">例: 数文で、箇条書きなし、実行したコマンドを表示</string>
-    <string name="personal_info_reply_voice_and_app_display">回答、音声、アプリ表示の言語は専用のページに移動しました。</string>
     <string name="appearance_tier_solid">バッテリーセーバーがオンのため、オフにするまでテーマはフラット表示です。</string>
     <string name="appearance_tier_static">このデバイスではリアルタイムのぼかしが使えないため、パネルは固定のすりガラス表現になります。</string>
     <string name="appearance_brightness_light">ライト</string>

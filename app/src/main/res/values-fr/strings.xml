@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">Dites-nous quoi améliorer</string>
     <string name="appearance_theme">Thème</string>
     <string name="appearance_every_theme_works_on_every">Tous les thèmes fonctionnent sur tous les appareils. Quand le flou en direct n\'est pas disponible, le verre est rendu de façon plus légère au lieu d\'être désactivé.</string>
-    <string name="proactive_master_proactive_offers">Suggestions proactives (général)</string>
+    <string name="proactive_master_proactive_offers">Suggestions proactives</string>
     <string name="proactive_scan_screen_content">Analyser le contenu de l\'écran</string>
     <string name="proactive_scan_clipboard">Analyser le presse-papiers</string>
     <string name="proactive_scan_notifications">Analyser les notifications</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Tout ce qu\'il est utile de savoir d\'emblée : vos outils, vos collaborateurs, ce que vous demandez habituellement</string>
     <string name="personal_info_how_replies_should_be_written">Comment rédiger les réponses</string>
     <string name="personal_info_e_g_keep_it_to">ex. : quelques phrases, pas de listes, montrer la commande exécutée</string>
-    <string name="personal_info_reply_voice_and_app_display">Les langues des réponses, de la voix et de l\'appli ont désormais leur propre page.</string>
     <string name="appearance_tier_solid">L\'économiseur de batterie est activé : le thème reste plat jusqu\'à ce qu\'il soit désactivé.</string>
     <string name="appearance_tier_static">Le flou en direct n\'est pas disponible sur cet appareil : les panneaux utilisent un givré fixe.</string>
     <string name="appearance_brightness_light">clair</string>

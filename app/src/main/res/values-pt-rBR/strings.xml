@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">Diga o que melhorar</string>
     <string name="appearance_theme">Tema</string>
     <string name="appearance_every_theme_works_on_every">Todos os temas funcionam em qualquer dispositivo. Onde o desfoque em tempo real não está disponível, o vidro é renderizado de forma mais leve em vez de ser desativado.</string>
-    <string name="proactive_master_proactive_offers">Sugestões proativas (geral)</string>
+    <string name="proactive_master_proactive_offers">Sugestões proativas</string>
     <string name="proactive_scan_screen_content">Analisar o conteúdo da tela</string>
     <string name="proactive_scan_clipboard">Analisar a área de transferência</string>
     <string name="proactive_scan_notifications">Analisar notificações</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Tudo o que vale saber de antemão: as ferramentas que você usa, com quem trabalha, o que costuma pedir</string>
     <string name="personal_info_how_replies_should_be_written">Como as respostas devem ser escritas</string>
     <string name="personal_info_e_g_keep_it_to">ex.: poucas frases, sem listas, mostre o comando executado</string>
-    <string name="personal_info_reply_voice_and_app_display">Os idiomas das respostas, da voz e do app agora têm uma página própria.</string>
     <string name="appearance_tier_solid">A economia de bateria está ativada, então o tema fica plano até você desativá-la.</string>
     <string name="appearance_tier_static">O desfoque em tempo real não está disponível neste dispositivo, então os painéis usam um efeito fosco fixo.</string>
     <string name="appearance_brightness_light">claro</string>

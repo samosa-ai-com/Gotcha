@@ -49,8 +49,7 @@ private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY",
 fun PersonalInfoScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
-    onBack: () -> Unit,
-    onOpenLanguage: () -> Unit = {}
+    onBack: () -> Unit
 ) {
     val initial = remember { load() }
     var userName by remember { mutableStateOf(initial.userName) }
@@ -209,21 +208,6 @@ fun PersonalInfoScreen(
                 }
             }
         }
-
-        HorizontalDivider(thickness = 1.dp)
-
-        // Language moved out of this page (issue #74); a pointer keeps it findable
-        // for anyone who still comes here looking for "Preferred Language".
-        Text(
-            stringResource(R.string.personal_info_reply_voice_and_app_display),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SettingsNavRow(
-            page = SettingsPage.LANGUAGE,
-            onClick = onOpenLanguage,
-            modifier = Modifier.testTag("settings_personal_info_language_row")
-        )
 
         val saved = stringResource(R.string.personal_info_saved)
         Button(

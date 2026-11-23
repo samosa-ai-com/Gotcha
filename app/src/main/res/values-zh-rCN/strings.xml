@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">告诉我们需要改进什么</string>
     <string name="appearance_theme">主题</string>
     <string name="appearance_every_theme_works_on_every">每个主题都适用于所有设备。在不支持实时模糊的设备上，玻璃效果会以较轻的方式呈现，而不是被关闭。</string>
-    <string name="proactive_master_proactive_offers">主动建议（总开关）</string>
+    <string name="proactive_master_proactive_offers">主动建议</string>
     <string name="proactive_scan_screen_content">扫描屏幕内容</string>
     <string name="proactive_scan_clipboard">扫描剪贴板</string>
     <string name="proactive_scan_notifications">扫描通知</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">值得事先了解的一切：你使用的工具、与谁共事、通常会问什么</string>
     <string name="personal_info_how_replies_should_be_written">回复应该如何撰写</string>
     <string name="personal_info_e_g_keep_it_to">例如：几句话即可，不用列表，显示所运行的命令</string>
-    <string name="personal_info_reply_voice_and_app_display">回复、语音和应用显示语言现在有单独的页面。</string>
     <string name="appearance_tier_solid">省电模式已开启，因此在关闭它之前主题会保持平面效果。</string>
     <string name="appearance_tier_static">此设备不支持实时模糊，因此面板使用固定的磨砂效果。</string>
     <string name="appearance_brightness_light">浅色</string>

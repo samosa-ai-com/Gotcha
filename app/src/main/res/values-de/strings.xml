@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">Sag uns, was besser werden soll</string>
     <string name="appearance_theme">Design</string>
     <string name="appearance_every_theme_works_on_every">Jedes Design funktioniert auf jedem Gerät. Wo kein Live-Weichzeichner verfügbar ist, wird das Glas sparsamer dargestellt statt abgeschaltet.</string>
-    <string name="proactive_master_proactive_offers">Proaktive Vorschläge (Hauptschalter)</string>
+    <string name="proactive_master_proactive_offers">Proaktive Vorschläge</string>
     <string name="proactive_scan_screen_content">Bildschirminhalt scannen</string>
     <string name="proactive_scan_clipboard">Zwischenablage scannen</string>
     <string name="proactive_scan_notifications">Benachrichtigungen scannen</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Alles, was von vornherein nützlich ist – Tools, die du nutzt, mit wem du arbeitest, was du üblicherweise fragst</string>
     <string name="personal_info_how_replies_should_be_written">Wie Antworten geschrieben sein sollen</string>
     <string name="personal_info_e_g_keep_it_to">z. B. wenige Sätze, keine Aufzählungen, den ausgeführten Befehl zeigen</string>
-    <string name="personal_info_reply_voice_and_app_display">Antwortsprache, Sprachausgabe und App-Sprache haben jetzt eine eigene Seite.</string>
     <string name="appearance_tier_solid">Der Energiesparmodus ist an, daher wird das Design flach dargestellt, bis er aus ist.</string>
     <string name="appearance_tier_static">Live-Weichzeichner ist auf diesem Gerät nicht verfügbar, daher nutzen die Bereiche ein festes Milchglas.</string>
     <string name="appearance_brightness_light">hell</string>

@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">बताइए क्या बेहतर करें</string>
     <string name="appearance_theme">थीम</string>
     <string name="appearance_every_theme_works_on_every">हर थीम हर डिवाइस पर काम करती है। जहाँ लाइव ब्लर उपलब्ध नहीं है, वहाँ ग्लास बंद करने के बजाय हल्के तरीके से बनाया जाता है।</string>
-    <string name="proactive_master_proactive_offers">सक्रिय सुझाव (मुख्य स्विच)</string>
+    <string name="proactive_master_proactive_offers">प्रोएक्टिव सुझाव</string>
     <string name="proactive_scan_screen_content">स्क्रीन की सामग्री स्कैन करें</string>
     <string name="proactive_scan_clipboard">क्लिपबोर्ड स्कैन करें</string>
     <string name="proactive_scan_notifications">सूचनाएँ स्कैन करें</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">जो कुछ भी पहले से जानना उपयोगी हो — आप कौन-से टूल इस्तेमाल करते हैं, किसके साथ काम करते हैं, आप आमतौर पर क्या माँगते हैं</string>
     <string name="personal_info_how_replies_should_be_written">जवाब कैसे लिखे जाएँ</string>
     <string name="personal_info_e_g_keep_it_to">जैसे कुछ ही वाक्यों में रखें, बुलेट लिस्ट नहीं, चलाया गया कमांड दिखाएँ</string>
-    <string name="personal_info_reply_voice_and_app_display">जवाब, आवाज़ और ऐप की भाषा अब अपने अलग पेज पर हैं।</string>
     <string name="appearance_tier_solid">बैटरी सेवर चालू है, इसलिए इसके बंद होने तक थीम सादी दिखेगी।</string>
     <string name="appearance_tier_static">इस डिवाइस पर लाइव ब्लर उपलब्ध नहीं है, इसलिए पैनल एक स्थिर फ़्रॉस्ट इस्तेमाल करते हैं।</string>
     <string name="appearance_brightness_light">हल्की</string>

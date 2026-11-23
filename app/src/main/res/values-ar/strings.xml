@@ -273,7 +273,7 @@
     <string name="appearance_every_theme_works_on_every">كل مظهر يعمل على كل جهاز. حيث لا يتوفر التمويه المباشر، يُصنع الزجاج بطريقة أرخص بدلًا من إيقافه.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_master_proactive_offers">العروض الاستباقية الرئيسية</string>
+    <string name="proactive_master_proactive_offers">العروض الاستباقية</string>
     <string name="proactive_scan_screen_content">فحص محتوى الشاشة</string>
     <string name="proactive_scan_clipboard">فحص الحافظة</string>
     <string name="proactive_scan_notifications">فحص الإشعارات</string>
@@ -297,7 +297,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">أي شيء يستحق المعرفة افتراضيًا — الأدوات التي تستخدمها، من تعمل معه، ما تطلبه عادة</string>
     <string name="personal_info_how_replies_should_be_written">كيف يجب كتابة الردود</string>
     <string name="personal_info_e_g_keep_it_to">مثال: اجعله بضع جمل، بلا قوائم نقطية، أظهر الأمر الذي شغّلته</string>
-    <string name="personal_info_reply_voice_and_app_display">لغة الرد والصوت وعرض التطبيق أصبحت في صفحتها الخاصة.</string>
 
     <!-- Appearance and save confirmations -->
     <string name="appearance_tier_solid">موفّر البطارية مفعّل، لذا يُرسم المظهر بشكل مسطّح حتى يُطفأ.</string>

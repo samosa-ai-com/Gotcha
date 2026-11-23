@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">Dicci cosa migliorare</string>
     <string name="appearance_theme">Tema</string>
     <string name="appearance_every_theme_works_on_every">Ogni tema funziona su ogni dispositivo. Dove la sfocatura in tempo reale non è disponibile, il vetro viene reso in modo più leggero invece di essere disattivato.</string>
-    <string name="proactive_master_proactive_offers">Suggerimenti proattivi (generale)</string>
+    <string name="proactive_master_proactive_offers">Proposte proattive</string>
     <string name="proactive_scan_screen_content">Analizza il contenuto dello schermo</string>
     <string name="proactive_scan_clipboard">Analizza gli appunti</string>
     <string name="proactive_scan_notifications">Analizza le notifiche</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Tutto ciò che è utile sapere in partenza: gli strumenti che usi, con chi lavori, cosa chiedi di solito</string>
     <string name="personal_info_how_replies_should_be_written">Come devono essere scritte le risposte</string>
     <string name="personal_info_e_g_keep_it_to">es. poche frasi, niente elenchi, mostra il comando eseguito</string>
-    <string name="personal_info_reply_voice_and_app_display">Lingua delle risposte, della voce e dell\'app ora hanno una pagina dedicata.</string>
     <string name="appearance_tier_solid">Il risparmio energetico è attivo, quindi il tema resta piatto finché non lo disattivi.</string>
     <string name="appearance_tier_static">La sfocatura in tempo reale non è disponibile su questo dispositivo, quindi i pannelli usano un effetto smerigliato fisso.</string>
     <string name="appearance_brightness_light">chiaro</string>

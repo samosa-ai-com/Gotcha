@@ -170,7 +170,7 @@
     <string name="settings_feedback_summary">Dinos qué mejorar</string>
     <string name="appearance_theme">Tema</string>
     <string name="appearance_every_theme_works_on_every">Todos los temas funcionan en todos los dispositivos. Donde no hay desenfoque en vivo, el cristal se dibuja de una forma más ligera en vez de desactivarse.</string>
-    <string name="proactive_master_proactive_offers">Sugerencias proactivas (general)</string>
+    <string name="proactive_master_proactive_offers">Ofertas proactivas</string>
     <string name="proactive_scan_screen_content">Escanear contenido de la pantalla</string>
     <string name="proactive_scan_clipboard">Escanear portapapeles</string>
     <string name="proactive_scan_notifications">Escanear notificaciones</string>
@@ -192,7 +192,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Todo lo que convenga saber de antemano: herramientas que usas, con quién trabajas, qué sueles pedir</string>
     <string name="personal_info_how_replies_should_be_written">Cómo deben escribirse las respuestas</string>
     <string name="personal_info_e_g_keep_it_to">p. ej., pocas frases, sin listas, muestra el comando que ejecutaste</string>
-    <string name="personal_info_reply_voice_and_app_display">El idioma de respuesta, de voz y de la app ahora tienen su propia página.</string>
     <string name="appearance_tier_solid">El ahorro de batería está activado, así que el tema se dibuja plano hasta que lo desactives.</string>
     <string name="appearance_tier_static">El desenfoque en vivo no está disponible en este dispositivo, así que los paneles usan un esmerilado fijo.</string>
     <string name="appearance_brightness_light">claro</string>

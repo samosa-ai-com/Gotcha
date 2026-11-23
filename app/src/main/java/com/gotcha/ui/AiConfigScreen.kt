@@ -245,12 +245,14 @@ fun AiConfigScreen(
     }
 
     SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = guardedBack, overlay = overlay) {
-        // ---- Provider / model guidance ----
-        Text(
-            stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // ---- Provider / model guidance: moot once Samosa AI is the provider ----
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // ---- LLM provider selector ----
         ExposedDropdownMenuBox(
@@ -645,10 +647,13 @@ fun AiConfigScreen(
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
 
-        Text(
-            stringResource(R.string.ai_config_the_api_key_is_stored),
-            style = MaterialTheme.typography.bodySmall
-        )
+        // About the key and base URL fields, which only an OpenAI-compatible provider shows.
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_the_api_key_is_stored),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }
 

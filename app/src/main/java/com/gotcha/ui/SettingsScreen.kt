@@ -214,8 +214,7 @@ fun SettingsScreen(
                 SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
                     load = load,
                     onSave = onSave,
-                    onBack = backToHome,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+                    onBack = backToHome
                 )
                 SettingsPage.CHATS -> ChatsScreen(
                     onBack = backToHome,

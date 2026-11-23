@@ -320,7 +320,7 @@
     <string name="appearance_every_theme_works_on_every">Every theme works on every device. Where live blur isn\'t available, the glass is made a cheaper way rather than switched off.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_master_proactive_offers">Master Proactive Offers</string>
+    <string name="proactive_master_proactive_offers">Proactive offers</string>
     <string name="proactive_scan_screen_content">Scan Screen Content</string>
     <string name="proactive_scan_clipboard">Scan Clipboard</string>
     <string name="proactive_scan_notifications">Scan Notifications</string>
@@ -344,7 +344,6 @@
     <string name="personal_info_anything_worth_knowing_by_default">Anything worth knowing by default — tools you use, who you work with, what you usually ask for</string>
     <string name="personal_info_how_replies_should_be_written">How replies should be written</string>
     <string name="personal_info_e_g_keep_it_to">e.g. Keep it to a few sentences, no bullet lists, show the command you ran</string>
-    <string name="personal_info_reply_voice_and_app_display">Reply, voice and app display language now live on their own page.</string>
 
     <!-- Appearance and save confirmations -->
     <string name="appearance_tier_solid">Battery saver is on, so the theme is drawn flat until it\'s off.</string>
