@@ -117,14 +117,6 @@ import kotlin.math.round
  * lives here.
  */
 
-/**
- * A settings sub-page, reached from the settings home list and left with Back —
- * the same shape as the system Settings app. `null` in [SettingsScreen]'s page
- * state means the home list itself.
- *
- * [title] doubles as the row label on the home list and the sub-page's top-bar
- * title, so the two can't drift apart.
- */
 /** The headed sections of the settings home list, in the order they appear. */
 enum class SettingsGroup(@StringRes val title: Int) {
     ASSISTANT(R.string.settings_group_assistant),
@@ -135,6 +127,13 @@ enum class SettingsGroup(@StringRes val title: Int) {
 }
 
 /**
+ * A settings sub-page, reached from the settings home list and left with Back —
+ * the same shape as the system Settings app. `null` in [SettingsScreen]'s page
+ * state means the home list itself.
+ *
+ * [title] doubles as the row label on the home list and the sub-page's top-bar
+ * title, so the two can't drift apart.
+ *
  * Every settings page. Declaration order is the order within each [SettingsGroup]
  * on the home list; nothing reads the ordinal, so this is the only place the menu
  * is arranged.
