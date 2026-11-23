@@ -16,6 +16,7 @@
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
     <string name="legal_consent_section_privacy" translatable="false">Data Retention and Privacy Policy</string>
     <string name="legal_consent_section_air_terms" translatable="false">Samosa AIR Terms of Service</string>
+    <string name="samosa_sign_in_terms_notice" translatable="false">By signing in, you agree to the Samosa AIR Terms of Service (Settings ▸ About ▸ Legal).</string>
     <string name="legal_consent_section_third_party" translatable="false">Third-party notices</string>
     <string name="legal_consent_loading" translatable="false">(loading…)</string>
     <string-array name="legal_consent_bullets" translatable="false">
