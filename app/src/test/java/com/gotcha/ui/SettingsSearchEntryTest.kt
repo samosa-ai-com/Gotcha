@@ -67,7 +67,7 @@ class SettingsSearchEntryTest {
         val voice = pagesFor("voice")
         val voiceLanguage = pagesFor("voice language")
         assertTrue(voiceLanguage.size <= voice.size)
-        assertTrue(SettingsPage.LANGUAGE in voiceLanguage)
+        assertTrue(SettingsPage.SPEECH in voiceLanguage)
     }
 
     @Test

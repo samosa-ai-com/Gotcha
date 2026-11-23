@@ -17,7 +17,7 @@
     <string name="language_portuguese">葡萄牙语</string>
     <string name="language_russian">俄语</string>
     <string name="language_arabic">阿拉伯语</string>
-    <string name="language_page_intro">Gotcha 的所有语言设置都在这里：应用界面的语言、Gotcha 说话和聆听的语言，以及它撰写回复的语言。</string>
+    <string name="language_page_intro">Gotcha 界面所用的语言，以及它回答所用的语言。它说话和聆听的语言在“语音与朗读”中设置。</string>
     <string name="language_display_title">应用语言</string>
     <string name="language_display_description">Gotcha 按钮和界面的语言。只会改变 Gotcha，手机的其他部分保持不变。</string>
     <string name="language_display_open_settings">选择应用语言</string>
@@ -27,7 +27,6 @@
     <string name="language_voice_title">语音语言</string>
     <string name="language_voice_description">Gotcha 在语音输入和通话中说话和聆听的语言。除非你想用一种语言书写回复、用另一种语言朗读，否则请与回复语言保持一致。</string>
     <string name="language_voice_follow_reply">与 AI 回复语言相同</string>
-    <string name="language_voice_speech_hint">朗读所用的模型和声音在 设置 → AI → 语音 中选择。</string>
     <string name="language_transcription_title">转写语言</string>
     <string name="language_transcription_description">Gotcha 转写你所说内容的语言，用于语音输入、通话和音频文件转写。</string>
     <string name="language_transcription_hint_api">留空则按语音语言转写。设置后会强制使用某种语言：当模型容易听错时可以提高准确度。</string>
@@ -235,7 +234,6 @@
     <string name="speech_default_clear">默认（清除）</string>
     <string name="speech_no_voices_suggested_type_a">没有建议的声音：请在上方输入声音 ID</string>
     <string name="speech_stt_model">STT 模型</string>
-    <string name="speech_change_in_settings_language">在 设置 → 语言 中更改</string>
     <string name="speech_podcast_host_a_voice_optional">播客主持人 A 的声音（可选）</string>
     <string name="speech_podcast_host_b_voice_optional">播客主持人 B 的声音（可选）</string>
     <string name="speech_auto_read_replies_aloud">自动朗读回复</string>
@@ -314,8 +312,6 @@
     <string name="speech_tts_voice_optional">TTS 声音（可选）</string>
     <string name="speech_provider_default_voice">提供商默认声音</string>
     <string name="speech_default_voice_or_pick">默认（%1$s）或在下方选择</string>
-    <string name="speech_transcription_follows_voice">转写语言：%1$s，即语音语言。</string>
-    <string name="speech_transcription_forced">转写语言：强制为 %1$s。</string>
     <string name="local_notifications_history_cleared">通知记录已清除</string>
     <string name="local_notifications_clear_history">清除通知记录</string>
     <string name="local_notifications_when_a_task_failed_was">当任务失败、被中断，或 Gotcha 向你提问但没有得到回答时。</string>

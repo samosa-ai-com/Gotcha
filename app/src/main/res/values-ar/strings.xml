@@ -36,7 +36,7 @@
     <string name="language_arabic">العربية</string>
 
     <!-- Settings → Language -->
-    <string name="language_page_intro">كل لغة يستخدمها Gotcha في مكان واحد: اللغة التي كُتبت بها شاشات التطبيق نفسه، وما يتحدث به Gotcha ويسمعه، وما يكتب به إجاباته.</string>
+    <string name="language_page_intro">لغة شاشات Gotcha، واللغة التي يجيب بها. لغات التحدث والاستماع موجودة في الصوت والكلام.</string>
     <string name="language_display_title">لغة عرض التطبيق</string>
     <string name="language_display_description">لغة أزرار وشاشات Gotcha نفسه. يتغير Gotcha فقط؛ يبقى باقي هاتفك كما هو.</string>
     <string name="language_display_open_settings">اختر لغة التطبيق</string>
@@ -46,7 +46,6 @@
     <string name="language_voice_title">لغة الصوت</string>
     <string name="language_voice_description">ما ينطقه Gotcha بصوت عالٍ ويستمع له أثناء الإدخال الصوتي والمكالمات. اتركها تابعة للغة الرد إلا إذا أردت إجابات مكتوبة بلغة ومنطوقة بأخرى.</string>
     <string name="language_voice_follow_reply">نفس لغة رد الذكاء الاصطناعي</string>
-    <string name="language_voice_speech_hint">يُختار النموذج والصوت الذي يقرأه من الإعدادات ← الذكاء الاصطناعي ← الكلام.</string>
     <string name="language_transcription_title">لغة النسخ</string>
     <string name="language_transcription_description">اللغة التي يكتب بها Gotcha كلامك، للإدخال الصوتي والمكالمات ونسخ ملفات الصوت.</string>
     <string name="language_transcription_hint_api">اتركه فارغًا ليُنسخ الكلام بلغة الصوت. حدّده لفرض لغة واحدة، مما يساعد الدقة عندما يميل النموذج للخطأ.</string>
@@ -340,7 +339,6 @@
     <string name="speech_default_clear">افتراضي (مسح)</string>
     <string name="speech_no_voices_suggested_type_a">لا أصوات مقترحة — اكتب معرّف صوت أعلاه</string>
     <string name="speech_stt_model">نموذج تحويل الكلام</string>
-    <string name="speech_change_in_settings_language">غيّر من الإعدادات ← اللغة</string>
     <string name="speech_podcast_host_a_voice_optional">صوت المضيف أ (اختياري)</string>
     <string name="speech_podcast_host_b_voice_optional">صوت المضيف ب (اختياري)</string>
     <string name="speech_auto_read_replies_aloud">قراءة الردود تلقائيًا بصوت عالٍ</string>
@@ -433,8 +431,6 @@
     <string name="speech_tts_voice_optional">صوت TTS (اختياري)</string>
     <string name="speech_provider_default_voice">الافتراضي لدى المزوّد</string>
     <string name="speech_default_voice_or_pick">الافتراضي (%1$s) أو اختر أدناه</string>
-    <string name="speech_transcription_follows_voice">لغة التفريغ: %1$s، لغة الصوت.</string>
-    <string name="speech_transcription_forced">لغة التفريغ: مفروضة على %1$s.</string>
 
     <!-- LocalNotificationsSection -->
     <string name="local_notifications_history_cleared">تم مسح سجل الإشعارات</string>

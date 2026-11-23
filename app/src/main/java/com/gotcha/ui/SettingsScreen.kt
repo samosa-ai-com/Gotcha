@@ -223,10 +223,7 @@ fun SettingsScreen(
                 SettingsPage.LANGUAGE -> LanguageScreen(
                     load = load,
                     onSave = onSave,
-                    onBack = backToHome,
-                    onTestVoice = onTestVoice,
-                    onRefreshAudioModels = onRefreshAudioModels,
-                    onCheckAndroidSpeech = onCheckAndroidSpeech
+                    onBack = backToHome
                 )
                 SettingsPage.AI_CONFIG -> AiConfigScreen(
                     load = load,
@@ -250,7 +247,7 @@ fun SettingsScreen(
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignInWithGoogle = onSamosaSignInWithGoogle,
                     samosaSessionChanges = samosaSessionChanges,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) },
+                    onTestVoice = onTestVoice,
                     onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.PERMISSIONS -> PermissionsScreen(

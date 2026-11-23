@@ -157,7 +157,7 @@ class SettingsFlowTest {
     }
 
     @Test
-    fun languagePage_showsTheThreeLanguagesApartAndPersistsThem() {
+    fun voiceLanguage_isSetOnVoiceAndSpeechApartFromTheReplyLanguage() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
@@ -166,26 +166,30 @@ class SettingsFlowTest {
         // First run opens on AI model; one Back reaches the category list.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
+
+        // Language holds the app's display language and the reply language only.
         composeRule.onNodeWithTag("settings_language_row").performScrollTo().performClick()
         composeRule.waitForIdle()
-
-        // The point of the page (issue #74): all three named and visible at once.
         composeRule.onNodeWithText("App display language").assertExists()
-        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().assertExists()
         composeRule.onNodeWithTag("settings_reply_language").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_voice_language").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
 
-        // Untouched, the voice follows the reply language — what a pre-#74 install did.
+        // The voice language sits with the voices, and untouched it follows the
+        // reply language — what a pre-#74 install did.
+        composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().assertExists()
         composeRule.onNodeWithText("Same as AI reply language").assertExists()
 
-        // The whole point of the split: answers written in one language, spoken in
-        // another. Pick Hindi for the voice and leave the reply language English.
+        // Answers written in one language, spoken in another: Hindi for the
+        // voice, the reply language left English.
         composeRule.onNodeWithTag("settings_voice_language").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Hindi").performClick()
         composeRule.waitForIdle()
-
-        // No Save button: the choice saves itself.
-        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.onNodeWithTag("settings_save_speech").performScrollTo().performClick()
         composeRule.waitForIdle()
         scenario?.close()
 

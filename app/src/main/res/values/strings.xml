@@ -39,7 +39,7 @@
     <string name="language_arabic">Arabic</string>
 
     <!-- Settings → Language -->
-    <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
+    <string name="language_page_intro">The language Gotcha\'s screens are written in, and the one it answers in. The languages it speaks and listens in are under Voice and speech.</string>
     <string name="language_display_title">App display language</string>
     <string name="language_display_description">The language of Gotcha\'s own buttons and screens. Only Gotcha changes; the rest of your phone stays as it is.</string>
     <string name="language_display_open_settings">Choose app language</string>
@@ -49,7 +49,6 @@
     <string name="language_voice_title">Voice language</string>
     <string name="language_voice_description">What Gotcha speaks aloud and listens for during voice input and calls. Leave it following the reply language unless you want answers written in one language and spoken in another.</string>
     <string name="language_voice_follow_reply">Same as AI reply language</string>
-    <string name="language_voice_speech_hint">Which model and voice read it out are picked under Settings → AI → Speech.</string>
     <string name="language_transcription_title">Transcription language</string>
     <string name="language_transcription_description">The language Gotcha writes your speech down in, for voice input, calls and transcribing audio files.</string>
     <string name="language_transcription_hint_api">Leave this empty and speech is transcribed in the voice language. Set it to force one language, which helps accuracy when the model tends to guess wrong.</string>
@@ -387,7 +386,6 @@
     <string name="speech_default_clear">Default (clear)</string>
     <string name="speech_no_voices_suggested_type_a">No voices suggested — type a voice ID above</string>
     <string name="speech_stt_model">STT Model</string>
-    <string name="speech_change_in_settings_language">Change in Settings → Language</string>
     <string name="speech_podcast_host_a_voice_optional">Podcast Host A Voice (optional)</string>
     <string name="speech_podcast_host_b_voice_optional">Podcast Host B Voice (optional)</string>
     <string name="speech_auto_read_replies_aloud">Auto-read replies aloud</string>
@@ -480,8 +478,6 @@
     <string name="speech_tts_voice_optional">TTS Voice (optional)</string>
     <string name="speech_provider_default_voice">the provider\'s default</string>
     <string name="speech_default_voice_or_pick">Default (%1$s) or pick below</string>
-    <string name="speech_transcription_follows_voice">Transcription language: %1$s, the voice language.</string>
-    <string name="speech_transcription_forced">Transcription language: forced to %1$s.</string>
 
     <!-- LocalNotificationsSection -->
     <string name="local_notifications_history_cleared">Notification history cleared</string>

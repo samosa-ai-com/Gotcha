@@ -84,7 +84,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | --- | --- |
 | **Assistant** | |
 | AI model | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
-| Voice and speech | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, auto-read replies aloud, transcription language override |
+| Voice and speech | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, the voice language (what Gotcha speaks and listens in; by default the AI reply language), the transcription language override, Test voice, auto-read replies aloud |
 | About you | Name, occupation, background, reply style, location, preferred currency and language |
 | Skills / Plugins | Built-in skills, importing community skills by URL, allowed community skill hosts |
 | **Automation** | |
@@ -97,7 +97,7 @@ drawer's account row); below it the pages sit in five headed groups:
 | Shell > Termux | Guided setup for Termux, the other Linux shell `run_shell` and audio conversion can use |
 | **App** | |
 | Appearance | Theme |
-| Language | App display language, AI reply language, voice language, STT language |
+| Language | App display language and AI reply language |
 | Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The "Waiting for your answer" notification, for a paused task, has no switch here: it is its own channel in Android's notification settings for Gotcha. So is "Task in progress", the quiet notification shown while a task runs so Android keeps Gotcha going when the user switches apps; it opens the chat, and its Stop button stops the task. A task also keeps running when Gotcha is swiped out of recent apps, and opening Gotcha again mid-task shows the running chat. If Android closes Gotcha mid-task anyway, the chat ends with a note that the task was interrupted and the list of notifications gets an "Interrupted" entry; a new message in that chat picks the task up again. The bell on the home screen opens the list of recent notifications (a dot on it means one is unread, a number means more); in an open chat the list is under the chat's ⋮ menu, which shows a dot while something is unread and also keeps that chat out of notifications |
 | Chats | Import chats, and back up every chat |
 | **Privacy and permissions** | |

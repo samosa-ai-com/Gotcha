@@ -17,7 +17,7 @@
     <string name="language_portuguese">Portugais</string>
     <string name="language_russian">Russe</string>
     <string name="language_arabic">Arabe</string>
-    <string name="language_page_intro">Toutes les langues de Gotcha, au même endroit : celle des écrans de l\'appli, celle que Gotcha parle et écoute, et celle dans laquelle il écrit ses réponses.</string>
+    <string name="language_page_intro">La langue des écrans de Gotcha et celle de ses réponses. Les langues dans lesquelles il parle et écoute sont dans Voix et parole.</string>
     <string name="language_display_title">Langue de l\'appli</string>
     <string name="language_display_description">La langue des boutons et écrans de Gotcha. Seul Gotcha change ; le reste de votre téléphone reste tel quel.</string>
     <string name="language_display_open_settings">Choisir la langue de l\'appli</string>
@@ -27,7 +27,6 @@
     <string name="language_voice_title">Langue de la voix</string>
     <string name="language_voice_description">La langue que Gotcha parle et écoute pendant la saisie vocale et les appels. Laissez-la suivre la langue des réponses, sauf si vous voulez des réponses écrites dans une langue et lues dans une autre.</string>
     <string name="language_voice_follow_reply">Identique à la langue des réponses de l\'IA</string>
-    <string name="language_voice_speech_hint">Le modèle et la voix qui les lisent se choisissent dans Paramètres → IA → Voix.</string>
     <string name="language_transcription_title">Langue de transcription</string>
     <string name="language_transcription_description">La langue dans laquelle Gotcha transcrit ce que vous dites, pour la saisie vocale, les appels et la transcription de fichiers audio.</string>
     <string name="language_transcription_hint_api">Laissez vide pour transcrire dans la langue de la voix. Renseignez-la pour imposer une langue, ce qui améliore la précision quand le modèle se trompe souvent.</string>
@@ -235,7 +234,6 @@
     <string name="speech_default_clear">Par défaut (effacer)</string>
     <string name="speech_no_voices_suggested_type_a">Aucune voix suggérée : saisissez un ID de voix ci-dessus</string>
     <string name="speech_stt_model">Modèle STT</string>
-    <string name="speech_change_in_settings_language">À modifier dans Paramètres → Langue</string>
     <string name="speech_podcast_host_a_voice_optional">Voix de l\'animateur A du podcast (facultative)</string>
     <string name="speech_podcast_host_b_voice_optional">Voix de l\'animateur B du podcast (facultative)</string>
     <string name="speech_auto_read_replies_aloud">Lire les réponses à voix haute automatiquement</string>
@@ -314,8 +312,6 @@
     <string name="speech_tts_voice_optional">Voix TTS (facultative)</string>
     <string name="speech_provider_default_voice">celle par défaut du fournisseur</string>
     <string name="speech_default_voice_or_pick">Par défaut (%1$s) ou choisissez ci-dessous</string>
-    <string name="speech_transcription_follows_voice">Langue de transcription : %1$s, la langue de la voix.</string>
-    <string name="speech_transcription_forced">Langue de transcription : forcée sur %1$s.</string>
     <string name="local_notifications_history_cleared">Historique des notifications effacé</string>
     <string name="local_notifications_clear_history">Effacer l\'historique des notifications</string>
     <string name="local_notifications_when_a_task_failed_was">Quand une tâche a échoué, a été arrêtée, ou que Gotcha vous a posé une question restée sans réponse.</string>

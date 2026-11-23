@@ -144,15 +144,9 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(
         page,
-        words("translate, locale"),
+        words("translate, locale, reply language"),
         listOf(
             field("settings_open_app_locale", R.string.settings_field_open_app_locale),
-            field("settings_voice_language", R.string.settings_field_voice_language),
-            field(
-                "settings_stt_language",
-                R.string.settings_field_stt_language,
-                "stt language, speech to text language, transcription override"
-            ),
             field("settings_reply_language", R.string.settings_field_reply_language)
         )
     )
@@ -180,8 +174,14 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.SPEECH -> SettingsSearchEntry(
         page,
-        words("voice, speak, microphone, kokoro, whisper"),
+        words("voice, speak, microphone, kokoro, whisper, test voice"),
         listOf(
+            field("settings_voice_language", R.string.settings_field_voice_language),
+            field(
+                "settings_stt_language",
+                R.string.settings_field_stt_language,
+                "stt language, speech to text language, transcription override"
+            ),
             field("settings_tts_provider", R.string.settings_field_tts_provider, "tts, text to speech"),
             field(
                 "settings_stt_provider",

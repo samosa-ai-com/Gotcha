@@ -17,7 +17,7 @@
     <string name="language_portuguese">पुर्तगाली</string>
     <string name="language_russian">रूसी</string>
     <string name="language_arabic">अरबी</string>
-    <string name="language_page_intro">Gotcha की हर भाषा, एक ही जगह: ऐप की अपनी स्क्रीन किस भाषा में हैं, Gotcha क्या बोलता और सुनता है, और जवाब किस भाषा में लिखता है।</string>
+    <string name="language_page_intro">Gotcha की स्क्रीन किस भाषा में हैं, और वह किस भाषा में जवाब देता है। वह किस भाषा में बोलता और सुनता है, यह आवाज़ और स्पीच में है।</string>
     <string name="language_display_title">ऐप की भाषा</string>
     <string name="language_display_description">Gotcha के अपने बटन और स्क्रीन किस भाषा में हों। केवल Gotcha बदलता है; आपका बाकी फ़ोन जैसा है वैसा ही रहता है।</string>
     <string name="language_display_open_settings">ऐप की भाषा चुनें</string>
@@ -27,7 +27,6 @@
     <string name="language_voice_title">आवाज़ की भाषा</string>
     <string name="language_voice_description">वॉइस इनपुट और कॉल के दौरान Gotcha किस भाषा में बोलता और सुनता है। इसे जवाब की भाषा के अनुसार ही रहने दें, जब तक आप जवाब एक भाषा में लिखे और दूसरी में बोले हुए न चाहें।</string>
     <string name="language_voice_follow_reply">AI जवाब की भाषा जैसी</string>
-    <string name="language_voice_speech_hint">कौन-सा मॉडल और कौन-सी आवाज़ इसे पढ़ेगी, यह सेटिंग → AI → स्पीच में चुना जाता है।</string>
     <string name="language_transcription_title">ट्रांसक्रिप्शन की भाषा</string>
     <string name="language_transcription_description">वॉइस इनपुट, कॉल और ऑडियो फ़ाइलों को ट्रांसक्राइब करते समय Gotcha आपकी बोली को किस भाषा में लिखता है।</string>
     <string name="language_transcription_hint_api">इसे खाली छोड़ें तो बोली आवाज़ की भाषा में ट्रांसक्राइब होगी। किसी एक भाषा को ज़बरदस्ती चुनने के लिए इसे सेट करें — जब मॉडल गलत भाषा का अनुमान लगाता हो, तब इससे सटीकता बढ़ती है।</string>
@@ -235,7 +234,6 @@
     <string name="speech_default_clear">डिफ़ॉल्ट (साफ़ करें)</string>
     <string name="speech_no_voices_suggested_type_a">कोई आवाज़ सुझाई नहीं गई — ऊपर आवाज़ की ID लिखें</string>
     <string name="speech_stt_model">STT मॉडल</string>
-    <string name="speech_change_in_settings_language">सेटिंग → भाषा में बदलें</string>
     <string name="speech_podcast_host_a_voice_optional">पॉडकास्ट होस्ट A की आवाज़ (वैकल्पिक)</string>
     <string name="speech_podcast_host_b_voice_optional">पॉडकास्ट होस्ट B की आवाज़ (वैकल्पिक)</string>
     <string name="speech_auto_read_replies_aloud">जवाब अपने-आप ज़ोर से पढ़ें</string>
@@ -314,8 +312,6 @@
     <string name="speech_tts_voice_optional">TTS आवाज़ (वैकल्पिक)</string>
     <string name="speech_provider_default_voice">प्रदाता की डिफ़ॉल्ट आवाज़</string>
     <string name="speech_default_voice_or_pick">डिफ़ॉल्ट (%1$s) या नीचे से चुनें</string>
-    <string name="speech_transcription_follows_voice">ट्रांसक्रिप्शन की भाषा: %1$s, यानी आवाज़ की भाषा।</string>
-    <string name="speech_transcription_forced">ट्रांसक्रिप्शन की भाषा: %1$s पर तय की गई है।</string>
     <string name="local_notifications_history_cleared">सूचना इतिहास साफ़ हो गया</string>
     <string name="local_notifications_clear_history">सूचना इतिहास साफ़ करें</string>
     <string name="local_notifications_when_a_task_failed_was">जब कोई काम विफल हुआ, रोका गया, या Gotcha ने आपसे कुछ पूछा और आपने जवाब नहीं दिया।</string>

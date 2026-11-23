@@ -8,7 +8,6 @@ import android.os.Build
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -18,122 +17,65 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
-import com.gotcha.audio.AndroidSpeechQuery
-import com.gotcha.audio.AndroidSpeechStatus
-import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
-import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
-import com.gotcha.i18n.stringLookup
-import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import android.provider.Settings as AndroidSettings
 
 /**
- * The Language page: every language choice, told apart, and the only place any
- * of them is set (issue #114).
- *
- * They used to be scattered and ambiguously named — "Preferred Language" sat in
- * Personal Info reading like an app-UI setting when it actually drove the LLM
- * *and* the voice, while "STT Language" sat on the Speech page with no statement
- * of what it overrode (issue #74). Gathering them here is the only place a user
- * can see all three at once, which is what makes the difference between them
- * legible:
+ * The Language page: the language Gotcha's screens are written in, and the one
+ * its answers are written in (issues #74, #114).
  *
  *  1. **App display language** — what Gotcha's own screens are written in.
  *     Android owns the choice: Android 13+ keeps a per-app language, which
  *     changes Gotcha alone; Android 11 and 12 only have the phone's language,
  *     so the page says that choosing there changes the whole phone.
- *  2. **Voice language** — what TTS speaks and STT listens in
- *     ([Settings.effectiveVoiceLanguage]). Blank follows the reply language.
- *     Under it, the **transcription language override** ([Settings.sttLanguage]),
- *     which wins over the voice language for API speech-to-text. It moved here
- *     from the Speech page so the two can't disagree out of sight.
- *  3. **AI reply language** — what the model writes in
+ *  2. **AI reply language** — what the model writes in
  *     ([Settings.preferredLanguage]).
  *
- * The voice section also warns when the voice language doesn't suit the speech
- * models picked on the Speech page ([SpeechLanguageCheck], issue #113), which
- * is why the page fetches the audio models when a speech provider is API based.
+ * The voice language and the transcription language used to sit here too. They
+ * moved to the Voice and speech page ([VoiceLanguageSection]), beside the voices
+ * and recognizers they have to suit, so neither page sends the user to the other.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
-    onBack: () -> Unit,
-    onTestVoice: suspend (Language) -> Boolean? = { null },
-    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
-        Pair(emptyList(), emptyList())
-    },
-    /** Android Built-in's engines and their support for a language; see [AndroidSpeechStatus]. */
-    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
+    onBack: () -> Unit
 ) {
     val initial = remember { load() }
     var preferredLanguage by rememberSaveable { mutableStateOf(initial.preferredLanguage) }
-    var voiceLanguage by rememberSaveable { mutableStateOf(initial.voiceLanguage) }
-    var sttLanguage by rememberSaveable { mutableStateOf(initial.sttLanguage) }
 
     var replyExpanded by rememberSaveable { mutableStateOf(false) }
-    var voiceExpanded by rememberSaveable { mutableStateOf(false) }
-    var sttLanguageExpanded by rememberSaveable { mutableStateOf(false) }
-
-    // The speech models, for the transcription codes and the mismatch warnings.
-    // Only API providers have models to fetch.
-    var ttsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
-    var sttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        if (initial.ttsProvider.isApiBased() || initial.sttProvider.isApiBased()) {
-            val (tts, stt) = onRefreshAudioModels(initial)
-            ttsModels = tts
-            sttModels = stt
-        }
-    }
-    var testingVoice by remember { mutableStateOf(false) }
-
-    /** Last [Language] whose voice data was reported missing, or null when not shown. */
-    var voiceDataMissing by remember { mutableStateOf<Language?>(null) }
 
     val overlay = rememberSettingsOverlayState()
-    val scope = rememberCoroutineScope()
     val localContext = LocalContext.current
     // Android 13+ keeps a language for Gotcha alone; earlier versions only the phone's.
     val hasPerAppLanguage = remember { declaresAppLocales(localContext) }
 
     /** This page's fields, copied onto [base]. */
-    fun applyLanguages(base: Settings) = base.copy(
-        preferredLanguage = preferredLanguage,
-        voiceLanguage = voiceLanguage,
-        sttLanguage = sttLanguage.trim()
-    )
+    fun applyLanguages(base: Settings) = base.copy(preferredLanguage = preferredLanguage)
 
-    // Every choice here saves itself: the pickers at once, the typed transcription
-    // language a moment after typing stops, and whatever is still pending when
-    // the page closes — so there is no Save button for Back to skip past.
+    // The reply language saves itself a moment after it is picked, and whatever
+    // is still pending when the page closes — no Save button for Back to skip past.
     var baseline by remember { mutableStateOf(initial) }
     val latestSave by rememberUpdatedState {
         if (applyLanguages(baseline) != baseline) {
@@ -141,64 +83,13 @@ fun LanguageScreen(
             baseline = applyLanguages(baseline)
         }
     }
-    LaunchedEffect(preferredLanguage, voiceLanguage, sttLanguage) {
+    LaunchedEffect(preferredLanguage) {
         if (applyLanguages(baseline) != baseline) {
             delay(LANGUAGE_AUTOSAVE_DELAY_MS)
             latestSave()
         }
     }
     DisposableEffect(Unit) { onDispose { latestSave() } }
-
-    /** What the voice would actually use right now, without waiting for a save. */
-    val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
-
-    // Android Built-in has no model list to compare, so ask the phone's engines
-    // about the language being picked. Asked again on every return to the page,
-    // which is how the user comes back from installing voice data.
-    val usesAndroidSpeech = initial.ttsProvider == AudioProvider.ANDROID || initial.sttProvider == AudioProvider.ANDROID
-    var androidSpeech by remember { mutableStateOf(AndroidSpeechStatus()) }
-    var resumes by remember { mutableIntStateOf(0) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) resumes++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(resolvedVoiceLanguage, resumes) {
-        if (usesAndroidSpeech) {
-            androidSpeech = onCheckAndroidSpeech(
-                AndroidSpeechQuery(
-                    resolvedVoiceLanguage,
-                    initial.androidTtsEngine,
-                    initial.androidSttService,
-                    initial.androidSttOnDeviceOnly
-                )
-            )
-        }
-    }
-
-    val speechWarnings = listOfNotNull(
-        SpeechLanguageCheck.ttsWarning(
-            initial.ttsProvider,
-            initial.ttsApiModel,
-            initial.ttsVoice,
-            ttsModels,
-            resolvedVoiceLanguage,
-            LocalContext.current.stringLookup(),
-            androidSupports = androidSpeech.ttsSupports
-        )
-    ) + SpeechLanguageCheck.sttWarnings(
-        initial.sttProvider,
-        initial.sttApiModel,
-        sttLanguage,
-        sttModels,
-        resolvedVoiceLanguage,
-        LocalContext.current.stringLookup(),
-        androidSupports = androidSpeech.recognizerSupports,
-        androidOnDeviceOnly = androidSpeech.sttOnDeviceOnly
-    )
 
     SettingsScaffold(title = stringResource(SettingsPage.LANGUAGE.title), onBack = onBack, overlay = overlay) {
         Text(
@@ -241,161 +132,7 @@ fun LanguageScreen(
 
         HorizontalDivider(thickness = 1.dp)
 
-        // ---- 2. Voice language ----
-        Text(
-            stringResource(R.string.language_voice_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            stringResource(R.string.language_voice_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        ExposedDropdownMenuBox(
-            expanded = voiceExpanded,
-            onExpandedChange = { voiceExpanded = it }
-        ) {
-            OutlinedTextField(
-                value = if (voiceLanguage.isBlank()) {
-                    stringResource(R.string.language_voice_follow_reply)
-                } else {
-                    stringResource(Language.fromLabel(voiceLanguage).nameRes)
-                },
-                onValueChange = {},
-                readOnly = true,
-                label = { Text(stringResource(R.string.language_voice_title)) },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = voiceExpanded)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor()
-                    .settingsField("settings_voice_language")
-            )
-            SkinExposedDropdownMenu(
-                expanded = voiceExpanded,
-                onDismissRequest = { voiceExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.language_voice_follow_reply)) },
-                    onClick = {
-                        voiceLanguage = ""
-                        voiceExpanded = false
-                    }
-                )
-                Language.entries.forEach { lang ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(lang.nameRes)) },
-                        onClick = {
-                            voiceLanguage = lang.label
-                            voiceExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-        Text(
-            stringResource(R.string.language_voice_speech_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Text(
-            stringResource(R.string.language_transcription_title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            stringResource(R.string.language_transcription_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        TranscriptionLanguagePicker(
-            selectedModel = initial.sttApiModel,
-            selectedLanguage = sttLanguage,
-            availableModels = sttModels,
-            expanded = sttLanguageExpanded,
-            onExpandedChange = { sttLanguageExpanded = it },
-            onSelect = {
-                sttLanguage = it
-                sttLanguageExpanded = false
-            },
-            onClearLanguage = {
-                sttLanguage = ""
-                sttLanguageExpanded = false
-            }
-        )
-        Text(
-            stringResource(transcriptionOverrideHint(initial.sttProvider)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        SpeechLanguageWarnings(speechWarnings)
-
-        OutlinedButton(
-            onClick = {
-                testingVoice = true
-                scope.launch {
-                    // Track which language triggered the missing-data state so
-                    // rapid language-switch clicks don't surface a stale dialog.
-                    val lang = resolvedVoiceLanguage
-                    val ok = onTestVoice(lang)
-                    voiceDataMissing = if (ok == false) lang else null
-                    testingVoice = false
-                }
-            },
-            enabled = !testingVoice,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                stringResource(
-                    if (testingVoice) R.string.language_test_voice_playing else R.string.language_test_voice
-                )
-            )
-        }
-        voiceDataMissing?.let { missingLang ->
-            SkinAlertDialog(
-                onDismissRequest = { voiceDataMissing = null },
-                title = { Text(stringResource(R.string.language_voice_data_missing_title)) },
-                text = {
-                    Text(
-                        stringResource(
-                            R.string.language_voice_data_missing_body,
-                            stringResource(missingLang.nameRes)
-                        )
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            voiceDataMissing = null
-                            try {
-                                localContext.startActivity(
-                                    Intent(
-                                        android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
-                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            } catch (_: Exception) {
-                                Toast.makeText(
-                                    localContext,
-                                    localContext.getString(R.string.language_tts_settings_failed),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    ) { Text(stringResource(R.string.language_voice_data_install)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { voiceDataMissing = null }) { Text(stringResource(R.string.action_cancel)) }
-                }
-            )
-        }
-
-        HorizontalDivider(thickness = 1.dp)
-
-        // ---- 3. AI reply language ----
+        // ---- 2. AI reply language ----
         Text(
             stringResource(R.string.language_reply_title),
             style = MaterialTheme.typography.titleMedium,
