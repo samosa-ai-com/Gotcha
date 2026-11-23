@@ -1090,6 +1090,7 @@ class SettingsRepository(context: Context) : SettingsStore {
  * change, so everyone accepts again, and with it confirms their age.
  *
  * Version 5: the Samosa AIR Terms of Service join the documents, and the
- * privacy policy now says what Samosa AIR keeps and for how long.
+ * privacy policy now says what Samosa AIR keeps and for how long, and
+ * describes the kinds of usage data the App sends.
  */
 const val LEGAL_VERSION: String = "5"

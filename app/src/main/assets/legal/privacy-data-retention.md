@@ -227,16 +227,46 @@ and can be turned off; see Section 11.
          no feature.
 
     11.3 Purpose: to learn which features are used and where the App
-         fails or crashes, so we can fix and improve it. It is never
-         sold, and never used for advertising.
+         fails or crashes, so we can fix and improve it.
 
-    11.4 What is sent: counts and outcomes only. Each event is one of a
-         fixed list, and each of its values is a yes/no, a range (for
-         example "6–30 seconds"), or a word from a fixed list. The full
-         list of events is shown in the App under Settings → Privacy →
-         "What we send". With each batch the App also sends its version,
-         the Android version, the language setting and whether the
-         device is a phone or a tablet.
+    11.4 What is sent. Usage data includes, but is not restricted to,
+         the following kinds of information:
+           (a) App use: when the App is opened, how long it took to
+               start, how long each session lasted, and a summary of
+               the session (for example whether it was mostly chat,
+               voice or automation, how many requests ran or failed,
+               and whether the App froze or stuttered);
+           (b) assistant activity: where a request started (for example
+               a chat, a voice call, the floating ball or a scheduled
+               task), the agent mode, how many steps and tool calls it
+               took, how long it ran, whether it succeeded and how it
+               ended;
+           (c) AI requests: the kind of AI service used (for example
+               Samosa AI, OpenAI, OpenRouter, Groq or a local server),
+               the model's name, how long the reply took, the number of
+               tokens as a range, whether a cache was used, and the type
+               of any error;
+           (d) tools and features: which of the App's built-in tools ran
+               and whether they worked; use of voice calls, the wake
+               word, the shell, scheduled tasks and updates; which
+               connectors were connected or disconnected and how many
+               MCP servers are set up; which bundled skills were used
+               (your own skills are counted only as "custom"); Screen
+               Lens actions; and progress through setup and the feature
+               tour;
+           (e) permissions: which Android permissions were granted or
+               denied; and
+           (f) crashes: the type of error, the name of the method it
+               came from, and whether the App was in front.
+         Values are sent as yes/no answers, ranges (for example "6–30
+         seconds") or words from fixed lists, apart from model names and
+         the error and method names of a crash. Each event carries the
+         time it happened and a random id for that App session. With
+         each batch the App also sends its version, build number and
+         build type, the Android version, the language setting and
+         whether the device is a phone or a tablet. The full list of
+         events is shown in the App under Settings → Privacy → "What we
+         send".
 
     11.5 What is never sent: your messages or the assistant's replies,
          what is on your screen, files or file names, contacts, text
