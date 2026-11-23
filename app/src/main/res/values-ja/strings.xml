@@ -1636,9 +1636,9 @@
     <string name="linux_terminal_key_down">下矢印</string>
     <string name="linux_terminal_key_left">左矢印</string>
     <string name="linux_terminal_key_right">右矢印</string>
-    <string name="linux_terminal_refused_signed_out">Linux シェルは Samosa AI Pro の機能です。使うには Samosa AI にサインインしてください。</string>
-    <string name="linux_terminal_refused_not_pro">Linux シェルは Samosa AI Pro の機能ですが、このアカウントは別のプランです。</string>
-    <string name="linux_terminal_refused_needs_check">Gotcha は最近 Samosa AI Pro プランを確認できませんでした。インターネットに接続してもう一度お試しください。</string>
+    <string name="linux_terminal_refused_signed_out">Linux シェルは Samosa Pro の機能です。使うには Samosa AI にサインインしてください。</string>
+    <string name="linux_terminal_refused_not_pro">Linux シェルは Samosa Pro の機能ですが、このアカウントは別のプランです。</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha は最近 Samosa Pro プランを確認できませんでした。インターネットに接続してもう一度お試しください。</string>
     <string name="linux_terminal_refused_not_installed">この端末には Gotcha Shell がインストールされていません。</string>
     <string name="linux_terminal_refused_untrusted">この端末の Gotcha Shell は Gotcha と同じ鍵で署名されていないため、Gotcha は使用しません。</string>
     <string name="linux_terminal_refused_no_answer">Gotcha Shell が応答しませんでした。しばらくしてからもう一度お試しください。</string>
@@ -1707,10 +1707,10 @@
     <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">専用アプリで動く完全な Linux システム</string>
     <string name="linux_shell_intro">Gotcha Shell は、アシスタントに完全な Linux システムを提供する別のアプリです。パッケージのインストールや、スマートフォンにはないスクリプトやツールの実行ができます。Gotcha とは別に動作するため、コマンドが Gotcha の設定、チャット、メモリを変更することはできず、Gotcha が渡さない限りあなたのファイルを見ることもできません。</string>
-    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
     <string name="linux_shell_plan_active">Pro プランは有効です。</string>
-    <string name="linux_shell_plan_signed_out">Linux シェルは Samosa AI Pro の機能です。使うには Samosa AI にサインインしてください。</string>
-    <string name="linux_shell_plan_not_pro">Linux シェルは Samosa AI Pro の機能ですが、あなたのアカウントは別のプランです。Linux システムとそのファイルは保持されます。下からリセットやアンインストールは引き続きできます。</string>
+    <string name="linux_shell_plan_signed_out">Linux シェルは Samosa Pro の機能です。使うには Samosa AI にサインインしてください。</string>
+    <string name="linux_shell_plan_not_pro">Linux シェルは Samosa Pro の機能ですが、あなたのアカウントは別のプランです。Linux システムとそのファイルは保持されます。下からリセットやアンインストールは引き続きできます。</string>
     <string name="linux_shell_plan_needs_check">Gotcha は Pro プランを確認できませんでした。インターネットに接続して、このページを開き直してください。</string>
     <string name="linux_shell_app_title">Gotcha Shell アプリ</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell はインストールされていません。Pro に含まれており、Gotcha がダウンロードしてインストールできます。</string>
@@ -1766,11 +1766,11 @@
     <string name="linux_shell_phase_install_runtime">ランタイムをインストールしています…</string>
 
     <!-- Samosa AI and Pro nudges -->
-    <string name="upsell_pro_title">Samosa AI Pro</string>
-    <string name="upsell_pro_lead_shell">Linux コマンドの実行には Gotcha の内蔵 Linux シェルが必要です。これは Samosa AI Pro に含まれています。</string>
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">Linux コマンドの実行には Gotcha の内蔵 Linux シェルが必要です。これは Samosa Pro に含まれています。</string>
     <string name="upsell_pro_lead_limits">現在のプランの上限に達しました。Pro なら上限が高いので、このまま続けられます。</string>
     <string name="upsell_pro_lead_value">Gotcha でたくさんの作業をこなしていますね。Pro ならさらに力を発揮できます。</string>
-    <string name="upsell_pro_lead_general">Samosa AI Pro で Gotcha をもっと活用しましょう。</string>
+    <string name="upsell_pro_lead_general">Samosa Pro で Gotcha をもっと活用しましょう。</string>
     <string name="upsell_pro_feature_shell">内蔵 Linux シェル: チャットやターミナルから本物の Linux コマンドを実行</string>
     <string name="upsell_pro_feature_models">より高性能なモデル</string>
     <string name="upsell_pro_feature_limits">より高い上限</string>
@@ -1779,7 +1779,7 @@
     <string name="upsell_pro_action">Pro にする</string>
     <string name="upsell_pro_see">Pro を見る</string>
     <string name="upsell_samosa_title">Samosa AI を見てみる</string>
-    <string name="upsell_samosa_lead_shell">Gotcha の内蔵 Linux シェルは Samosa AI Pro に含まれています。まずは Samosa AI アカウントから始めましょう。</string>
+    <string name="upsell_samosa_lead_shell">Gotcha の内蔵 Linux シェルは Samosa Pro に含まれています。まずは Samosa AI アカウントから始めましょう。</string>
     <string name="upsell_samosa_lead_limits">AI プロバイダーが現在応答していません。Samosa AI なら自分の API キーは不要です。</string>
     <string name="upsell_samosa_lead_general">Samosa AI は、Gotcha の開発チームが Gotcha のために作った AI サービスです。</string>
     <string name="upsell_samosa_feature_no_key">API キーの管理は不要: サインインするだけ</string>
@@ -1792,9 +1792,9 @@
     <string name="upsell_not_now">今はしない</string>
     <string name="upsell_settings_plan">現在のプランは %1$s です。Pro では Linux シェル、より高性能なモデル、より高い上限が使えます。</string>
     <string name="upsell_settings_switch">Samosa AI に切り替える</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro を入手</string>
+    <string name="upsell_drawer_pro">Samosa Pro を入手</string>
     <string name="upsell_welcome_title">Pro へようこそ</string>
-    <string name="upsell_welcome_text">Samosa AI Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
+    <string name="upsell_welcome_text">Samosa Pro プランが有効になりました。Linux シェル、より高性能なモデル、より高い上限をご利用いただけます。</string>
     <string name="upsell_welcome_shell">Linux シェルを設定</string>
     <string name="upsell_welcome_later">後で</string>
     <string name="settings_page_chats">チャットとストレージ</string>

@@ -76,7 +76,7 @@ All notable changes to Gotcha are documented here.
   bytes they are.
 - **Third-party notices** in the Legal screen, including the Apache Commons
   Compress licence and notice it had been missing.
-- **A Linux shell for the assistant** (#181). Samosa AI Pro and Influencer
+- **A Linux shell for the assistant** (#181). Samosa Pro and Influencer
   accounts can install Gotcha Shell, a separate app that gives the assistant a
   full Ubuntu system (`run_shell`, `pull_from_shell`). It runs under its own
   Android user, so nothing a command does can change Gotcha's settings, chats or

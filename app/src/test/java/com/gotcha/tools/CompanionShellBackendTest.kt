@@ -68,7 +68,7 @@ class CompanionShellBackendTest {
         access = ShellEntitlement.Access.NOT_PRO
         val result = backend.runCommand("echo hi")
         assertFalse(result.success)
-        assertTrue(result.message, "Samosa AI Pro" in result.message)
+        assertTrue(result.message, "Samosa Pro" in result.message)
         assertEquals(0, link.calls)
         assertTrue(service.started.isEmpty())
     }

@@ -1636,9 +1636,9 @@
     <string name="linux_terminal_key_down">下箭头</string>
     <string name="linux_terminal_key_left">左箭头</string>
     <string name="linux_terminal_key_right">右箭头</string>
-    <string name="linux_terminal_refused_signed_out">Linux shell 是 Samosa AI Pro 的一部分。请登录 Samosa AI 后使用。</string>
-    <string name="linux_terminal_refused_not_pro">Linux shell 是 Samosa AI Pro 的一部分，而此账号使用的是其他套餐。</string>
-    <string name="linux_terminal_refused_needs_check">Gotcha 最近无法确认你的 Samosa AI Pro 套餐。请连接互联网后重试。</string>
+    <string name="linux_terminal_refused_signed_out">Linux shell 是 Samosa Pro 的一部分。请登录 Samosa AI 后使用。</string>
+    <string name="linux_terminal_refused_not_pro">Linux shell 是 Samosa Pro 的一部分，而此账号使用的是其他套餐。</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha 最近无法确认你的 Samosa Pro 套餐。请连接互联网后重试。</string>
     <string name="linux_terminal_refused_not_installed">此手机上未安装 Gotcha Shell。</string>
     <string name="linux_terminal_refused_untrusted">此手机上的 Gotcha Shell 与 Gotcha 的签名密钥不同，因此 Gotcha 不会使用它。</string>
     <string name="linux_terminal_refused_no_answer">Gotcha Shell 没有响应。请稍后重试。</string>
@@ -1707,10 +1707,10 @@
     <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">在独立应用中运行的完整 Linux 系统</string>
     <string name="linux_shell_intro">Gotcha Shell 是一个独立的应用，为助手提供完整的 Linux 系统：安装软件包，运行手机自带不了的脚本和工具。它与 Gotcha 分开运行，因此任何命令都无法更改 Gotcha 的设置、聊天或记忆；除非 Gotcha 交给它，否则它也看不到你的文件。</string>
-    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
     <string name="linux_shell_plan_active">你的 Pro 套餐已生效。</string>
-    <string name="linux_shell_plan_signed_out">Linux shell 是 Samosa AI Pro 的一部分。请登录 Samosa AI 后使用。</string>
-    <string name="linux_shell_plan_not_pro">Linux shell 是 Samosa AI Pro 的一部分，而你的账号使用的是其他套餐。你的 Linux 系统及其文件会保留；你仍可在下方重置或卸载它。</string>
+    <string name="linux_shell_plan_signed_out">Linux shell 是 Samosa Pro 的一部分。请登录 Samosa AI 后使用。</string>
+    <string name="linux_shell_plan_not_pro">Linux shell 是 Samosa Pro 的一部分，而你的账号使用的是其他套餐。你的 Linux 系统及其文件会保留；你仍可在下方重置或卸载它。</string>
     <string name="linux_shell_plan_needs_check">Gotcha 无法确认你的 Pro 套餐。请连接互联网后重新打开此页面。</string>
     <string name="linux_shell_app_title">Gotcha Shell 应用</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell 未安装。它包含在 Pro 中，Gotcha 可以为你下载并安装。</string>
@@ -1766,11 +1766,11 @@
     <string name="linux_shell_phase_install_runtime">正在安装运行时…</string>
 
     <!-- Samosa AI and Pro nudges -->
-    <string name="upsell_pro_title">Samosa AI Pro</string>
-    <string name="upsell_pro_lead_shell">运行 Linux 命令需要 Gotcha 内置的 Linux shell，它包含在 Samosa AI Pro 中。</string>
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">运行 Linux 命令需要 Gotcha 内置的 Linux shell，它包含在 Samosa Pro 中。</string>
     <string name="upsell_pro_lead_limits">你目前已达到当前套餐的上限。Pro 提供更高的上限，让你继续使用。</string>
     <string name="upsell_pro_lead_value">你正在用 Gotcha 完成很多事情。Pro 能让它发挥更大作用。</string>
-    <string name="upsell_pro_lead_general">使用 Samosa AI Pro，让 Gotcha 发挥更多作用。</string>
+    <string name="upsell_pro_lead_general">使用 Samosa Pro，让 Gotcha 发挥更多作用。</string>
     <string name="upsell_pro_feature_shell">内置 Linux shell：在聊天或终端中运行真正的 Linux 命令</string>
     <string name="upsell_pro_feature_models">更强大的模型</string>
     <string name="upsell_pro_feature_limits">更高的上限</string>
@@ -1779,7 +1779,7 @@
     <string name="upsell_pro_action">获取 Pro</string>
     <string name="upsell_pro_see">了解 Pro</string>
     <string name="upsell_samosa_title">了解 Samosa AI</string>
-    <string name="upsell_samosa_lead_shell">Gotcha 内置的 Linux shell 包含在 Samosa AI Pro 中。先从一个 Samosa AI 账号开始。</string>
+    <string name="upsell_samosa_lead_shell">Gotcha 内置的 Linux shell 包含在 Samosa Pro 中。先从一个 Samosa AI 账号开始。</string>
     <string name="upsell_samosa_lead_limits">你的 AI 服务商暂时没有响应。Samosa AI 无需你自己的 API 密钥即可使用。</string>
     <string name="upsell_samosa_lead_general">Samosa AI 是开发 Gotcha 的团队专为 Gotcha 打造的 AI 服务。</string>
     <string name="upsell_samosa_feature_no_key">无需管理 API 密钥：登录即可使用</string>
@@ -1792,9 +1792,9 @@
     <string name="upsell_not_now">以后再说</string>
     <string name="upsell_settings_plan">你当前使用的是 %1$s 套餐。Pro 增加了 Linux shell、更强大的模型和更高的上限。</string>
     <string name="upsell_settings_switch">切换到 Samosa AI</string>
-    <string name="upsell_drawer_pro">获取 Samosa AI Pro</string>
+    <string name="upsell_drawer_pro">获取 Samosa Pro</string>
     <string name="upsell_welcome_title">欢迎使用 Pro</string>
-    <string name="upsell_welcome_text">你的 Samosa AI Pro 套餐已生效：Linux shell、更强大的模型和更高的上限已为你准备就绪。</string>
+    <string name="upsell_welcome_text">你的 Samosa Pro 套餐已生效：Linux shell、更强大的模型和更高的上限已为你准备就绪。</string>
     <string name="upsell_welcome_shell">设置 Linux shell</string>
     <string name="upsell_welcome_later">稍后</string>
     <string name="settings_page_chats">聊天与存储</string>

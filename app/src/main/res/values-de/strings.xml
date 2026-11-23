@@ -1659,9 +1659,9 @@
     <string name="linux_terminal_key_down">Pfeil nach unten</string>
     <string name="linux_terminal_key_left">Pfeil nach links</string>
     <string name="linux_terminal_key_right">Pfeil nach rechts</string>
-    <string name="linux_terminal_refused_signed_out">Die Linux-Shell ist Teil von Samosa AI Pro. Melde dich bei Samosa AI an, um sie zu nutzen.</string>
-    <string name="linux_terminal_refused_not_pro">Die Linux-Shell ist Teil von Samosa AI Pro, und dieses Konto hat einen anderen Tarif.</string>
-    <string name="linux_terminal_refused_needs_check">Gotcha konnte deinen Samosa AI Pro-Tarif in letzter Zeit nicht bestätigen. Verbinde dich mit dem Internet und versuche es erneut.</string>
+    <string name="linux_terminal_refused_signed_out">Die Linux-Shell ist Teil von Samosa Pro. Melde dich bei Samosa AI an, um sie zu nutzen.</string>
+    <string name="linux_terminal_refused_not_pro">Die Linux-Shell ist Teil von Samosa Pro, und dieses Konto hat einen anderen Tarif.</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha konnte deinen Samosa-Pro-Tarif in letzter Zeit nicht bestätigen. Verbinde dich mit dem Internet und versuche es erneut.</string>
     <string name="linux_terminal_refused_not_installed">Gotcha Shell ist auf diesem Telefon nicht installiert.</string>
     <string name="linux_terminal_refused_untrusted">Das Gotcha Shell auf diesem Telefon ist nicht mit demselben Schlüssel signiert wie Gotcha, daher verwendet Gotcha es nicht.</string>
     <string name="linux_terminal_refused_no_answer">Gotcha Shell hat nicht geantwortet. Versuche es gleich noch einmal.</string>
@@ -1730,10 +1730,10 @@
     <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">Ein vollständiges Linux-System in einer eigenen App</string>
     <string name="linux_shell_intro">Gotcha Shell ist eine eigene App, die dem Assistenten ein vollständiges Linux-System gibt: Pakete installieren, Skripte und Werkzeuge ausführen, die kein Handy mitbringt. Sie läuft getrennt von Gotcha, sodass kein Befehl Gotchas Einstellungen, Chats oder Erinnerungen ändern kann, und sie sieht deine Dateien nur, wenn Gotcha ihr eine übergibt.</string>
-    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
     <string name="linux_shell_plan_active">Dein Pro-Tarif ist aktiv.</string>
-    <string name="linux_shell_plan_signed_out">Die Linux-Shell ist Teil von Samosa AI Pro. Melde dich bei Samosa AI an, um sie zu nutzen.</string>
-    <string name="linux_shell_plan_not_pro">Die Linux-Shell ist Teil von Samosa AI Pro, und dein Konto hat einen anderen Tarif. Dein Linux-System und seine Dateien bleiben erhalten; du kannst es unten weiterhin zurücksetzen oder deinstallieren.</string>
+    <string name="linux_shell_plan_signed_out">Die Linux-Shell ist Teil von Samosa Pro. Melde dich bei Samosa AI an, um sie zu nutzen.</string>
+    <string name="linux_shell_plan_not_pro">Die Linux-Shell ist Teil von Samosa Pro, und dein Konto hat einen anderen Tarif. Dein Linux-System und seine Dateien bleiben erhalten; du kannst es unten weiterhin zurücksetzen oder deinstallieren.</string>
     <string name="linux_shell_plan_needs_check">Gotcha konnte deinen Pro-Tarif nicht bestätigen. Verbinde dich mit dem Internet und öffne diese Seite erneut.</string>
     <string name="linux_shell_app_title">Gotcha Shell-App</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell ist nicht installiert. Sie ist Teil von Pro, und Gotcha kann sie für dich herunterladen und installieren.</string>
@@ -1789,11 +1789,11 @@
     <string name="linux_shell_phase_install_runtime">Laufzeit wird installiert…</string>
 
     <!-- Samosa AI and Pro nudges -->
-    <string name="upsell_pro_title">Samosa AI Pro</string>
-    <string name="upsell_pro_lead_shell">Für Linux-Befehle braucht es Gotchas integrierte Linux-Shell, die mit Samosa AI Pro kommt.</string>
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">Für Linux-Befehle braucht es Gotchas integrierte Linux-Shell, die mit Samosa Pro kommt.</string>
     <string name="upsell_pro_lead_limits">Du hast das Limit deines Tarifs vorerst erreicht. Pro bietet höhere Limits, damit du weitermachen kannst.</string>
     <string name="upsell_pro_lead_value">Du erledigst viel mit Gotcha. Mit Pro hat es noch mehr zur Verfügung.</string>
-    <string name="upsell_pro_lead_general">Hol mehr aus Gotcha heraus – mit Samosa AI Pro.</string>
+    <string name="upsell_pro_lead_general">Hol mehr aus Gotcha heraus – mit Samosa Pro.</string>
     <string name="upsell_pro_feature_shell">Eine integrierte Linux-Shell: echte Linux-Befehle, aus dem Chat oder dem Terminal</string>
     <string name="upsell_pro_feature_models">Leistungsfähigere Modelle</string>
     <string name="upsell_pro_feature_limits">Höhere Limits</string>
@@ -1802,7 +1802,7 @@
     <string name="upsell_pro_action">Pro holen</string>
     <string name="upsell_pro_see">Pro ansehen</string>
     <string name="upsell_samosa_title">Samosa AI entdecken</string>
-    <string name="upsell_samosa_lead_shell">Gotchas integrierte Linux-Shell kommt mit Samosa AI Pro. Der erste Schritt ist ein Samosa-AI-Konto.</string>
+    <string name="upsell_samosa_lead_shell">Gotchas integrierte Linux-Shell kommt mit Samosa Pro. Der erste Schritt ist ein Samosa-AI-Konto.</string>
     <string name="upsell_samosa_lead_limits">Dein KI-Anbieter antwortet gerade nicht. Samosa AI funktioniert ohne eigenen API-Schlüssel.</string>
     <string name="upsell_samosa_lead_general">Samosa AI ist der KI-Dienst für Gotcha, vom selben Team, das Gotcha entwickelt.</string>
     <string name="upsell_samosa_feature_no_key">Kein API-Schlüssel zu verwalten: anmelden und loslegen</string>
@@ -1815,9 +1815,9 @@
     <string name="upsell_not_now">Nicht jetzt</string>
     <string name="upsell_settings_plan">Du nutzt den Tarif %1$s. Pro bietet die Linux-Shell, leistungsfähigere Modelle und höhere Limits.</string>
     <string name="upsell_settings_switch">Zu Samosa AI wechseln</string>
-    <string name="upsell_drawer_pro">Samosa AI Pro holen</string>
+    <string name="upsell_drawer_pro">Samosa Pro holen</string>
     <string name="upsell_welcome_title">Willkommen bei Pro</string>
-    <string name="upsell_welcome_text">Dein Samosa-AI-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
+    <string name="upsell_welcome_text">Dein Samosa-Pro-Tarif ist aktiv: Die Linux-Shell, leistungsfähigere Modelle und höhere Limits stehen dir zur Verfügung.</string>
     <string name="upsell_welcome_shell">Linux-Shell einrichten</string>
     <string name="upsell_welcome_later">Später</string>
     <string name="settings_page_chats">Chats und Speicher</string>

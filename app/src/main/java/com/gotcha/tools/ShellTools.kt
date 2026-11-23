@@ -54,7 +54,7 @@ object ShellTools {
     /** What [OFFER] is for. The app shows the user how to get the shell; the model explains why. */
     const val OFFER_DESCRIPTION =
         "Show the user how to get Gotcha's built-in Linux shell, which this phone does not have " +
-            "yet (it comes with Samosa AI Pro). Call it once when the user asks for something that " +
+            "yet (it comes with Samosa Pro). Call it once when the user asks for something that " +
             "needs a real Linux shell and run_shell is not offered: running a Python or other " +
             "script, installing packages, git, ssh, compiling, or Linux tools like ffmpeg or " +
             "yt-dlp. Do not call it for things other tools can do, and not more than once in a chat."

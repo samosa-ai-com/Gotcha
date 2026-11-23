@@ -29,13 +29,13 @@ object ShellEntitlement {
         ALLOWED("available"),
 
         /** No Samosa AI session on this phone. */
-        SIGNED_OUT("the Linux shell is part of Samosa AI Pro and the user is not signed in to Samosa AI"),
+        SIGNED_OUT("the Linux shell is part of Samosa Pro and the user is not signed in to Samosa AI"),
 
         /** The backend said the account's tier does not include the shell. */
-        NOT_PRO("the Linux shell is part of Samosa AI Pro and this account is on another plan"),
+        NOT_PRO("the Linux shell is part of Samosa Pro and this account is on another plan"),
 
         /** Never asked, or the last "Pro" answer is too old: the backend has to be reached. */
-        NEEDS_CHECK("Gotcha could not confirm the Samosa AI Pro plan recently; it needs an internet connection")
+        NEEDS_CHECK("Gotcha could not confirm the Samosa Pro plan recently; it needs an internet connection")
     }
 
     /** What the backend said about the signed-in account's tier. */
