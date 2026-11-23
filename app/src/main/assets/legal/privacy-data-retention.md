@@ -230,55 +230,30 @@ and can be turned off; see Section 11.
          fails or crashes, so we can fix and improve it.
 
     11.4 What is sent. Usage data includes, but is not restricted to,
-         the following kinds of information:
-           (a) App use: when the App is opened, how long it took to
-               start, how long each session lasted, and a summary of
-               the session (for example whether it was mostly chat,
-               voice or automation, how many requests ran or failed,
-               and whether the App froze or stuttered);
-           (b) assistant activity: where a request started (for example
-               a chat, a voice call, the floating ball or a scheduled
-               task), the agent mode, how many steps and tool calls it
-               took, how long it ran, whether it succeeded and how it
-               ended;
-           (c) AI requests: the kind of AI service used (for example
-               Samosa AI, OpenAI, OpenRouter, Groq or a local server),
-               the model's name, how long the reply took, the number of
-               tokens as a range, whether a cache was used, and the type
-               of any error;
-           (d) tools and features: which of the App's built-in tools ran
-               and whether they worked; use of voice calls, the wake
-               word, the shell, scheduled tasks and updates; which
-               connectors were connected or disconnected and how many
-               MCP servers are set up; which bundled skills were used
-               (your own skills are counted only as "custom"); Screen
-               Lens actions; and progress through setup and the feature
-               tour;
-           (e) permissions: which Android permissions were granted or
-               denied; and
-           (f) crashes: the type of error, the name of the method it
-               came from, and whether the App was in front.
-         Values are sent as yes/no answers, ranges (for example "6–30
-         seconds") or words from fixed lists, apart from model names and
-         the error and method names of a crash. Each event carries the
-         time it happened and a random id for that App session. With
-         each batch the App also sends its version, build number and
-         build type, the Android version, the language setting and
-         whether the device is a phone or a tablet. The full list of
-         events is shown in the App under Settings → Privacy → "What we
-         send".
+         these kinds of information:
+           (a) app use, such as how long the App takes to start and how
+               long a session lasts;
+           (b) assistant and AI activity, such as the kind of AI service
+               and model used, and whether a request succeeded;
+           (c) features, such as which built-in tools, connectors or
+               permissions were used; and
+           (d) crashes, such as the type of error and where in the App
+               it happened.
+         With each batch the App also sends basic details such as its
+         version and the Android version. The full list of events is
+         shown in the App under Settings → Privacy → "What we send".
 
-    11.5 What is never sent: your messages or the assistant's replies,
-         what is on your screen, files or file names, contacts, text
-         messages, call logs, calendar entries, notifications, location,
-         health data, shell commands or their output, the names of your
-         apps, web addresses, your API key, your Samosa AI account or
-         email, and any device identifier (Android ID, IMEI, serial
-         number or advertising ID). The text of an error is never sent;
-         for a crash, only the type of error and the name of the method
-         it came from. Usage data never carries your content, and none
-         of the content you type, say, see, save or run leaves the
-         phone as part of it.
+    11.5 What is never sent: the content of your AI requests and their
+         replies, or the API calls themselves; your messages, what is on
+         your screen, files or file names, contacts, text messages, call
+         logs, calendar entries, notifications, location, health data,
+         shell commands or their output, the names of your apps, web
+         addresses, your API key, your Samosa AI account or email, and
+         any device identifier (Android ID, IMEI, serial number or
+         advertising ID). The text of an error is never sent. None of
+         the content you type, say, see, save or run leaves the phone as
+         part of usage data. Usage data is anonymised before it is sent,
+         so no personally identifiable information is collected.
 
     11.6 Identifier: the install registration gives the App a random
          install id and a token. They are not derived from your device
