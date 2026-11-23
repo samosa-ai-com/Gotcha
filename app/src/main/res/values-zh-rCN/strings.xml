@@ -283,6 +283,16 @@
     <string name="local_notifications_clear">清除</string>
     <string name="local_notifications_cancel">取消</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">Gotcha 决定发送的提醒和小贴士，根据你的对话在这部手机上计算得出。做出这些决定时不会上传任何关于你使用 Gotcha 的信息。</string>
+    <string name="local_notifications_to">结束</string>
+    <string name="local_notifications_from">开始</string>
+    <string name="local_notifications_time">时间</string>
+    <string name="local_notifications_name_chats">在通知中显示聊天名称</string>
+    <string name="local_notifications_quiet_hours">免打扰时段</string>
+    <string name="local_notifications_daily_tip">每日提示</string>
+    <string name="local_notifications_quiet_spell">一段时间未使用后</string>
+    <string name="local_notifications_routines">日常例行</string>
+    <string name="local_notifications_unfinished">未完成的聊天</string>
+    <string name="local_notifications_send">发送 Gotcha 通知</string>
     <string name="local_notifications_this_empties_the_list_behind">清空主屏幕铃铛后面的列表。Gotcha 已发送的提醒不会再次发送。</string>
     <string name="ai_config_hide">隐藏</string>
     <string name="ai_config_show">显示</string>
@@ -1792,4 +1802,7 @@
     <string name="chats_import_summary">从 Gotcha 备份文件添加聊天</string>
     <string name="chats_group_storage">存储</string>
     <string name="chats_group_chats">聊天</string>
+    <plurals name="local_notifications_days">
+        <item quantity="other">%d 天</item>
+    </plurals>
 </resources>

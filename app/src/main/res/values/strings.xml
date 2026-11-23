@@ -449,6 +449,16 @@
     <string name="local_notifications_clear">Clear</string>
     <string name="local_notifications_cancel">Cancel</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">Reminders and tips Gotcha decides to send, worked out on this phone from your chats. Nothing about how you use Gotcha is uploaded to decide them.</string>
+    <string name="local_notifications_to">To</string>
+    <string name="local_notifications_from">From</string>
+    <string name="local_notifications_time">Time</string>
+    <string name="local_notifications_name_chats">Name chats in notifications</string>
+    <string name="local_notifications_quiet_hours">Quiet hours</string>
+    <string name="local_notifications_daily_tip">Daily tip</string>
+    <string name="local_notifications_quiet_spell">After a quiet spell</string>
+    <string name="local_notifications_routines">Routines</string>
+    <string name="local_notifications_unfinished">Unfinished chats</string>
+    <string name="local_notifications_send">Send Gotcha notifications</string>
     <string name="local_notifications_this_empties_the_list_behind">This empties the list behind the bell on the home screen. Reminders Gotcha has already sent won\'t be sent again.</string>
 
     <!-- AiConfigScreen -->
@@ -2114,4 +2124,8 @@
     <string name="upsell_welcome_text">Your Samosa AI Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
     <string name="upsell_welcome_shell">Set up the Linux shell</string>
     <string name="upsell_welcome_later">Later</string>
+    <plurals name="local_notifications_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
 </resources>

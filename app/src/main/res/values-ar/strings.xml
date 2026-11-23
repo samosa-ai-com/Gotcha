@@ -402,6 +402,16 @@
     <string name="local_notifications_clear">مسح</string>
     <string name="local_notifications_cancel">إلغاء</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">تذكيرات ونصائح يقرر Gotcha إرسالها، تُحسب على هذا الهاتف من محادثاتك. لا يُرفع أي شيء عن طريقة استخدامك لـ Gotcha لتحديدها.</string>
+    <string name="local_notifications_to">إلى</string>
+    <string name="local_notifications_from">من</string>
+    <string name="local_notifications_time">الوقت</string>
+    <string name="local_notifications_name_chats">ذكر اسم المحادثات في الإشعارات</string>
+    <string name="local_notifications_quiet_hours">ساعات الهدوء</string>
+    <string name="local_notifications_daily_tip">نصيحة يومية</string>
+    <string name="local_notifications_quiet_spell">بعد فترة هدوء</string>
+    <string name="local_notifications_routines">الروتين</string>
+    <string name="local_notifications_unfinished">المحادثات غير المكتملة</string>
+    <string name="local_notifications_send">إرسال إشعارات Gotcha</string>
     <string name="local_notifications_this_empties_the_list_behind">هذا يفرّغ القائمة خلف الجرس في الشاشة الرئيسية. التذكيرات التي أرسلها Gotcha بالفعل لن تُرسل مرة أخرى.</string>
 
     <!-- AiConfigScreen -->
@@ -2201,4 +2211,12 @@
     <string name="upsell_welcome_text">خطة Samosa AI Pro مفعّلة: صدفة Linux والنماذج الأكثر قدرة والحدود الأعلى جاهزة لك.</string>
     <string name="upsell_welcome_shell">إعداد صدفة Linux</string>
     <string name="upsell_welcome_later">لاحقًا</string>
+    <plurals name="local_notifications_days">
+        <item quantity="zero">%d يوم</item>
+        <item quantity="one">يوم واحد</item>
+        <item quantity="two">يومان</item>
+        <item quantity="few">%d أيام</item>
+        <item quantity="many">%d يومًا</item>
+        <item quantity="other">%d يوم</item>
+    </plurals>
 </resources>

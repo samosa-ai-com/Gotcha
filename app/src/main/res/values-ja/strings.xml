@@ -283,6 +283,16 @@
     <string name="local_notifications_clear">消去</string>
     <string name="local_notifications_cancel">キャンセル</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">Gotcha が送ると判断したリマインダーとヒントです。チャットの内容をもとにこのスマートフォン上で判断します。判断のために Gotcha の利用状況がアップロードされることはありません。</string>
+    <string name="local_notifications_to">終了</string>
+    <string name="local_notifications_from">開始</string>
+    <string name="local_notifications_time">時刻</string>
+    <string name="local_notifications_name_chats">通知にチャット名を表示</string>
+    <string name="local_notifications_quiet_hours">おやすみ時間</string>
+    <string name="local_notifications_daily_tip">今日のヒント</string>
+    <string name="local_notifications_quiet_spell">しばらく使わなかったとき</string>
+    <string name="local_notifications_routines">ルーティン</string>
+    <string name="local_notifications_unfinished">未完了のチャット</string>
+    <string name="local_notifications_send">Gotcha の通知を送る</string>
     <string name="local_notifications_this_empties_the_list_behind">ホーム画面のベルの中にある一覧を空にします。Gotcha がすでに送ったリマインダーは再送されません。</string>
     <string name="ai_config_hide">非表示</string>
     <string name="ai_config_show">表示</string>
@@ -1792,4 +1802,7 @@
     <string name="chats_import_summary">Gotcha のバックアップからチャットを追加</string>
     <string name="chats_group_storage">ストレージ</string>
     <string name="chats_group_chats">チャット</string>
+    <plurals name="local_notifications_days">
+        <item quantity="other">%d 日</item>
+    </plurals>
 </resources>

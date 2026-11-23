@@ -283,6 +283,16 @@
     <string name="local_notifications_clear">Limpar</string>
     <string name="local_notifications_cancel">Cancelar</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">Lembretes e dicas que o Gotcha decide enviar, calculados neste celular a partir dos seus chats. Nada sobre o seu uso do Gotcha é enviado para decidir isso.</string>
+    <string name="local_notifications_to">Até</string>
+    <string name="local_notifications_from">De</string>
+    <string name="local_notifications_time">Horário</string>
+    <string name="local_notifications_name_chats">Mostrar o nome das conversas nas notificações</string>
+    <string name="local_notifications_quiet_hours">Horário silencioso</string>
+    <string name="local_notifications_daily_tip">Dica diária</string>
+    <string name="local_notifications_quiet_spell">Depois de um tempo sem uso</string>
+    <string name="local_notifications_routines">Rotinas</string>
+    <string name="local_notifications_unfinished">Conversas inacabadas</string>
+    <string name="local_notifications_send">Enviar notificações do Gotcha</string>
     <string name="local_notifications_this_empties_the_list_behind">Esvazia a lista atrás do sino na tela inicial. Lembretes que o Gotcha já enviou não serão enviados de novo.</string>
     <string name="ai_config_hide">Ocultar</string>
     <string name="ai_config_show">Mostrar</string>
@@ -1837,4 +1847,8 @@
     <string name="chats_import_summary">Adicione conversas de um backup do Gotcha</string>
     <string name="chats_group_storage">Armazenamento</string>
     <string name="chats_group_chats">Conversas</string>
+    <plurals name="local_notifications_days">
+        <item quantity="one">%d dia</item>
+        <item quantity="other">%d dias</item>
+    </plurals>
 </resources>

@@ -283,6 +283,16 @@
     <string name="local_notifications_clear">साफ़ करें</string>
     <string name="local_notifications_cancel">रद्द करें</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">रिमाइंडर और टिप्स जिन्हें Gotcha भेजने का फ़ैसला करता है, आपकी चैट से इसी फ़ोन पर तय किए जाते हैं। इन्हें तय करने के लिए आपके Gotcha इस्तेमाल की कोई जानकारी अपलोड नहीं होती।</string>
+    <string name="local_notifications_to">तक</string>
+    <string name="local_notifications_from">से</string>
+    <string name="local_notifications_time">समय</string>
+    <string name="local_notifications_name_chats">सूचनाओं में चैट का नाम दिखाएँ</string>
+    <string name="local_notifications_quiet_hours">शांत घंटे</string>
+    <string name="local_notifications_daily_tip">रोज़ की टिप</string>
+    <string name="local_notifications_quiet_spell">कुछ समय इस्तेमाल न करने पर</string>
+    <string name="local_notifications_routines">रूटीन</string>
+    <string name="local_notifications_unfinished">अधूरी चैट</string>
+    <string name="local_notifications_send">Gotcha सूचनाएँ भेजें</string>
     <string name="local_notifications_this_empties_the_list_behind">इससे होम स्क्रीन पर घंटी के पीछे वाली सूची खाली हो जाती है। Gotcha जो रिमाइंडर पहले भेज चुका है, वे दोबारा नहीं भेजे जाएँगे।</string>
     <string name="ai_config_hide">छिपाएँ</string>
     <string name="ai_config_show">दिखाएँ</string>
@@ -1815,4 +1825,8 @@
     <string name="chats_import_summary">Gotcha बैकअप फ़ाइल से चैट जोड़ें</string>
     <string name="chats_group_storage">स्टोरेज</string>
     <string name="chats_group_chats">चैट</string>
+    <plurals name="local_notifications_days">
+        <item quantity="one">%d दिन</item>
+        <item quantity="other">%d दिन</item>
+    </plurals>
 </resources>
