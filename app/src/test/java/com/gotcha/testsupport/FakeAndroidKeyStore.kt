@@ -32,7 +32,8 @@ object FakeAndroidKeyStore {
 
     private const val PROVIDER_NAME = "AndroidKeyStore"
 
-    private val entries = mutableMapOf<String, Key>()
+    // Tests reach it from background threads too (refreshes on Dispatchers.IO).
+    private val entries = java.util.concurrent.ConcurrentHashMap<String, Key>()
 
     fun setUp() {
         if (java.security.Security.getProvider(PROVIDER_NAME) == null) {
