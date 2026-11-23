@@ -24,6 +24,26 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.BubbleChart
+import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DeveloperMode
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -102,23 +123,39 @@ import kotlin.math.round
  * [title] doubles as the row label on the home list and the sub-page's top-bar
  * title, so the two can't drift apart.
  */
+/** The headed sections of the settings home list, in the order they appear. */
+enum class SettingsGroup(@StringRes val title: Int) {
+    ASSISTANT(R.string.settings_group_assistant),
+    AUTOMATION(R.string.settings_group_automation),
+    APP(R.string.settings_group_app),
+    PRIVACY(R.string.settings_group_privacy),
+    HELP(R.string.settings_group_help)
+}
+
 /**
- * Declaration order is the order of the home list; nothing reads the ordinal, so
- * this is the only place the menu is arranged. What the assistant *is* comes
- * first — who it thinks you are, which model it runs, what it may touch — and
- * the page about how the app presents itself sits at the end.
+ * Every settings page. Declaration order is the order within each [SettingsGroup]
+ * on the home list; nothing reads the ordinal, so this is the only place the menu
+ * is arranged.
  *
- * Most pages hang directly off the home list. The exceptions declare a [parent]:
+ * The home list is grouped rather than one long column: what the assistant thinks
+ * with and knows about you, what it does by itself, how the app looks and talks
+ * to you, what it may touch, then help. Seventeen ungrouped rows of equal weight
+ * made every setting a scroll and a guess.
+ *
+ * Most pages hang directly off the home list. The exceptions declare a parent:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. Three hubs exist: [AI], which collects
- * everything the assistant thinks, hears and speaks with, [SHELL], which collects
- * the two ways it can run Linux commands, and [ABOUT], which collects "who made
- * this app and what did I agree to".
+ * that parent instead of from the home list. Two hubs exist: [SHELL], which
+ * collects the two ways the assistant can run Linux commands, and [ABOUT], which
+ * collects "who made this app and what did I agree to".
  */
 enum class SettingsPage(
     @StringRes val title: Int,
     @StringRes val summary: Int,
     val testTag: String,
+    /** The row's icon, on the home list and in hubs. */
+    val icon: ImageVector,
+    /** The home-list section this page sits in; null for a page inside a hub. */
+    val group: SettingsGroup?,
     /**
      * The page this one is reached from, or null for the home list. Doubles as
      * the Back target, so a nested page returns to its hub rather than skipping
@@ -127,152 +164,155 @@ enum class SettingsPage(
      */
     val parentPage: () -> SettingsPage? = { null }
 ) {
-    PERSONAL_INFO(
-        R.string.settings_page_personal_info,
-        R.string.settings_page_personal_info_summary,
-        "settings_personal_info_row"
-    ),
-    CHATS(
-        R.string.settings_page_chats,
-        R.string.settings_page_chats_summary,
-        "settings_chats_row"
-    ),
-    LANGUAGE(
-        R.string.settings_page_language,
-        R.string.settings_page_language_summary,
-        "settings_language_row"
-    ),
     AI_CONFIG(
         R.string.settings_page_ai_config,
         R.string.settings_page_ai_config_summary,
-        "settings_ai_config_row"
+        "settings_ai_config_row",
+        Icons.Outlined.Psychology,
+        SettingsGroup.ASSISTANT
     ),
     SPEECH(
         R.string.settings_page_speech,
         R.string.settings_page_speech_summary,
-        "settings_speech_row"
+        "settings_speech_row",
+        Icons.Outlined.RecordVoiceOver,
+        SettingsGroup.ASSISTANT
     ),
-    PERMISSIONS(
-        R.string.settings_page_permissions,
-        R.string.settings_page_permissions_summary,
-        "settings_permissions_row"
+    PERSONAL_INFO(
+        R.string.settings_page_personal_info,
+        R.string.settings_page_personal_info_summary,
+        "settings_personal_info_row",
+        Icons.Outlined.Person,
+        SettingsGroup.ASSISTANT
     ),
-    PRIVACY(
-        R.string.settings_page_privacy,
-        R.string.settings_page_privacy_summary,
-        "settings_privacy_row"
+    SKILLS(
+        R.string.settings_page_skills,
+        R.string.settings_page_skills_summary,
+        "settings_skills_row",
+        Icons.Outlined.Extension,
+        SettingsGroup.ASSISTANT
+    ),
+    PROACTIVE(
+        R.string.settings_page_proactive,
+        R.string.settings_page_proactive_summary,
+        "settings_proactive_row",
+        Icons.Outlined.AutoAwesome,
+        SettingsGroup.AUTOMATION
+    ),
+    SCHEDULED_TASKS(
+        R.string.settings_page_scheduled_tasks,
+        R.string.settings_page_scheduled_tasks_summary,
+        "settings_scheduled_tasks_row",
+        Icons.Outlined.Schedule,
+        SettingsGroup.AUTOMATION
+    ),
+    ASSISTIVE_BALL(
+        R.string.settings_page_assistive_ball,
+        R.string.settings_page_assistive_ball_summary,
+        "settings_assistive_ball_row",
+        Icons.Outlined.BubbleChart,
+        SettingsGroup.AUTOMATION
     ),
     SHELL(
         R.string.settings_page_shell,
         R.string.settings_page_shell_summary,
-        "settings_shell_row"
+        "settings_shell_row",
+        Icons.Outlined.Terminal,
+        SettingsGroup.AUTOMATION
     ),
     LINUX_SHELL(
         R.string.settings_page_linux_shell,
         R.string.settings_page_linux_shell_summary,
         "settings_linux_shell_row",
+        Icons.Outlined.Terminal,
+        null,
         { SHELL }
     ),
     LINUX_TERMINAL(
         R.string.settings_page_linux_terminal,
         R.string.settings_page_linux_terminal_summary,
         "settings_linux_terminal_row",
-        parentPage = { LINUX_SHELL }
+        Icons.Outlined.Code,
+        null,
+        { LINUX_SHELL }
     ),
     TERMUX(
         R.string.settings_page_termux,
         R.string.settings_page_termux_summary,
         "settings_termux_row",
+        Icons.Outlined.DeveloperMode,
+        null,
         { SHELL }
-    ),
-    SKILLS(
-        R.string.settings_page_skills,
-        R.string.settings_page_skills_summary,
-        "settings_skills_row"
-    ),
-    SCHEDULED_TASKS(
-        R.string.settings_page_scheduled_tasks,
-        R.string.settings_page_scheduled_tasks_summary,
-        "settings_scheduled_tasks_row"
-    ),
-    PROACTIVE(
-        R.string.settings_page_proactive,
-        R.string.settings_page_proactive_summary,
-        "settings_proactive_row"
-    ),
-    ASSISTIVE_BALL(
-        // The wake word listens from inside the ball's service, so it is not a
-        // page of its own — the title says so to make it findable.
-        R.string.settings_page_assistive_ball,
-        R.string.settings_page_assistive_ball_summary,
-        "settings_assistive_ball_row"
     ),
     APPEARANCE(
         R.string.settings_page_appearance,
         R.string.settings_page_appearance_summary,
-        "settings_appearance_row"
+        "settings_appearance_row",
+        Icons.Outlined.Palette,
+        SettingsGroup.APP
+    ),
+    LANGUAGE(
+        R.string.settings_page_language,
+        R.string.settings_page_language_summary,
+        "settings_language_row",
+        Icons.Outlined.Language,
+        SettingsGroup.APP
     ),
     NOTIFICATIONS(
         R.string.settings_page_notifications,
         R.string.settings_page_notifications_summary,
-        "settings_notifications_row"
+        "settings_notifications_row",
+        Icons.Outlined.Notifications,
+        SettingsGroup.APP
+    ),
+    CHATS(
+        R.string.settings_page_chats,
+        R.string.settings_page_chats_summary,
+        "settings_chats_row",
+        Icons.Outlined.Forum,
+        SettingsGroup.APP
+    ),
+    PERMISSIONS(
+        R.string.settings_page_permissions,
+        R.string.settings_page_permissions_summary,
+        "settings_permissions_row",
+        Icons.Outlined.AdminPanelSettings,
+        SettingsGroup.PRIVACY
+    ),
+    PRIVACY(
+        R.string.settings_page_privacy,
+        R.string.settings_page_privacy_summary,
+        "settings_privacy_row",
+        Icons.Outlined.PrivacyTip,
+        SettingsGroup.PRIVACY
     ),
     ABOUT(
         R.string.settings_page_about,
         R.string.settings_page_about_summary,
-        "settings_about_row"
+        "settings_about_row",
+        Icons.Outlined.Info,
+        SettingsGroup.HELP
     ),
     ABOUT_SAMOSA(
         R.string.settings_page_about_samosa,
         R.string.settings_page_about_samosa_summary,
         "settings_about_samosa_row",
+        Icons.Outlined.Business,
+        null,
         { ABOUT }
     ),
     LEGAL(
         R.string.settings_page_legal,
         R.string.settings_page_legal_summary,
         "settings_legal_row",
+        Icons.Outlined.Gavel,
+        null,
         { ABOUT }
     );
 
-    /** Pages the home list shows: everything that isn't nested inside a hub. */
     companion object {
+        /** Pages the home list shows: everything that isn't nested inside a hub. */
         val topLevel: List<SettingsPage> get() = entries.filter { it.parentPage() == null }
-    }
-}
-
-/**
- * A row on the settings home list that opens a sub-page. Uses the same text
- * chevron as the rest of this screen rather than an icon font.
- */
-@Composable
-fun SettingsNavRow(
-    page: SettingsPage,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    /** Overrides the row label. Search results pass the "hub › page" path. */
-    title: String = stringResource(page.title)
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = stringResource(page.summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Text(text = "›", style = MaterialTheme.typography.titleLarge)
     }
 }
 

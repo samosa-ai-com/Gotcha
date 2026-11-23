@@ -65,7 +65,7 @@
     <string name="action_cancel">إلغاء</string>
 
     <!-- Settings pages: title and the summary under it on the home list -->
-    <string name="settings_page_personal_info">المعلومات الشخصية</string>
+    <string name="settings_page_personal_info">عنك</string>
     <string name="settings_page_personal_info_summary">هويتك، العملة، أسلوب الرد</string>
     <string name="settings_page_second_brain">الدماغ الثاني</string>
     <string name="settings_page_chats">المحادثات</string>
@@ -128,15 +128,15 @@
     <string name="second_brain_graph_reset">إعادة العرض</string>
     <string name="second_brain_graph_neighbors"> · %1$d متصلة</string>
     <string name="settings_page_language">اللغة</string>
-    <string name="settings_page_language_summary">لغة عرض التطبيق والصوت والنسخ والردود بالذكاء الاصطناعي</string>
-    <string name="settings_page_ai_config">إعدادات الذكاء الاصطناعي</string>
-    <string name="settings_page_ai_config_summary">المزوّد، الطرازات، حدود الوكيل</string>
-    <string name="settings_page_speech">الكلام (TTS / STT)</string>
-    <string name="settings_page_speech_summary">الأصوات، النسخ، قراءة الردود بصوت عالٍ</string>
+    <string name="settings_page_language_summary">لغة عرض التطبيق ولغة ردود الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_config">نموذج الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_config_summary">المزوّد والنموذج وحدود الوكيل</string>
+    <string name="settings_page_speech">الصوت والكلام</string>
+    <string name="settings_page_speech_summary">الأصوات والنسخ والقراءة بصوت عالٍ</string>
     <string name="settings_page_permissions">الأذونات</string>
     <string name="settings_page_permissions_summary">ما يُسمح للمساعد بفعله</string>
     <string name="settings_page_shell">الصدفة</string>
-    <string name="settings_page_shell_summary">Gotcha Shell أو Termux: حيث يشغّل المساعد أوامر Linux</string>
+    <string name="settings_page_shell_summary">Gotcha Shell أو Termux لأوامر Linux</string>
     <string name="shell_hub_intro">طريقتان ليشغّل المساعد أوامر Linux. ‏Gotcha Shell نظام Linux كامل في تطبيقه الخاص؛ وTermux يستخدم تطبيق Termux إن كان مثبّتًا لديك. اضبط أحدهما، أو كليهما.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">استخدم تطبيق Termux إن كان لديك</string>
@@ -144,8 +144,8 @@
     <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
     <string name="settings_page_proactive">المساعدة الاستباقية</string>
     <string name="settings_page_proactive_summary">العروض، كشف OTP، ما يمكن فحصه</string>
-    <string name="settings_page_assistive_ball">الكرة المساعدة وكلمة التنبيه</string>
-    <string name="settings_page_assistive_ball_summary">كرة عائمة فوق التطبيقات، اتصال بدون لمس، \"Hey Gotcha\"</string>
+    <string name="settings_page_assistive_ball">الكرة العائمة وكلمة التنبيه</string>
+    <string name="settings_page_assistive_ball_summary">مكالمات دون استخدام اليدين و\"Hey Gotcha\"</string>
     <string name="settings_page_appearance">المظهر</string>
     <string name="settings_page_appearance_summary">كيف يبدو التطبيق</string>
     <string name="settings_page_notifications">الإشعارات</string>
@@ -239,6 +239,13 @@
     <!-- Settings home -->
     <string name="settings_title">الإعدادات</string>
     <string name="settings_search_hint">ابحث في الإعدادات</string>
+    <string name="settings_account_summary_signed_out">سجّل الدخول لاستخدام نماذج وأصوات Samosa AI</string>
+    <string name="settings_account_summary_signed_in">الحساب والخطة وتسجيل الخروج</string>
+    <string name="settings_group_help">المساعدة وحول</string>
+    <string name="settings_group_privacy">الخصوصية والأذونات</string>
+    <string name="settings_group_app">التطبيق</string>
+    <string name="settings_group_automation">الأتمتة</string>
+    <string name="settings_group_assistant">المساعد</string>
     <string name="settings_unsaved_title">هل تحفظ تغييراتك؟</string>
     <string name="settings_unsaved_message">غيّرت هذه الصفحة دون حفظ.</string>
     <string name="settings_unsaved_save">حفظ</string>
@@ -248,7 +255,7 @@
     <string name="settings_feature_tour">جولة الميزات</string>
     <string name="settings_feature_tour_summary">أعد الإعداد خطوة بخطوة</string>
     <string name="settings_feedback">إرسال ملاحظات</string>
-    <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه — لا يُرسل شيء حتى تُرسل</string>
+    <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه</string>
 
     <!-- AiHubScreen -->
 
@@ -2045,7 +2052,7 @@
     <string name="linux_terminal_refused_failed_unknown">تعذّر تشغيل الطرفية.</string>
     <!-- Settings ▸ Privacy, and optional usage data -->
     <string name="settings_page_privacy">الخصوصية</string>
-    <string name="settings_page_privacy_summary">استخدامك على هذا الهاتف، وإلى أين تذهب بياناتك</string>
+    <string name="settings_page_privacy_summary">استخدامك، وإلى أين تذهب بياناتك</string>
     <string name="privacy_your_usage_title">استخدامك</string>
     <string name="privacy_your_usage_intro">محسوب على هذا الهاتف من المحادثات والمكالمات والسجلات التي يحتفظ بها Gotcha أصلًا. لا يُرسَل أي شيء من هذا إلى أي مكان.</string>
     <string name="privacy_stat_chats">المحادثات</string>

@@ -68,7 +68,7 @@
     <string name="action_cancel">Cancel</string>
 
     <!-- Settings pages: title and the summary under it on the home list -->
-    <string name="settings_page_personal_info">Personal Info</string>
+    <string name="settings_page_personal_info">About you</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
     <string name="settings_page_chats">Chats</string>
@@ -131,26 +131,26 @@
     <string name="second_brain_graph_reset">Reset view</string>
     <string name="second_brain_graph_neighbors"> · %1$d connected</string>
     <string name="settings_page_language">Language</string>
-    <string name="settings_page_language_summary">App display, voice, transcription and AI reply language</string>
-    <string name="settings_page_ai_config">AI Configuration</string>
-    <string name="settings_page_ai_config_summary">Provider, models, agent limits</string>
-    <string name="settings_page_speech">Speech (TTS / STT)</string>
-    <string name="settings_page_speech_summary">Voices, transcription, read replies aloud</string>
+    <string name="settings_page_language_summary">App display and AI reply language</string>
+    <string name="settings_page_ai_config">AI model</string>
+    <string name="settings_page_ai_config_summary">Provider, model, agent limits</string>
+    <string name="settings_page_speech">Voice and speech</string>
+    <string name="settings_page_speech_summary">Voices, transcription, reading aloud</string>
     <string name="settings_page_permissions">Permissions</string>
     <string name="settings_page_permissions_summary">What the assistant is allowed to do</string>
     <string name="settings_page_linux_shell">Gotcha Shell</string>
     <string name="settings_page_linux_shell_summary">A full Linux system in its own app</string>
     <string name="settings_page_shell">Shell</string>
-    <string name="settings_page_shell_summary">Gotcha Shell or Termux: where the assistant runs Linux commands</string>
+    <string name="settings_page_shell_summary">Gotcha Shell or Termux for Linux commands</string>
     <string name="shell_hub_intro">Two ways to let the assistant run Linux commands. Gotcha Shell is a full Linux system in its own app; Termux uses the Termux app if you already have it. Set up either one, or both.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Use the Termux app if you already have it</string>
     <string name="settings_page_skills">Skills / Plugins</string>
     <string name="settings_page_skills_summary">Built-in and community skills</string>
-    <string name="settings_page_proactive">Proactive Assistance</string>
+    <string name="settings_page_proactive">Proactive assistance</string>
     <string name="settings_page_proactive_summary">Offers, OTP detection, what may be scanned</string>
-    <string name="settings_page_assistive_ball">Assistive Ball and Wake Word</string>
-    <string name="settings_page_assistive_ball_summary">Floating ball over other apps, hands-free calls, \"Hey Gotcha\"</string>
+    <string name="settings_page_assistive_ball">Floating ball and wake word</string>
+    <string name="settings_page_assistive_ball_summary">Hands-free calls and \"Hey Gotcha\"</string>
     <string name="settings_page_appearance">Appearance</string>
     <string name="settings_page_appearance_summary">How the app looks</string>
     <string name="settings_page_notifications">Notifications</string>
@@ -162,7 +162,7 @@
     <string name="settings_page_legal">Legal</string>
     <string name="settings_page_legal_summary">Terms, disclaimer, data retention</string>
     <string name="settings_page_privacy">Privacy</string>
-    <string name="settings_page_privacy_summary">Your usage on this phone, and where your data goes</string>
+    <string name="settings_page_privacy_summary">Your usage, and where your data goes</string>
     <string name="privacy_your_usage_title">Your usage</string>
     <string name="privacy_your_usage_intro">Counted on this phone from the chats, calls and logs Gotcha already keeps. Nothing here is sent anywhere.</string>
     <string name="privacy_stat_chats">Chats</string>
@@ -286,16 +286,23 @@
     <!-- Settings home -->
     <string name="settings_title">Settings</string>
     <string name="settings_search_hint">Search settings</string>
+    <string name="settings_account_summary_signed_out">Sign in for Samosa AI models and voices</string>
+    <string name="settings_account_summary_signed_in">Account, plan and sign-out</string>
+    <string name="settings_group_help">Help and about</string>
+    <string name="settings_group_privacy">Privacy and permissions</string>
+    <string name="settings_group_app">App</string>
+    <string name="settings_group_automation">Automation</string>
+    <string name="settings_group_assistant">Assistant</string>
     <string name="settings_unsaved_title">Save your changes?</string>
     <string name="settings_unsaved_message">You changed this page without saving.</string>
     <string name="settings_unsaved_save">Save</string>
     <string name="settings_unsaved_discard">Discard</string>
     <string name="settings_search_clear">Clear search</string>
     <string name="settings_search_empty">No settings match “%1$s”</string>
-    <string name="settings_feature_tour">Feature Tour</string>
+    <string name="settings_feature_tour">Feature tour</string>
     <string name="settings_feature_tour_summary">Walk through setup again, one step at a time</string>
-    <string name="settings_feedback">Send Feedback</string>
-    <string name="settings_feedback_summary">Tell us what to improve — nothing is sent until you submit</string>
+    <string name="settings_feedback">Send feedback</string>
+    <string name="settings_feedback_summary">Tell us what to improve</string>
 
     <!-- AiHubScreen -->
 

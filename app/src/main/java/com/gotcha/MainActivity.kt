@@ -1036,6 +1036,9 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // Where Account (and Connectors) go back to: the drawer opens them from
+        // chat, Settings from its own list, and Back should retrace either path.
+        var accountReturnRoute by rememberSaveable { mutableStateOf(Route.HOME) }
         // The chat whose assets ChatAssetsScreen shows; set on the tap that
         // navigates there, alongside the route, like settingsPage is for Settings.
         var assetsSessionId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1321,6 +1324,7 @@ class MainActivity : ComponentActivity() {
                     accountName = drawerAccountName,
                     onOpenAccount = {
                         scope.launch { drawerState.close() }
+                        accountReturnRoute = Route.HOME
                         currentRoute = Route.ACCOUNT
                     },
                     maxContextTokens = state.maxContextTokens,
@@ -1450,6 +1454,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onImportChats = { chatTransfer.startImport() },
                         onBackupAllChats = { chatTransfer.startBackupAll() },
+                        accountName = drawerAccountName,
+                        onOpenAccount = {
+                            accountReturnRoute = Route.SETTINGS
+                            currentRoute = Route.ACCOUNT
+                        },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it
@@ -1481,7 +1490,7 @@ class MainActivity : ComponentActivity() {
                 Route.ACCOUNT -> {
                     val leaveAccount = {
                         chatViewModel.refreshSettings()
-                        currentRoute = Route.HOME
+                        currentRoute = accountReturnRoute
                     }
                     BackHandler { leaveAccount() }
                     AccountScreen(

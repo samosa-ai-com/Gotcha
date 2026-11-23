@@ -42,7 +42,7 @@
     <string name="language_reply_title">Antwortsprache der KI</string>
     <string name="language_reply_description">Die Sprache, in der der Assistent antwortet. Tool-Namen, Befehle und Dateipfade bleiben auf Englisch, damit sie funktionieren.</string>
     <string name="action_cancel">Abbrechen</string>
-    <string name="settings_page_personal_info">Persönliche Infos</string>
+    <string name="settings_page_personal_info">Über dich</string>
     <string name="settings_page_personal_info_summary">Wer du bist, Währung, Antwortstil</string>
     <string name="settings_page_second_brain">Second Brain</string>
     <string name="second_brain_summary">Notizen: %1$d · Personen: %2$d · Bereiche: %3$d</string>
@@ -62,15 +62,15 @@
     <string name="second_brain_saved">Im Second Brain gespeichert</string>
     <string name="second_brain_updated">Im Second Brain aktualisiert</string>
     <string name="settings_page_language">Sprache</string>
-    <string name="settings_page_language_summary">App-Sprache, Sprachausgabe, Transkription und Antwortsprache der KI</string>
-    <string name="settings_page_ai_config">KI-Konfiguration</string>
-    <string name="settings_page_ai_config_summary">Anbieter, Modelle, Agent-Limits</string>
-    <string name="settings_page_speech">Sprache (TTS / STT)</string>
-    <string name="settings_page_speech_summary">Stimmen, Transkription, Antworten vorlesen</string>
+    <string name="settings_page_language_summary">Sprache der App und der KI-Antworten</string>
+    <string name="settings_page_ai_config">KI-Modell</string>
+    <string name="settings_page_ai_config_summary">Anbieter, Modell, Agent-Limits</string>
+    <string name="settings_page_speech">Stimme und Sprache</string>
+    <string name="settings_page_speech_summary">Stimmen, Transkription, Vorlesen</string>
     <string name="settings_page_permissions">Berechtigungen</string>
     <string name="settings_page_permissions_summary">Was der Assistent darf</string>
     <string name="settings_page_shell">Shell</string>
-    <string name="settings_page_shell_summary">Gotcha Shell oder Termux: wo der Assistent Linux-Befehle ausführt</string>
+    <string name="settings_page_shell_summary">Gotcha Shell oder Termux für Linux-Befehle</string>
     <string name="shell_hub_intro">Zwei Wege, wie der Assistent Linux-Befehle ausführen kann. Gotcha Shell ist ein vollständiges Linux-System in einer eigenen App; Termux nutzt die Termux-App, falls du sie schon hast. Richte eine davon ein, oder beide.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Die Termux-App nutzen, falls du sie schon hast</string>
@@ -78,8 +78,8 @@
     <string name="settings_page_skills_summary">Integrierte und Community-Skills</string>
     <string name="settings_page_proactive">Proaktive Hilfe</string>
     <string name="settings_page_proactive_summary">Vorschläge, OTP-Erkennung, was gescannt werden darf</string>
-    <string name="settings_page_assistive_ball">Assistenzkugel und Aktivierungswort</string>
-    <string name="settings_page_assistive_ball_summary">Schwebende Kugel über anderen Apps, Freisprechanrufe, „Hey Gotcha“</string>
+    <string name="settings_page_assistive_ball">Schwebender Ball und Aktivierungswort</string>
+    <string name="settings_page_assistive_ball_summary">Freisprech-Anrufe und \"Hey Gotcha\"</string>
     <string name="settings_page_appearance">Darstellung</string>
     <string name="settings_page_appearance_summary">Wie die App aussieht</string>
     <string name="settings_page_notifications">Benachrichtigungen</string>
@@ -148,6 +148,13 @@
     <string name="settings_field_pause_night_light">Nachtlicht für Screenshots aus</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_search_hint">Einstellungen durchsuchen</string>
+    <string name="settings_account_summary_signed_out">Anmelden für die Modelle und Stimmen von Samosa AI</string>
+    <string name="settings_account_summary_signed_in">Konto, Tarif und Abmelden</string>
+    <string name="settings_group_help">Hilfe und Info</string>
+    <string name="settings_group_privacy">Datenschutz und Berechtigungen</string>
+    <string name="settings_group_app">App</string>
+    <string name="settings_group_automation">Automatisierung</string>
+    <string name="settings_group_assistant">Assistent</string>
     <string name="settings_unsaved_title">Änderungen speichern?</string>
     <string name="settings_unsaved_message">Du hast diese Seite geändert, ohne zu speichern.</string>
     <string name="settings_unsaved_save">Speichern</string>
@@ -157,7 +164,7 @@
     <string name="settings_feature_tour">Funktionstour</string>
     <string name="settings_feature_tour_summary">Die Einrichtung noch einmal Schritt für Schritt durchgehen</string>
     <string name="settings_feedback">Feedback senden</string>
-    <string name="settings_feedback_summary">Sag uns, was wir verbessern sollen – nichts wird gesendet, bevor du es abschickst</string>
+    <string name="settings_feedback_summary">Sag uns, was besser werden soll</string>
     <string name="appearance_theme">Design</string>
     <string name="appearance_every_theme_works_on_every">Jedes Design funktioniert auf jedem Gerät. Wo kein Live-Weichzeichner verfügbar ist, wird das Glas sparsamer dargestellt statt abgeschaltet.</string>
     <string name="proactive_master_proactive_offers">Proaktive Vorschläge (Hauptschalter)</string>
@@ -1657,7 +1664,7 @@
     <string name="linux_terminal_refused_failed_unknown">Das Terminal konnte nicht starten.</string>
     <!-- Settings ▸ Privacy, and optional usage data -->
     <string name="settings_page_privacy">Datenschutz</string>
-    <string name="settings_page_privacy_summary">Deine Nutzung auf diesem Telefon und wohin deine Daten gehen</string>
+    <string name="settings_page_privacy_summary">Deine Nutzung und wohin deine Daten gehen</string>
     <string name="privacy_your_usage_title">Deine Nutzung</string>
     <string name="privacy_your_usage_intro">Auf diesem Telefon gezählt, aus den Chats, Anrufen und Protokollen, die Gotcha ohnehin speichert. Nichts davon wird irgendwohin gesendet.</string>
     <string name="privacy_stat_chats">Chats</string>

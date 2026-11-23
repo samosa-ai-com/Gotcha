@@ -42,7 +42,7 @@
     <string name="language_reply_title">AI の回答の言語</string>
     <string name="language_reply_description">アシスタントが回答を書く言語です。ツール名、コマンド、ファイルパスは動作を保つため英語のままです。</string>
     <string name="action_cancel">キャンセル</string>
-    <string name="settings_page_personal_info">個人情報</string>
+    <string name="settings_page_personal_info">あなたについて</string>
     <string name="settings_page_personal_info_summary">あなたについて、通貨、回答のスタイル</string>
     <string name="settings_page_second_brain">セカンドブレイン</string>
     <string name="second_brain_summary">ノート: %1$d · 人: %2$d · エリア: %3$d</string>
@@ -62,15 +62,15 @@
     <string name="second_brain_saved">セカンドブレインに保存しました</string>
     <string name="second_brain_updated">セカンドブレインを更新しました</string>
     <string name="settings_page_language">言語</string>
-    <string name="settings_page_language_summary">アプリ、音声、文字起こし、AI の回答の言語</string>
-    <string name="settings_page_ai_config">AI 設定</string>
-    <string name="settings_page_ai_config_summary">プロバイダ、モデル、エージェントの上限</string>
-    <string name="settings_page_speech">音声 (TTS / STT)</string>
-    <string name="settings_page_speech_summary">音声、文字起こし、回答の読み上げ</string>
+    <string name="settings_page_language_summary">アプリの表示言語と AI の返答言語</string>
+    <string name="settings_page_ai_config">AI モデル</string>
+    <string name="settings_page_ai_config_summary">プロバイダー、モデル、エージェント上限</string>
+    <string name="settings_page_speech">音声と読み上げ</string>
+    <string name="settings_page_speech_summary">音声、文字起こし、読み上げ</string>
     <string name="settings_page_permissions">権限</string>
     <string name="settings_page_permissions_summary">アシスタントにできること</string>
     <string name="settings_page_shell">シェル</string>
-    <string name="settings_page_shell_summary">Gotcha Shell または Termux: アシスタントが Linux コマンドを実行する場所</string>
+    <string name="settings_page_shell_summary">Linux コマンド用の Gotcha Shell または Termux</string>
     <string name="shell_hub_intro">アシスタントが Linux コマンドを実行する方法は 2 つあります。Gotcha Shell は専用アプリで動く完全な Linux システムです。Termux は、すでにお持ちの Termux アプリを使います。どちらか一方、または両方を設定できます。</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Termux アプリをお持ちならそれを使います</string>
@@ -78,8 +78,8 @@
     <string name="settings_page_skills_summary">内蔵スキルとコミュニティスキル</string>
     <string name="settings_page_proactive">先回りアシスト</string>
     <string name="settings_page_proactive_summary">提案、OTP の検出、スキャンできる対象</string>
-    <string name="settings_page_assistive_ball">アシストボールとウェイクワード</string>
-    <string name="settings_page_assistive_ball_summary">他のアプリ上に浮かぶボール、ハンズフリー通話、「Hey Gotcha」</string>
+    <string name="settings_page_assistive_ball">フローティングボールとウェイクワード</string>
+    <string name="settings_page_assistive_ball_summary">ハンズフリー通話と \"Hey Gotcha\"</string>
     <string name="settings_page_appearance">外観</string>
     <string name="settings_page_appearance_summary">アプリの見た目</string>
     <string name="settings_page_notifications">通知</string>
@@ -148,6 +148,13 @@
     <string name="settings_field_pause_night_light">スクリーンショット時に夜間モードをオフ</string>
     <string name="settings_title">設定</string>
     <string name="settings_search_hint">設定を検索</string>
+    <string name="settings_account_summary_signed_out">Samosa AI のモデルと音声を使うにはサインイン</string>
+    <string name="settings_account_summary_signed_in">アカウント、プラン、サインアウト</string>
+    <string name="settings_group_help">ヘルプと情報</string>
+    <string name="settings_group_privacy">プライバシーと権限</string>
+    <string name="settings_group_app">アプリ</string>
+    <string name="settings_group_automation">自動化</string>
+    <string name="settings_group_assistant">アシスタント</string>
     <string name="settings_unsaved_title">変更を保存しますか？</string>
     <string name="settings_unsaved_message">このページの変更はまだ保存されていません。</string>
     <string name="settings_unsaved_save">保存</string>
@@ -156,8 +163,8 @@
     <string name="settings_search_empty">「%1$s」に一致する設定はありません</string>
     <string name="settings_feature_tour">機能ツアー</string>
     <string name="settings_feature_tour_summary">セットアップを一つずつやり直す</string>
-    <string name="settings_feedback">フィードバックを送る</string>
-    <string name="settings_feedback_summary">改善点を教えてください。確認するまで何も送信されません</string>
+    <string name="settings_feedback">フィードバックを送信</string>
+    <string name="settings_feedback_summary">改善してほしい点を教えてください</string>
     <string name="appearance_theme">テーマ</string>
     <string name="appearance_every_theme_works_on_every">どのテーマもすべてのデバイスで使えます。リアルタイムのぼかしが使えない場合は、無効にする代わりに軽めのガラス表現で描画します。</string>
     <string name="proactive_master_proactive_offers">先回りの提案 (全体)</string>
@@ -1634,7 +1641,7 @@
     <string name="linux_terminal_refused_failed_unknown">ターミナルを起動できませんでした。</string>
     <!-- Settings ▸ Privacy, and optional usage data -->
     <string name="settings_page_privacy">プライバシー</string>
-    <string name="settings_page_privacy_summary">このスマホでの利用状況と、データの送信先</string>
+    <string name="settings_page_privacy_summary">利用状況とデータの行き先</string>
     <string name="privacy_your_usage_title">利用状況</string>
     <string name="privacy_your_usage_intro">Gotcha がもともと保存しているチャット、通話、ログからこのスマホ上で集計しています。ここにある情報はどこにも送信されません。</string>
     <string name="privacy_stat_chats">チャット</string>

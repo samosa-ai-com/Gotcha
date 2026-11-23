@@ -74,32 +74,41 @@ mid-conversation.
 ## Where the settings are
 
 Everything below is reached from **Settings** in the navigation drawer, except
-**Second Brain**, which has its own entry in that drawer.
+**Second Brain**, which has its own entry in that drawer. At the top of the
+Settings list is the Samosa AI account card (the same Account screen as the
+drawer's account row); below it the pages sit in five headed groups:
+**Assistant**, **Automation**, **App**, **Privacy and permissions**, and
+**Help and about**.
 
 | Setting | What it controls |
 | --- | --- |
-| Personal Info | Name, occupation, background, reply style, location, preferred currency and language |
-| Language | App display language, AI reply language, voice language, STT language |
-| AI | Hub for the two pages below |
-| AI > AI Configuration | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
-| AI > Speech (TTS / STT) | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, auto-read replies aloud, transcription language override |
-| Permissions | Every runtime and special-access permission, grouped: Communications, Contacts, Calendar, Media & Storage, Location, Device Control, Notifications, System Access, Health |
-| Linux shell | Gotcha Shell, the companion app that gives the assistant a Linux system for `run_shell`: plan, install, Repair, Reset, Uninstall (needs Samosa AI Pro) |
-| Linux shell > Terminal | A terminal in that Linux system for the user to type commands in. It keeps running while the user rotates the phone or leaves the screen, and ends with "End the session" or `exit`. The assistant does not see what the user types there |
-| Privacy | "Your usage": counts worked out on the phone from the chats, calls, crash log and scheduled tasks Gotcha already keeps (chats, voice calls, requests, success rate, actions taken, most-used actions, models used, scheduled tasks in use, crashes). Nothing on it is sent anywhere. In official builds, "Usage data": on by default in every country, shown on the first screen where the law treats prior consent as required and otherwise in Settings, sending counts and outcomes only (never messages, screen content, files, contacts, commands or app names) to a server run by Samosa AI, with "What we send" listing every event. An install registration runs on first launch whatever the switch says; it describes the build and device in broad terms and identifies no one. There is nothing to delete on request because nothing sent identifies you. Also says where data goes and links to the data retention policy |
-| Termux (Linux shell) | Guided setup for the Linux shell used by `run_shell` and audio conversion |
+| **Assistant** | |
+| AI model | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
+| Voice and speech | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, auto-read replies aloud, transcription language override |
+| About you | Name, occupation, background, reply style, location, preferred currency and language |
 | Skills / Plugins | Built-in skills, importing community skills by URL, allowed community skill hosts |
+| **Automation** | |
+| Proactive assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
 | Scheduled tasks | Prompts Gotcha runs by itself at set times: add, edit, pause, delete or run one now; the history of each one's runs, failures included, with a link to the chat each run went into. Without "Alarms & reminders" allowed for Gotcha, a task cannot start on its own and asks for a tap on a notification instead; the page links to that permission |
-| Proactive Assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
-| Assistive Ball and Wake Word | The floating ball over other apps, hands-free voice calls, turning Night Light off for screenshots, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
+| Floating ball and wake word | The floating ball over other apps, hands-free voice calls, turning Night Light off for screenshots, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
+| Shell | Hub for the two ways the assistant runs Linux commands for `run_shell`: Gotcha Shell and Termux |
+| Shell > Gotcha Shell | Gotcha Shell, the companion app that gives the assistant a Linux system for `run_shell`: plan, install, Repair, Reset, Uninstall (needs Samosa AI Pro) |
+| Shell > Gotcha Shell > Terminal | A terminal in that Linux system for the user to type commands in. It keeps running while the user rotates the phone or leaves the screen, and ends with "End the session" or `exit`. The assistant does not see what the user types there |
+| Shell > Termux | Guided setup for Termux, the other Linux shell `run_shell` and audio conversion can use |
+| **App** | |
 | Appearance | Theme |
+| Language | App display language, AI reply language, voice language, STT language |
 | Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The "Waiting for your answer" notification, for a paused task, has no switch here: it is its own channel in Android's notification settings for Gotcha. So is "Task in progress", the quiet notification shown while a task runs so Android keeps Gotcha going when the user switches apps; it opens the chat, and its Stop button stops the task. A task also keeps running when Gotcha is swiped out of recent apps, and opening Gotcha again mid-task shows the running chat. If Android closes Gotcha mid-task anyway, the chat ends with a note that the task was interrupted and the list of notifications gets an "Interrupted" entry; a new message in that chat picks the task up again. The bell on the home screen opens the list of recent notifications (a dot on it means one is unread, a number means more); in an open chat the list is under the chat's ⋮ menu, which shows a dot while something is unread and also keeps that chat out of notifications |
+| Chats | Import chats, and back up every chat |
+| **Privacy and permissions** | |
+| Permissions | Every runtime and special-access permission, grouped: Communications, Contacts, Calendar, Media & Storage, Location, Device Control, Notifications, System Access, Health |
+| Privacy | "Your usage": counts worked out on the phone from the chats, calls, crash log and scheduled tasks Gotcha already keeps (chats, voice calls, requests, success rate, actions taken, most-used actions, models used, scheduled tasks in use, crashes). Nothing on it is sent anywhere. In official builds, "Usage data": on by default in every country, shown on the first screen where the law treats prior consent as required and otherwise in Settings, sending counts and outcomes only (never messages, screen content, files, contacts, commands or app names) to a server run by Samosa AI, with "What we send" listing every event. An install registration runs on first launch whatever the switch says; it describes the build and device in broad terms and identifies no one. There is nothing to delete on request because nothing sent identifies you. Also says where data goes and links to the data retention policy |
+| **Help and about** | |
+| Feature tour | Replays the guided setup one step at a time |
+| Send feedback | Opens the feedback form; nothing is sent until the user submits it |
 | About | Samosa AI, other products, legal, contact |
 | About > About Samosa AI | Mission, products, pricing, developers |
 | About > Legal | Terms, disclaimer, data retention |
-
-Two more rows sit on the Settings list itself: **Feature Tour**, which replays
-the guided setup one step at a time, and **Send Feedback**.
 
 A search field sits above the Settings list. Typing a control's everyday name
 ("max tool rounds", "otp", "wake word") lists the pages that hold it; where the
@@ -187,7 +196,7 @@ model's context and could carry an injected instruction.
 
 ## Common questions
 
-**"Set up a model."** Settings > AI > AI Configuration: API key, Base URL
+**"Set up a model."** Settings > AI model: API key, Base URL
 (including `/v1/`), and model name. Any OpenAI-compatible `/chat/completions`
 endpoint with tool calling works, or sign in to Samosa AI for starter credits.
 
@@ -197,8 +206,8 @@ features. "Get Samosa AI Pro" in the side menu, or "See Pro" on the Samosa AI
 account page (tap your name in the side menu), shows what it includes and opens
 the account website where it is bought.
 
-**"Enable the floating ball / wake word."** Settings > Assistive Ball and Wake
-Word. The ball needs the display-over-other-apps permission; the wake word
+**"Enable the floating ball / wake word."** Settings > Floating ball and wake
+word. The ball needs the display-over-other-apps permission; the wake word
 listens from inside the ball's service, and "When to listen" controls whether
 that happens with the screen on, off, or always.
 
@@ -206,10 +215,10 @@ that happens with the screen on, off, or always.
 Termux for the guided setup. Each command runs in a separate shell, so
 `cd` and `export` do not carry over between calls.
 
-**"Read replies aloud."** Settings > AI > Speech (TTS / STT) > Auto-read replies
+**"Read replies aloud."** Settings > Voice and speech > Auto-read replies
 aloud.
 
-**"Stop Gotcha scanning my screen."** Settings > Proactive Assistance, which has
+**"Stop Gotcha scanning my screen."** Settings > Proactive assistance, which has
 a master switch plus individual toggles for screen content, notifications and
 clipboard.
 

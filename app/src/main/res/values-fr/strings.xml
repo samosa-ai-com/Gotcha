@@ -42,7 +42,7 @@
     <string name="language_reply_title">Langue des réponses de l\'IA</string>
     <string name="language_reply_description">La langue dans laquelle l\'assistant écrit ses réponses. Les noms d\'outils, les commandes et les chemins de fichiers restent en anglais pour continuer à fonctionner.</string>
     <string name="action_cancel">Annuler</string>
-    <string name="settings_page_personal_info">Infos personnelles</string>
+    <string name="settings_page_personal_info">À propos de vous</string>
     <string name="settings_page_personal_info_summary">Qui vous êtes, devise, style de réponse</string>
     <string name="settings_page_second_brain">Second cerveau</string>
     <string name="second_brain_summary">Notes : %1$d · Personnes : %2$d · Domaines : %3$d</string>
@@ -62,15 +62,15 @@
     <string name="second_brain_saved">Enregistré dans le second cerveau</string>
     <string name="second_brain_updated">Mis à jour dans le second cerveau</string>
     <string name="settings_page_language">Langue</string>
-    <string name="settings_page_language_summary">Langue de l\'appli, de la voix, de la transcription et des réponses de l\'IA</string>
-    <string name="settings_page_ai_config">Configuration de l\'IA</string>
-    <string name="settings_page_ai_config_summary">Fournisseur, modèles, limites de l\'agent</string>
-    <string name="settings_page_speech">Voix (TTS / STT)</string>
-    <string name="settings_page_speech_summary">Voix, transcription, lecture des réponses à voix haute</string>
+    <string name="settings_page_language_summary">Langue de l\'app et des réponses de l\'IA</string>
+    <string name="settings_page_ai_config">Modèle d\'IA</string>
+    <string name="settings_page_ai_config_summary">Fournisseur, modèle, limites de l\'agent</string>
+    <string name="settings_page_speech">Voix et parole</string>
+    <string name="settings_page_speech_summary">Voix, transcription, lecture à voix haute</string>
     <string name="settings_page_permissions">Autorisations</string>
     <string name="settings_page_permissions_summary">Ce que l\'assistant a le droit de faire</string>
     <string name="settings_page_shell">Shell</string>
-    <string name="settings_page_shell_summary">Gotcha Shell ou Termux : où l\'assistant exécute des commandes Linux</string>
+    <string name="settings_page_shell_summary">Gotcha Shell ou Termux pour les commandes Linux</string>
     <string name="shell_hub_intro">Deux façons de laisser l\'assistant exécuter des commandes Linux. Gotcha Shell est un système Linux complet dans sa propre app ; Termux utilise l\'app Termux si vous l\'avez déjà. Configurez l\'une ou l\'autre, ou les deux.</string>
     <string name="settings_page_termux">Termux</string>
     <string name="settings_page_termux_summary">Utiliser l\'app Termux si vous l\'avez déjà</string>
@@ -78,8 +78,8 @@
     <string name="settings_page_skills_summary">Compétences intégrées et de la communauté</string>
     <string name="settings_page_proactive">Assistance proactive</string>
     <string name="settings_page_proactive_summary">Suggestions, détection des codes OTP, ce qui peut être analysé</string>
-    <string name="settings_page_assistive_ball">Bulle d\'assistance et mot d\'activation</string>
-    <string name="settings_page_assistive_ball_summary">Bulle flottante sur les autres applis, appels mains libres, « Hey Gotcha »</string>
+    <string name="settings_page_assistive_ball">Bulle flottante et mot d\'activation</string>
+    <string name="settings_page_assistive_ball_summary">Appels mains libres et \"Hey Gotcha\"</string>
     <string name="settings_page_appearance">Apparence</string>
     <string name="settings_page_appearance_summary">L\'aspect de l\'appli</string>
     <string name="settings_page_notifications">Notifications</string>
@@ -148,6 +148,13 @@
     <string name="settings_field_pause_night_light">Éclairage nocturne coupé pour les captures</string>
     <string name="settings_title">Paramètres</string>
     <string name="settings_search_hint">Rechercher dans les paramètres</string>
+    <string name="settings_account_summary_signed_out">Connectez-vous pour les modèles et voix de Samosa AI</string>
+    <string name="settings_account_summary_signed_in">Compte, forfait et déconnexion</string>
+    <string name="settings_group_help">Aide et à propos</string>
+    <string name="settings_group_privacy">Confidentialité et autorisations</string>
+    <string name="settings_group_app">Application</string>
+    <string name="settings_group_automation">Automatisation</string>
+    <string name="settings_group_assistant">Assistant</string>
     <string name="settings_unsaved_title">Enregistrer les modifications ?</string>
     <string name="settings_unsaved_message">Vous avez modifié cette page sans enregistrer.</string>
     <string name="settings_unsaved_save">Enregistrer</string>
@@ -157,7 +164,7 @@
     <string name="settings_feature_tour">Visite guidée</string>
     <string name="settings_feature_tour_summary">Refaire la configuration, étape par étape</string>
     <string name="settings_feedback">Envoyer un avis</string>
-    <string name="settings_feedback_summary">Dites-nous quoi améliorer : rien n\'est envoyé avant que vous validiez</string>
+    <string name="settings_feedback_summary">Dites-nous quoi améliorer</string>
     <string name="appearance_theme">Thème</string>
     <string name="appearance_every_theme_works_on_every">Tous les thèmes fonctionnent sur tous les appareils. Quand le flou en direct n\'est pas disponible, le verre est rendu de façon plus légère au lieu d\'être désactivé.</string>
     <string name="proactive_master_proactive_offers">Suggestions proactives (général)</string>
@@ -1679,7 +1686,7 @@
     <string name="linux_terminal_refused_failed_unknown">Le terminal n\'a pas pu démarrer.</string>
     <!-- Settings ▸ Privacy, and optional usage data -->
     <string name="settings_page_privacy">Confidentialité</string>
-    <string name="settings_page_privacy_summary">Votre utilisation sur ce téléphone, et où vont vos données</string>
+    <string name="settings_page_privacy_summary">Votre utilisation et où vont vos données</string>
     <string name="privacy_your_usage_title">Votre utilisation</string>
     <string name="privacy_your_usage_intro">Calculé sur ce téléphone à partir des discussions, appels et journaux que Gotcha conserve déjà. Rien de tout cela n\'est envoyé.</string>
     <string name="privacy_stat_chats">Discussions</string>

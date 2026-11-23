@@ -212,6 +212,9 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
         composeRule.onNodeWithTag("settings_speech_row").assertExists()
+        // The account card heads the list, signed out on a fresh install.
+        composeRule.onNodeWithTag("settings_account_card").assertExists()
+        composeRule.onNodeWithText("Assistant").assertExists()
 
         // Opening a category replaces the list with that page.
         composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
@@ -325,7 +328,7 @@ class SettingsFlowTest {
         // The result says where it will land, down to the field.
         composeRule.onNodeWithTag("settings_search").performTextReplacement("max tool rounds")
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("AI Configuration › Max tool rounds").assertExists()
+        composeRule.onNodeWithText("AI model › Max tool rounds").assertExists()
 
         // Hold the clock, so the highlight can be caught before it fades.
         composeRule.mainClock.autoAdvance = false
