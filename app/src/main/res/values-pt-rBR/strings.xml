@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Só com a tela desligada</string>
     <string name="assistive_ball_hands_free_when_you_are">Mãos livres quando você não está olhando o celular; com a tela ligada o microfone fica desligado.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">Uma bola que você pode arrastar, flutuando sobre outros apps. Toque e segure para iniciar uma chamada de voz mãos livres com o assistente; toque para Iniciar / Pausar / Encerrar e para abrir o app. Arraste até o ✕ para escondê-la.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Diga \"Hey Gotcha\": o modelo OpenWakeWord incluído roda no dispositivo, mas só enquanto a bola assistiva está ativa e não há chamada em andamento. A escuta faz parte do serviço da bola, então desativar a bola também desativa a palavra de ativação. Mantenha a permissão de microfone concedida.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Diga \"Hey Gotcha\" para iniciar uma chamada. É detectado no próprio telefone, só com a bola ligada e sem chamada em andamento.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Ative \"Mostrar bola assistiva\" acima para usar isto.</string>
     <string name="assistive_ball_when_to_listen">Quando ouvir</string>
     <string name="assistive_ball_the_listener_is_only_active">A escuta só fica ativa quando a tela está no estado escolhido, então no resto do tempo o microfone e o indicador ficam desligados.</string>

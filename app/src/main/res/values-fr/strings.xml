@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Seulement quand l\'écran est éteint</string>
     <string name="assistive_ball_hands_free_when_you_are">Mains libres quand vous ne regardez pas déjà le téléphone ; écran allumé, le micro est coupé.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">Une bulle déplaçable qui flotte au-dessus des autres applis. Appuyez longuement pour lancer un appel vocal mains libres avec l\'assistant ; touchez-la pour Démarrer / Pause / Terminer et pour ouvrir l\'appli. Faites-la glisser sur le ✕ pour la masquer.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Dites « Hey Gotcha » : le modèle OpenWakeWord intégré fonctionne sur l\'appareil, mais seulement quand la bulle d\'assistance est activée et qu\'aucun appel n\'est en cours. L\'écoute fait partie du service de la bulle : désactiver la bulle désactive aussi le mot d\'activation. Gardez l\'autorisation du micro activée.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Dites \"Hey Gotcha\" pour lancer un appel. C\'est détecté sur le téléphone lui-même, seulement quand la bulle est active et qu\'aucun appel n\'est en cours.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Activez « Afficher la bulle d\'assistance » ci-dessus pour l\'utiliser.</string>
     <string name="assistive_ball_when_to_listen">Quand écouter</string>
     <string name="assistive_ball_the_listener_is_only_active">L\'écoute n\'est active que lorsque l\'écran est dans l\'état choisi : le reste du temps, le micro et son indicateur sont coupés.</string>

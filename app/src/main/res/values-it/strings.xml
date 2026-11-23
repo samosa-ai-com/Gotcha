@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Solo con lo schermo spento</string>
     <string name="assistive_ball_hands_free_when_you_are">A mani libere quando non stai già guardando il telefono; con lo schermo acceso il microfono è spento.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">Una sfera trascinabile che fluttua sopra le altre app. Tienila premuta per avviare una chiamata vocale a mani libere con l\'assistente; toccala per Avvia / Pausa / Termina e per aprire l\'app. Trascinala sulla ✕ per nasconderla.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Di\' \"Hey Gotcha\": il modello OpenWakeWord incluso funziona sul dispositivo, ma solo mentre la sfera di assistenza è attiva e non c\'è una chiamata in corso. L\'ascolto fa parte del servizio della sfera, quindi disattivando la sfera si disattiva anche la parola di attivazione. Mantieni attiva l\'autorizzazione al microfono.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Di \"Hey Gotcha\" per avviare una chiamata. Viene riconosciuto sul telefono, solo con la bolla attiva e nessuna chiamata in corso.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Attiva \"Mostra la sfera di assistenza\" qui sopra per usarla.</string>
     <string name="assistive_ball_when_to_listen">Quando ascoltare</string>
     <string name="assistive_ball_the_listener_is_only_active">L\'ascolto è attivo solo quando lo schermo è nello stato scelto, quindi per il resto del tempo microfono e indicatore sono spenti.</string>

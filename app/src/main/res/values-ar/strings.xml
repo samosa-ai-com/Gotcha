@@ -370,7 +370,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">فقط أثناء إيقاف الشاشة</string>
     <string name="assistive_ball_hands_free_when_you_are">بدون استخدام اليدين عندما لا تنظر إلى الهاتف؛ تشغيل الشاشة يعني إيقاف الميكروفون.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">كرة قابلة للسحب تطفو فوق التطبيقات الأخرى. اضغط مطولًا لبدء مكالمة صوتية بدون استخدام اليدين مع المساعد؛ اضغط عليها لبدء / إيقاف مؤقت / إنهاء ولفتح التطبيق. اسحبها إلى ✕ لإخفائها مجددًا.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">تقول \"Hey Gotcha\" — يعمل نموذج OpenWakeWord المضمّن على الجهاز، لكن فقط أثناء تشغيل الكرة المساعدة وعدم وجود مكالمة نشطة. المستمع داخل خدمة الكرة، لذا إيقاف الكرة يوقف كلمة التنبيه أيضًا. أبقِ إذن الميكروفون مفعّلًا.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">قل \"Hey Gotcha\" لبدء مكالمة. يُسمع على الهاتف نفسه، فقط أثناء تشغيل الكرة وعدم وجود مكالمة جارية.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">شغّل \"إظهار الكرة المساعدة\" أعلاه لاستخدامها.</string>
     <string name="assistive_ball_when_to_listen">متى تستمع</string>
     <string name="assistive_ball_the_listener_is_only_active">المستمع نشط فقط عندما تطابق الشاشة الحالة المختارة، لذا يكون الميكروفون ومؤشره متوقفين بقية الوقت.</string>

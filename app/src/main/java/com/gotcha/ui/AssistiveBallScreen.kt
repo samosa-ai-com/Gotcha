@@ -103,23 +103,11 @@ fun AssistiveBallScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        SettingsToggleRow(
-            label = stringResource(R.string.assistive_ball_night_light_off_for_screenshots),
-            checked = pauseNightLight,
-            onCheckedChange = {
-                pauseNightLight = it
-                onSave { settings -> settings.copy(pauseNightLightForScreenshots = it) }
-            },
-            switchTestTag = "settings_pause_night_light",
-            switchContentDescription = stringResource(
-                if (pauseNightLight) {
-                    R.string.assistive_ball_stop_turning_night_light_off
-                } else {
-                    R.string.assistive_ball_turn_night_light_off_for
-                }
-            )
+        Text(
+            stringResource(R.string.assistive_ball_needs_the_display_over_other),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        NightLightGrantHint()
         SettingsToggleRow(
             label = stringResource(R.string.assistive_ball_wake_word_hey_gotcha),
             checked = wakeWordEnabled,
@@ -226,11 +214,26 @@ fun AssistiveBallScreen(
             val context = LocalContext.current
             BatteryOptimizationRow(context)
         }
-        Text(
-            stringResource(R.string.assistive_ball_needs_the_display_over_other),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // Rarely needed, and its grant is an adb command: folded out of the way.
+        SettingsAdvancedSection(testTag = BALL_ADVANCED_SECTION) {
+            SettingsToggleRow(
+                label = stringResource(R.string.assistive_ball_night_light_off_for_screenshots),
+                checked = pauseNightLight,
+                onCheckedChange = {
+                    pauseNightLight = it
+                    onSave { settings -> settings.copy(pauseNightLightForScreenshots = it) }
+                },
+                switchTestTag = "settings_pause_night_light",
+                switchContentDescription = stringResource(
+                    if (pauseNightLight) {
+                        R.string.assistive_ball_stop_turning_night_light_off
+                    } else {
+                        R.string.assistive_ball_turn_night_light_off_for
+                    }
+                )
+            )
+            NightLightGrantHint()
+        }
     }
 }
 

@@ -281,7 +281,8 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field(
                 "settings_pause_night_light",
                 R.string.settings_field_pause_night_light,
-                "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors"
+                "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors",
+                section = BALL_ADVANCED_SECTION
             ),
             field("settings_wake_word", R.string.settings_field_wake_word, "always listening"),
             field("settings_wake_word_sensitivity", R.string.settings_field_wake_word_sensitivity, "sensitivity")
@@ -333,6 +334,9 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
 
 /** The tag of AI Configuration's collapsed "Advanced settings" section. */
 internal const val AI_ADVANCED_SECTION = "settings_ai_advanced"
+
+/** The tag of the floating ball page's collapsed "Advanced settings" section. */
+internal const val BALL_ADVANCED_SECTION = "settings_ball_advanced"
 
 /** Every settings page, in home-list declaration order. */
 val settingsSearchIndex: List<SettingsSearchEntry> = SettingsPage.entries.map(::entryFor)

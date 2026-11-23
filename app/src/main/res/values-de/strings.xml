@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Nur bei ausgeschaltetem Bildschirm</string>
     <string name="assistive_ball_hands_free_when_you_are">Freihändig, wenn du nicht ohnehin aufs Telefon schaust; bei eingeschaltetem Bildschirm ist das Mikrofon aus.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">Eine verschiebbare Kugel, die über anderen Apps schwebt. Lange drücken startet einen Freisprech-Sprachanruf mit dem Assistenten; antippen für Start / Pause / Beenden und um die App zu öffnen. Zum Ausblenden auf das ✕ ziehen.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Sag „Hey Gotcha“ – das mitgelieferte OpenWakeWord-Modell läuft auf dem Gerät, aber nur, solange die Assistenzkugel an ist und kein Anruf läuft. Das Zuhören gehört zum Dienst der Kugel; schaltest du die Kugel aus, ist auch das Aktivierungswort aus. Lass die Mikrofonberechtigung an.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Sag \"Hey Gotcha\", um einen Anruf zu starten. Erkannt wird es auf dem Telefon selbst, nur solange der Ball an ist und kein Anruf läuft.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Schalte oben „Assistenzkugel anzeigen“ ein, um das zu nutzen.</string>
     <string name="assistive_ball_when_to_listen">Wann zuhören</string>
     <string name="assistive_ball_the_listener_is_only_active">Das Zuhören ist nur aktiv, solange der Bildschirm im gewählten Zustand ist; den Rest der Zeit sind Mikrofon und Anzeige aus.</string>

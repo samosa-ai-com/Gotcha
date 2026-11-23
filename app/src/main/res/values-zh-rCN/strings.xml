@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">仅在屏幕关闭时</string>
     <string name="assistive_ball_hands_free_when_you_are">不看手机时可免提使用；屏幕亮起时麦克风关闭。</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">一个悬浮在其他应用上方、可拖动的球。长按可与助手开始免提语音通话；点按可开始 / 暂停 / 结束，以及打开应用。拖到 ✕ 上即可隐藏。</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">说“Hey Gotcha”：内置的 OpenWakeWord 模型在设备上运行，但仅在悬浮球开启且没有进行通话时生效。聆听属于悬浮球服务的一部分，因此关闭悬浮球也会关闭唤醒词。请保持麦克风权限开启。</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">说 \"Hey Gotcha\" 即可开始通话。仅在手机本地识别，且只在悬浮球开启、没有通话进行时生效。</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">请先开启上方的“显示悬浮球”。</string>
     <string name="assistive_ball_when_to_listen">何时聆听</string>
     <string name="assistive_ball_the_listener_is_only_active">仅当屏幕处于所选状态时才会聆听，其他时间麦克风和指示器都处于关闭状态。</string>

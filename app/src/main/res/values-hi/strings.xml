@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">केवल स्क्रीन बंद होने पर</string>
     <string name="assistive_ball_hands_free_when_you_are">जब आप पहले से फ़ोन नहीं देख रहे हों, तब हैंड्स-फ़्री; स्क्रीन चालू होने पर माइक बंद रहता है।</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">दूसरे ऐप के ऊपर तैरती, खींचकर हिलाई जा सकने वाली बॉल। असिस्टेंट के साथ हैंड्स-फ़्री वॉइस कॉल शुरू करने के लिए इसे देर तक दबाएँ; शुरू / रोकें / खत्म करने और ऐप खोलने के लिए इस पर टैप करें। इसे फिर से छिपाने के लिए ✕ पर खींचें।</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">\"Hey Gotcha\" कहें — साथ आया OpenWakeWord मॉडल डिवाइस पर ही चलता है, लेकिन केवल तब जब असिस्टिव बॉल चालू हो और कोई कॉल न चल रही हो। सुनने वाला हिस्सा बॉल की सेवा के अंदर रहता है, इसलिए बॉल बंद करने से वेक वर्ड भी बंद हो जाता है। माइक्रोफ़ोन की अनुमति चालू रखें।</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">कॉल शुरू करने के लिए \"Hey Gotcha\" बोलें। यह फ़ोन पर ही सुना जाता है, सिर्फ़ तब जब बॉल चालू हो और कोई कॉल न चल रही हो।</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">इसे इस्तेमाल करने के लिए ऊपर \"असिस्टिव बॉल दिखाएँ\" चालू करें।</string>
     <string name="assistive_ball_when_to_listen">कब सुने</string>
     <string name="assistive_ball_the_listener_is_only_active">सुनना केवल तभी चालू रहता है जब स्क्रीन चुनी गई स्थिति में हो, इसलिए बाकी समय माइक्रोफ़ोन और उसका संकेतक बंद रहते हैं।</string>

@@ -255,7 +255,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">画面がオフのときだけ</string>
     <string name="assistive_ball_hands_free_when_you_are">スマートフォンを見ていないときにハンズフリーで使えます。画面がオンの間はマイクがオフです。</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">他のアプリの上に浮かぶ、ドラッグできるボールです。長押しするとアシスタントとのハンズフリー音声通話を始めます。タップで開始 / 一時停止 / 終了やアプリを開く操作ができます。✕ までドラッグすると非表示になります。</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">「Hey Gotcha」と話しかけてください。同梱の OpenWakeWord モデルはデバイス上で動作しますが、アシストボールが有効で通話中でないときだけです。聞き取りはボールのサービスの一部なので、ボールをオフにするとウェイクワードもオフになります。マイクの権限は許可したままにしてください。</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">\"Hey Gotcha\" と言うと通話を始めます。聞き取りは端末内で行われ、ボールがオンで通話中でないときだけ動作します。</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">使うには、上の「アシストボールを表示」をオンにしてください。</string>
     <string name="assistive_ball_when_to_listen">聞き取るタイミング</string>
     <string name="assistive_ball_the_listener_is_only_active">聞き取りは画面が選んだ状態のときだけ有効なので、それ以外の時間はマイクとインジケーターがオフです。</string>

@@ -417,7 +417,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Only while the screen is off</string>
     <string name="assistive_ball_hands_free_when_you_are">Hands-free when you are not already looking at the phone; the screen being on means the mic is off.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">A draggable ball floating over other apps. Long-press it to start a hands-free voice call with the assistant; tap it for Start / Pause / End and to open the app. Drag it onto the ✕ to hide it again.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device, but only while the Assistive Ball is on and no call is active. The listener lives inside the ball\'s service, so switching the ball off switches the wake word off too. Keep microphone permission enabled.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Say \"Hey Gotcha\" to start a call. It is heard on the phone itself, only while the ball is on and no call is running.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Turn on \"Show Assistive Ball\" above to use it.</string>
     <string name="assistive_ball_when_to_listen">When to listen</string>
     <string name="assistive_ball_the_listener_is_only_active">The listener is only active while the screen matches the chosen state, so the microphone and its indicator are off the rest of the time.</string>
