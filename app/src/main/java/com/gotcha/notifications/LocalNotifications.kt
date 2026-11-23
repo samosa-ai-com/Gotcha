@@ -86,6 +86,13 @@ internal const val RECENTLY_OPENED_MS = 2L * HOUR_MS
 /** One proactive notification per category in this window, whatever the cap allows. */
 internal const val CATEGORY_COOLDOWN_MS = 20L * HOUR_MS
 
+/**
+ * Tips go out at most every this many calendar days, so the tip alarm firing
+ * daily doesn't mean a tip every morning. Counted in days, not hours: the alarm
+ * may arrive up to half an hour late, and that must not push a tip a day back.
+ */
+internal const val TIP_GAP_DAYS = 3L
+
 /** A request asked on this many different days is a routine. */
 internal const val ROUTINE_MIN_DAYS = 3
 
@@ -106,7 +113,8 @@ internal fun inQuietHours(minuteOfDay: Int, start: Int, end: Int): Boolean = whe
  *  - the master switch and the candidate's own category switch;
  *  - quiet hours;
  *  - deduplication: an occasion already notified is never notified again;
- *  - a cooldown per category, and a cap on proactive notifications per day.
+ *  - a cooldown per category, and a cap on proactive notifications per day;
+ *  - a tip only every [TIP_GAP_DAYS] days.
  */
 internal fun blockReason(
     candidate: LocalCandidate,
@@ -128,6 +136,14 @@ internal fun blockReason(
         return "cooldown"
     }
     val today = local.toLocalDate()
+    if (candidate.category == NotificationCategory.DAILY_TIP &&
+        sent.any {
+            it.category == NotificationCategory.DAILY_TIP.name &&
+                ChronoUnit.DAYS.between(Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate(), today) < TIP_GAP_DAYS
+        }
+    ) {
+        return "tip_gap"
+    }
     val sentToday = sent.count { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() == today }
     if (sentToday >= settings.maxLocalNotificationsPerDay) return "daily_cap"
     return null
@@ -303,7 +319,7 @@ internal fun inactivityReminder(
     )
 }
 
-/** The daily tip as a candidate: at most one a day. */
+/** The tip as a candidate: at most one a day, and [blockReason] spaces them [TIP_GAP_DAYS] apart. */
 internal fun tipCandidate(tip: DailyTip, now: Long, zone: ZoneId, text: StringLookup): LocalCandidate = LocalCandidate(
     category = NotificationCategory.DAILY_TIP,
     dedupKey = "tip:${Instant.ofEpochMilli(now).atZone(zone).toLocalDate()}",

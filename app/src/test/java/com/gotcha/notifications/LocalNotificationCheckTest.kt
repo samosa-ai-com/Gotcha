@@ -86,7 +86,7 @@ class LocalNotificationCheckTest {
     fun `sends one thing, files it in the inbox, and never the same tip twice running`() {
         LocalNotificationStore(application).setLastOpenedAt(noon - HOUR_MS * 3)
         val first = check()
-        val second = check(noon + DAY_MS)
+        val second = check(noon + TIP_GAP_DAYS * DAY_MS)
         assertEquals(NotificationCategory.DAILY_TIP, first?.category)
         assertNotEquals(first?.title, second?.title)
         assertEquals(2, LocalNotificationStore(application).entries().size)

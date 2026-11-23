@@ -32,6 +32,10 @@ All notable changes to Gotcha are documented here.
   about it, so you will be asked to accept the updated terms once.
 
 ### Changed
+- **Tips come every three days, not every day.** The tip alarm still goes off
+  each morning, but it only sends a tip when the last one was at least three
+  days ago. Reminders (an unfinished chat, a routine that is due, a long quiet
+  spell) are unchanged.
 - **Settings is reorganised.** The list is grouped under headings (Assistant,
   Automation, App, Privacy and permissions, Help and about), with icons,
   one-line rows and your Samosa AI account card at the top. The AI page is
