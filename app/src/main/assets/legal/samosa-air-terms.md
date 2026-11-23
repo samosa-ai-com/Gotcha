@@ -41,9 +41,6 @@ Terms. If you do not agree, do not sign in.
    3.3 You are responsible for activity under your account, including
        requests made by apps you have authorized to use it, and for
        keeping your device and session tokens secure.
-   3.4 You can sign out of individual sessions, or deactivate your
-       account, at any time. To have your account and its data erased,
-       email contact@samosa-ai.com from the address you signed in with.
 
 4. CREDITS, PLANS AND PAYMENT
 
