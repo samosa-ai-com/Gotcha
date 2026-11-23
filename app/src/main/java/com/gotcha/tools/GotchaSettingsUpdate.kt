@@ -1,6 +1,8 @@
 package com.gotcha.tools
 
+import com.gotcha.data.CONNECTOR_AUTO_REFRESH_STEPS
 import com.gotcha.data.CompletionPreview
+import com.gotcha.data.SUPPORTED_CURRENCIES
 import com.gotcha.data.Settings
 import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.i18n.Language
@@ -137,11 +139,114 @@ private fun <T> choiceSpec(
     }
 )
 
+private const val MINUTES_PER_HOUR = 60
+private const val HOURS_PER_DAY = 24
+
+/** "HH:MM" on a 24-hour clock → minutes after midnight, or null. */
+internal fun parseTimeOfDay(text: String): Int? {
+    val match = Regex("""(\d{1,2}):(\d{2})""").matchEntire(text.trim()) ?: return null
+    val hours = match.groupValues[1].toInt()
+    val minutes = match.groupValues[2].toInt()
+    if (hours >= HOURS_PER_DAY || minutes >= MINUTES_PER_HOUR) return null
+    return hours * MINUTES_PER_HOUR + minutes
+}
+
+internal fun formatTimeOfDay(minuteOfDay: Int): String =
+    "%02d:%02d".format(minuteOfDay / MINUTES_PER_HOUR, minuteOfDay % MINUTES_PER_HOUR)
+
+private fun timeSpec(
+    key: String,
+    label: String,
+    impacts: Set<SettingImpact>,
+    get: (Settings) -> Int,
+    set: (Settings, Int) -> Settings
+) = Spec(
+    key,
+    label,
+    impacts,
+    "a time as HH:MM on a 24-hour clock, e.g. 07:30",
+    "string",
+    parse = { if (it.isString) parseTimeOfDay(it.content) else null },
+    read = { formatTimeOfDay(get(it)) },
+    write = { s, v -> set(s, v as Int) }
+)
+
+/** An Android package name: dot-separated Java identifiers, at least two parts. */
+private val PACKAGE_NAME = Regex("""[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+""")
+
+// Showing the ball stays in Settings: it needs the overlay permission.
+private fun ballSpecs(): List<Spec> = listOf(
+    boolSpec(
+        "pause_night_light_for_screenshots",
+        "Switch Night Light off for screenshots",
+        setOf(SettingImpact.DEVICE_CONTROL),
+        { it.pauseNightLightForScreenshots },
+        { s, v -> s.copy(pauseNightLightForScreenshots = v) }
+    )
+)
+
+private fun profileSpecs(): List<Spec> = listOf(
+    choiceSpec(
+        "preferred_currency",
+        "Preferred currency",
+        emptySet(),
+        SUPPORTED_CURRENCIES.associateWith { it },
+        { it },
+        { it.preferredCurrency },
+        { s, v -> s.copy(preferredCurrency = v) }
+    )
+)
+
+private fun connectorSpecs(): List<Spec> {
+    val steps = CONNECTOR_AUTO_REFRESH_STEPS.associate { (minutes, label) -> label.lowercase() to minutes }
+    return listOf(
+        choiceSpec(
+            "connector_auto_refresh",
+            "Connector auto-sync",
+            emptySet(),
+            steps,
+            { minutes -> steps.entries.firstOrNull { it.value == minutes }?.key ?: "${minutes}m" },
+            { it.connectorAutoRefreshIntervalMinutes },
+            { s, v -> s.copy(connectorAutoRefreshIntervalMinutes = v) }
+        )
+    )
+}
+
+/**
+ * `{package: true|false}` over [Settings.proactiveAppBlacklist]. Any app may be
+ * named, installed or not: the list only ever narrows what proactive reads.
+ */
+private fun parseIgnoredApps(value: JsonElement, changes: MutableList<SettingChange>, errors: MutableList<String>) {
+    val key = GotchaSettingsUpdate.PROACTIVE_IGNORED_APPS_KEY
+    val toggles = value as? JsonObject
+    if (toggles == null || toggles.isEmpty()) {
+        errors += "'$key' must be an object of package name → true (ignore) or false (stop ignoring)"
+        return
+    }
+    for ((pkg, flag) in toggles) {
+        val ignore = (flag as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
+        when {
+            !PACKAGE_NAME.matches(pkg) -> errors += "'$pkg' is not an app package name"
+            ignore == null -> errors += "'$key.$pkg' must be true or false"
+            else -> changes += SettingChange(
+                "$key.$pkg", "Proactive: ignore $pkg", setOf(SettingImpact.PRIVACY),
+                read = { s -> if (pkg in s.proactiveAppBlacklist) "Ignored" else "Not ignored" },
+                write = { s ->
+                    val apps = s.proactiveAppBlacklist
+                    s.copy(proactiveAppBlacklist = if (ignore) apps + pkg else apps - pkg)
+                },
+                rawValue = flag
+            )
+        }
+    }
+}
+
 /** Parses `update_gotcha_settings` arguments against the allowlist. */
 object GotchaSettingsUpdate {
 
     const val CONNECTORS_KEY = "connectors"
     const val SKILLS_KEY = "skills"
+    const val PROACTIVE_IGNORED_APPS_KEY = "proactive_ignored_apps"
 
     private val languages: Map<String, String> = Language.entries.associate { it.label to it.label }
 
@@ -149,7 +254,8 @@ object GotchaSettingsUpdate {
     const val FOLLOW_REPLY_LANGUAGE = "same_as_replies"
 
     private fun specs(catalog: SettingsCatalog): List<Spec> =
-        notificationSpecs() + localNotificationSpecs() + voiceSpecs() + appearanceSpecs(catalog) + proactiveSpecs() + wakeWordSpecs()
+        notificationSpecs() + localNotificationSpecs() + voiceSpecs() + appearanceSpecs(catalog) + proactiveSpecs() +
+            wakeWordSpecs() + ballSpecs() + profileSpecs() + connectorSpecs()
 
     private fun notificationSpecs(): List<Spec> = listOf(
         boolSpec(
@@ -267,6 +373,27 @@ object GotchaSettingsUpdate {
             setOf(SettingImpact.NOTIFICATIONS),
             { it.dailyTipsEnabled },
             { s, v -> s.copy(dailyTipsEnabled = v) }
+        ),
+        timeSpec(
+            "daily_tip_time",
+            "Daily tip time",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.dailyTipMinuteOfDay },
+            { s, v -> s.copy(dailyTipMinuteOfDay = v) }
+        ),
+        timeSpec(
+            "quiet_hours_start",
+            "Quiet hours start",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.quietHoursStartMinute },
+            { s, v -> s.copy(quietHoursStartMinute = v) }
+        ),
+        timeSpec(
+            "quiet_hours_end",
+            "Quiet hours end",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.quietHoursEndMinute },
+            { s, v -> s.copy(quietHoursEndMinute = v) }
         )
     )
 
@@ -302,6 +429,13 @@ object GotchaSettingsUpdate {
             { it.ifBlank { "Same as replies" } },
             { it.voiceLanguage },
             { s, v -> s.copy(voiceLanguage = v) }
+        ),
+        boolSpec(
+            "on_device_speech_recognition",
+            "Recognise speech on the phone only (Android Built-in)",
+            setOf(SettingImpact.PRIVACY),
+            { it.androidSttOnDeviceOnly },
+            { s, v -> s.copy(androidSttOnDeviceOnly = v) }
         )
     )
 
@@ -388,7 +522,8 @@ object GotchaSettingsUpdate {
     )
 
     /** Every top-level key the tool accepts. */
-    fun keys(catalog: SettingsCatalog): List<String> = specs(catalog).map { it.key } + CONNECTORS_KEY + SKILLS_KEY
+    fun keys(catalog: SettingsCatalog): List<String> =
+        specs(catalog).map { it.key } + CONNECTORS_KEY + SKILLS_KEY + PROACTIVE_IGNORED_APPS_KEY
 
     /**
      * JSON Schema `properties` for the tool's `changes` object, built from the same
@@ -422,6 +557,13 @@ object GotchaSettingsUpdate {
             SKILLS_KEY,
             toggleSchema("Skill id (as search_skills reports it) → on/off.")
         )
+        put(
+            PROACTIVE_IGNORED_APPS_KEY,
+            toggleSchema(
+                "App package name → true to keep proactive assistance out of that app, " +
+                    "false to stop ignoring it."
+            )
+        )
     }
 
     private fun toggleSchema(description: String) = buildJsonObject {
@@ -454,6 +596,7 @@ object GotchaSettingsUpdate {
                     { it.disabledSkills }, { s, v -> s.copy(disabledSkills = v) },
                     changes, errors
                 )
+                PROACTIVE_IGNORED_APPS_KEY -> parseIgnoredApps(value, changes, errors)
                 else -> {
                     val spec = byKey[key]
                     if (spec == null) {
@@ -520,8 +663,11 @@ object GotchaSettingsUpdate {
     fun toJson(changes: List<SettingChange>): JsonObject = buildJsonObject {
         val connectors = mutableMapOf<String, JsonElement>()
         val skills = mutableMapOf<String, JsonElement>()
+        val ignoredApps = mutableMapOf<String, JsonElement>()
         for (change in changes) {
             when {
+                change.key.startsWith("$PROACTIVE_IGNORED_APPS_KEY.") ->
+                    ignoredApps[change.key.removePrefix("$PROACTIVE_IGNORED_APPS_KEY.")] = change.rawValue
                 change.key.startsWith("$CONNECTORS_KEY.") ->
                     connectors[change.key.removePrefix("$CONNECTORS_KEY.")] = change.rawValue
                 change.key.startsWith("$SKILLS_KEY.") ->
@@ -531,6 +677,7 @@ object GotchaSettingsUpdate {
         }
         if (connectors.isNotEmpty()) put(CONNECTORS_KEY, JsonObject(connectors))
         if (skills.isNotEmpty()) put(SKILLS_KEY, JsonObject(skills))
+        if (ignoredApps.isNotEmpty()) put(PROACTIVE_IGNORED_APPS_KEY, JsonObject(ignoredApps))
     }
 
     /** Marker [ToolExecutor] returns so [com.gotcha.agent.AgentEngine] asks before writing. */

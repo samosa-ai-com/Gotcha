@@ -36,7 +36,12 @@ class GotchaSettingsCoverageTest {
     /** Values to try for keys whose schema doesn't list them (free text, objects). */
     private val samples: Map<String, List<JsonElement>> = mapOf(
         GotchaSettingsUpdate.CONNECTORS_KEY to listOf(buildJsonObject { put("google", JsonPrimitive(false)) }),
-        GotchaSettingsUpdate.SKILLS_KEY to listOf(buildJsonObject { put("maps", JsonPrimitive(false)) })
+        GotchaSettingsUpdate.SKILLS_KEY to listOf(buildJsonObject { put("maps", JsonPrimitive(false)) }),
+        GotchaSettingsUpdate.PROACTIVE_IGNORED_APPS_KEY to
+            listOf(buildJsonObject { put("com.example.app", JsonPrimitive(true)) }),
+        "daily_tip_time" to listOf(JsonPrimitive("03:15")),
+        "quiet_hours_start" to listOf(JsonPrimitive("03:15")),
+        "quiet_hours_end" to listOf(JsonPrimitive("03:15"))
     )
 
     private fun valuesToTry(key: String, schema: JsonObject): List<JsonElement> {
@@ -62,7 +67,7 @@ class GotchaSettingsCoverageTest {
         for ((key, schema) in GotchaSettingsUpdate.schemaProperties(catalog)) {
             for (value in valuesToTry(key, schema.jsonObject)) {
                 val changes = GotchaSettingsUpdate.parse(buildJsonObject { put(key, value) }, catalog)
-                    .getOrElse { fail("'$key' refused its own sample $value: ${it.message}"); return emptySet() }
+                    .getOrElse { throw AssertionError("'$key' refused its own sample $value: ${it.message}") }
                 covered += changedFields(base, GotchaSettingsUpdate.plan(changes, base).applyTo(base))
             }
         }
@@ -99,7 +104,6 @@ class GotchaSettingsCoverageTest {
         const val LIMIT = "a run limit the model could raise to give itself more budget"
         const val BOOKKEEPING = "app bookkeeping, not a choice the user makes"
         const val PROFILE = "set through update_user_profile instead"
-        const val NOT_YET = "safe to offer, not offered yet"
 
         /** Field → why `update_gotcha_settings` deliberately can't change it. */
         val EXCLUDED: Map<String, String> = mapOf(
@@ -149,16 +153,7 @@ class GotchaSettingsCoverageTest {
             "legalAcceptedVersion" to "the user's own acceptance of the legal terms",
             "hasCompletedOnboarding" to BOOKKEEPING,
             "tourStepId" to BOOKKEEPING,
-            "onboardingVersion" to BOOKKEEPING,
-            // Safe to offer, but not offered yet.
-            "androidSttOnDeviceOnly" to NOT_YET,
-            "dailyTipMinuteOfDay" to NOT_YET,
-            "quietHoursStartMinute" to NOT_YET,
-            "quietHoursEndMinute" to NOT_YET,
-            "pauseNightLightForScreenshots" to NOT_YET,
-            "preferredCurrency" to NOT_YET,
-            "connectorAutoRefreshIntervalMinutes" to NOT_YET,
-            "proactiveAppBlacklist" to NOT_YET
+            "onboardingVersion" to BOOKKEEPING
         )
     }
 }

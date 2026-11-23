@@ -223,7 +223,7 @@ class CallSessionController(
             },
             onUpdateGotchaSettings = { plan ->
                 // settingsProvider reloads every round, so the next turn already sees this.
-                settingsRepository.save(plan.applyTo(settingsRepository.load()))
+                com.gotcha.tools.saveApprovedSettings(appContext, settingsRepository, plan)
                 ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
             },
             workingDirRoot = CALLS_WORKING_ROOT,

@@ -205,10 +205,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
             )
         },
         onUpdateGotchaSettings = { plan ->
-            // Only reached after the user approved this exact change. Apply it onto a
-            // fresh load so a concurrent write elsewhere (the Settings screen, the
-            // assistive ball) is not clobbered by the snapshot the prompt was built from.
-            settingsRepository.save(plan.applyTo(settingsRepository.load()))
+            // Only reached after the user approved this exact change.
+            com.gotcha.tools.saveApprovedSettings(app, settingsRepository, plan)
             withContext(Dispatchers.Main) {
                 // Rebuilds the cached settings the engine reads next round, and the
                 // speech engines; the skin and services follow settingsChangeNotifier.

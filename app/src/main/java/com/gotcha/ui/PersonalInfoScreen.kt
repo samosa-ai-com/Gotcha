@@ -27,7 +27,7 @@ import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
 
 /** Currencies offered for [Settings.preferredCurrency]. */
-private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY", "RUB")
+private val CURRENCIES = com.gotcha.data.SUPPORTED_CURRENCIES
 
 /**
  * The Personal Info page: who the user is and how they want to be answered.
