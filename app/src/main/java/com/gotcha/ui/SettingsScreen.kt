@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -363,6 +364,11 @@ private fun SettingsHome(
 ) {
     val overlay = rememberSettingsOverlayState()
     var query by rememberSaveable { mutableStateOf("") }
+    // Results scroll on their own, from the top for every query: sharing the
+    // list's offset would open them part-way down, first matches off screen.
+    // The list keeps its place for when the query is cleared.
+    val resultsScroll = rememberScrollState()
+    LaunchedEffect(query) { resultsScroll.scrollTo(0) }
 
     // Opening a page ends the search: coming back to a list still filtered by a
     // query typed minutes ago reads as a list that has lost most of its rows.
@@ -379,7 +385,7 @@ private fun SettingsHome(
         title = stringResource(R.string.settings_title),
         onBack = onBack,
         overlay = overlay,
-        scrollState = scrollState,
+        scrollState = if (query.isBlank()) scrollState else resultsScroll,
         header = { SettingsSearchField(query = query, onQueryChange = { query = it }) }
     ) {
         if (query.isBlank()) {
