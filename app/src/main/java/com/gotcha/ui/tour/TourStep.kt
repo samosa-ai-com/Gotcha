@@ -23,8 +23,6 @@ enum class TourPlace {
     /** The settings category list. */
     SETTINGS_HOME,
 
-    /** The AI hub: the model page and the speech page, one level under Settings. */
-    AI_HUB,
     AI_CONFIG,
     PERMISSIONS,
     PERSONAL_INFO
@@ -101,16 +99,8 @@ private fun brainSteps(): List<TourStep> = listOf(
         hint = R.string.tour_open_settings_hint
     ),
     TourStep(
-        id = "open_ai",
-        place = TourPlace.SETTINGS_HOME,
-        autoNavigate = false,
-        anchor = TourAnchor.SETTINGS_AI,
-        title = R.string.tour_open_ai_title,
-        body = R.string.tour_open_ai_body
-    ),
-    TourStep(
         id = "open_ai_config",
-        place = TourPlace.AI_HUB,
+        place = TourPlace.SETTINGS_HOME,
         autoNavigate = false,
         anchor = TourAnchor.SETTINGS_AI_CONFIG,
         title = R.string.tour_open_ai_config_title,

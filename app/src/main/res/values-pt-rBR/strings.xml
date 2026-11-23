@@ -63,8 +63,6 @@
     <string name="second_brain_updated">Atualizado no segundo cérebro</string>
     <string name="settings_page_language">Idioma</string>
     <string name="settings_page_language_summary">Idioma do app, da voz, da transcrição e das respostas da IA</string>
-    <string name="settings_page_ai">IA</string>
-    <string name="settings_page_ai_summary">Modelo, provedor, voz e transcrição</string>
     <string name="settings_page_ai_config">Configuração de IA</string>
     <string name="settings_page_ai_config_summary">Provedor, modelos, limites do agente</string>
     <string name="settings_page_speech">Voz (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">Refaça a configuração, um passo de cada vez</string>
     <string name="settings_feedback">Enviar feedback</string>
     <string name="settings_feedback_summary">Diga o que melhorar: nada é enviado até você confirmar</string>
-    <string name="ai_hub_the_model_does_the_thinking">O modelo pensa; a voz dá a ele boca e ouvidos. Um único provedor pode cuidar dos dois. O idioma em que ele fala e responde fica em Configurações → Idioma.</string>
     <string name="appearance_theme">Tema</string>
     <string name="appearance_every_theme_works_on_every">Todos os temas funcionam em qualquer dispositivo. Onde o desfoque em tempo real não está disponível, o vidro é renderizado de forma mais leve em vez de ser desativado.</string>
     <string name="proactive_master_proactive_offers">Sugestões proativas (geral)</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">Está tudo aqui</string>
     <string name="tour_open_settings_body">Deslize a partir da borda esquerda a qualquer momento para abrir este menu. Toque em Configurações para começar.</string>
     <string name="tour_open_settings_hint">Dica: o mesmo gesto funciona em qualquer lugar do chat.</string>
-    <string name="tour_open_ai_title">Comece pela IA</string>
-    <string name="tour_open_ai_body">Tudo com que o Gotcha pensa, ouve e fala está atrás desta linha. Abra.</string>
     <string name="tour_open_ai_config_title">Dê um cérebro ao Gotcha</string>
-    <string name="tour_open_ai_config_body">O modelo fica em Configuração de IA. Abra: você vai voltar aqui depois para trocar de modelo e escolher uma voz.</string>
+    <string name="tour_open_ai_config_body">Em Modelo de IA fica o cérebro do Gotcha. Abra — você volta aqui para trocar de modelo depois.</string>
     <string name="tour_choose_provider_title">Escolha quem pensa</string>
     <string name="tour_choose_provider_body">A Samosa AI oferece modelo, voz e transcrição com uma cota diária grátis, sem chaves para colar. Escolha Compatível com OpenAI se preferir usar o seu.</string>
     <string name="tour_samosa_sign_in_title">Entre uma vez</string>

@@ -156,13 +156,9 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field("settings_reply_language", R.string.settings_field_reply_language)
         )
     )
-    SettingsPage.AI -> SettingsSearchEntry(
-        page,
-        words("assistant, llm, brain, provider")
-    )
     SettingsPage.AI_CONFIG -> SettingsSearchEntry(
         page,
-        words("samosa sign in, sign in, login, temperature"),
+        words("assistant, llm, brain, ai configuration, samosa sign in, sign in, login, temperature"),
         listOf(
             field("settings_llm_provider", R.string.settings_field_llm_provider, "provider, openai, samosa"),
             field("settings_api_key", R.string.settings_field_api_key),

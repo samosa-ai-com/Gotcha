@@ -63,8 +63,6 @@
     <string name="second_brain_updated">セカンドブレインを更新しました</string>
     <string name="settings_page_language">言語</string>
     <string name="settings_page_language_summary">アプリ、音声、文字起こし、AI の回答の言語</string>
-    <string name="settings_page_ai">AI</string>
-    <string name="settings_page_ai_summary">モデル、プロバイダ、音声、文字起こし</string>
     <string name="settings_page_ai_config">AI 設定</string>
     <string name="settings_page_ai_config_summary">プロバイダ、モデル、エージェントの上限</string>
     <string name="settings_page_speech">音声 (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">セットアップを一つずつやり直す</string>
     <string name="settings_feedback">フィードバックを送る</string>
     <string name="settings_feedback_summary">改善点を教えてください。確認するまで何も送信されません</string>
-    <string name="ai_hub_the_model_does_the_thinking">考えるのはモデル、音声はその口と耳です。一つのプロバイダで両方をまかなえます。話す言語と回答の言語は 設定 → 言語 にあります。</string>
     <string name="appearance_theme">テーマ</string>
     <string name="appearance_every_theme_works_on_every">どのテーマもすべてのデバイスで使えます。リアルタイムのぼかしが使えない場合は、無効にする代わりに軽めのガラス表現で描画します。</string>
     <string name="proactive_master_proactive_offers">先回りの提案 (全体)</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">すべてはここに</string>
     <string name="tour_open_settings_body">いつでも左端からスワイプすると、このメニューが開きます。設定をタップして始めましょう。</string>
     <string name="tour_open_settings_hint">ヒント: 同じ操作はチャットのどこでも使えます。</string>
-    <string name="tour_open_ai_title">まずは AI から</string>
-    <string name="tour_open_ai_body">Gotcha が考え、聞き、話すための設定はすべてこの行の中にあります。開いてください。</string>
     <string name="tour_open_ai_config_title">Gotcha に頭脳を</string>
-    <string name="tour_open_ai_config_body">モデルは AI 設定にあります。開いてください。後でモデルを変えたり音声を選んだりするときにもここに戻ってきます。</string>
+    <string name="tour_open_ai_config_body">AI モデルは Gotcha の頭脳がある場所です。開いてください。後でモデルを変えるときもここに戻ります。</string>
     <string name="tour_choose_provider_title">考える担当を選ぶ</string>
     <string name="tour_choose_provider_body">Samosa AI なら、モデル、音声、文字起こしを毎日の無料枠で使え、キーを貼り付ける必要もありません。自分のものを使いたい場合は OpenAI 互換を選んでください。</string>
     <string name="tour_samosa_sign_in_title">一度ログインするだけ</string>

@@ -63,8 +63,6 @@
     <string name="second_brain_updated">Mis à jour dans le second cerveau</string>
     <string name="settings_page_language">Langue</string>
     <string name="settings_page_language_summary">Langue de l\'appli, de la voix, de la transcription et des réponses de l\'IA</string>
-    <string name="settings_page_ai">IA</string>
-    <string name="settings_page_ai_summary">Modèle, fournisseur, voix et transcription</string>
     <string name="settings_page_ai_config">Configuration de l\'IA</string>
     <string name="settings_page_ai_config_summary">Fournisseur, modèles, limites de l\'agent</string>
     <string name="settings_page_speech">Voix (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">Refaire la configuration, étape par étape</string>
     <string name="settings_feedback">Envoyer un avis</string>
     <string name="settings_feedback_summary">Dites-nous quoi améliorer : rien n\'est envoyé avant que vous validiez</string>
-    <string name="ai_hub_the_model_does_the_thinking">Le modèle réfléchit ; la voix lui donne une bouche et des oreilles. Un même fournisseur peut gérer les deux. La langue dans laquelle il parle et répond se règle dans Paramètres → Langue.</string>
     <string name="appearance_theme">Thème</string>
     <string name="appearance_every_theme_works_on_every">Tous les thèmes fonctionnent sur tous les appareils. Quand le flou en direct n\'est pas disponible, le verre est rendu de façon plus légère au lieu d\'être désactivé.</string>
     <string name="proactive_master_proactive_offers">Suggestions proactives (général)</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">Tout se trouve ici</string>
     <string name="tour_open_settings_body">Balayez depuis le bord gauche à tout moment pour ouvrir ce menu. Touchez Paramètres pour commencer.</string>
     <string name="tour_open_settings_hint">Astuce : le même geste fonctionne partout dans la discussion.</string>
-    <string name="tour_open_ai_title">Commencez par l\'IA</string>
-    <string name="tour_open_ai_body">Tout ce qui permet à Gotcha de réfléchir, d\'entendre et de parler se trouve derrière cette ligne. Ouvrez-la.</string>
     <string name="tour_open_ai_config_title">Donnez un cerveau à Gotcha</string>
-    <string name="tour_open_ai_config_body">Le modèle se règle dans Configuration de l\'IA. Ouvrez-la : vous y reviendrez plus tard pour changer de modèle et choisir une voix.</string>
+    <string name="tour_open_ai_config_body">Modèle d\'IA, c\'est là que vit le cerveau de Gotcha. Ouvrez-le — vous y reviendrez pour changer de modèle.</string>
     <string name="tour_choose_provider_title">Choisissez qui réfléchit</string>
     <string name="tour_choose_provider_body">Samosa AI vous donne un modèle, la voix et la transcription avec un quota quotidien gratuit, sans clé à coller. Choisissez Compatible OpenAI si vous préférez utiliser le vôtre.</string>
     <string name="tour_samosa_sign_in_title">Connectez-vous une fois</string>

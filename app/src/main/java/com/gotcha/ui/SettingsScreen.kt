@@ -219,10 +219,6 @@ fun SettingsScreen(
                     onRefreshAudioModels = onRefreshAudioModels,
                     onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
-                SettingsPage.AI -> AiHubScreen(
-                    onBack = backToHome,
-                    onOpenPage = onPageChange
-                )
                 SettingsPage.AI_CONFIG -> AiConfigScreen(
                     load = load,
                     onSave = onSave,
@@ -463,7 +459,7 @@ private fun SettingsSearchResults(query: String, onOpenResult: (SettingsSearchRe
 @Composable
 private fun SettingsPage.tourAnchorModifier(): Modifier = when (this) {
     SettingsPage.PERSONAL_INFO -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERSONAL_INFO)
-    SettingsPage.AI -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI)
+    SettingsPage.AI_CONFIG -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI_CONFIG)
     SettingsPage.PERMISSIONS -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERMISSIONS)
     else -> Modifier
 }

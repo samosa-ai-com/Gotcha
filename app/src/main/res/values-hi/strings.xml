@@ -63,8 +63,6 @@
     <string name="second_brain_updated">सेकंड ब्रेन में अपडेट हुआ</string>
     <string name="settings_page_language">भाषा</string>
     <string name="settings_page_language_summary">ऐप, आवाज़, ट्रांसक्रिप्शन और AI जवाब की भाषा</string>
-    <string name="settings_page_ai">AI</string>
-    <string name="settings_page_ai_summary">मॉडल, प्रदाता, आवाज़ और ट्रांसक्रिप्शन</string>
     <string name="settings_page_ai_config">AI कॉन्फ़िगरेशन</string>
     <string name="settings_page_ai_config_summary">प्रदाता, मॉडल, एजेंट की सीमाएँ</string>
     <string name="settings_page_speech">स्पीच (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">सेटअप फिर से, एक-एक कदम करके देखें</string>
     <string name="settings_feedback">फ़ीडबैक भेजें</string>
     <string name="settings_feedback_summary">बताएँ क्या बेहतर करें — सबमिट करने तक कुछ नहीं भेजा जाता</string>
-    <string name="ai_hub_the_model_does_the_thinking">मॉडल सोचने का काम करता है; स्पीच उसे आवाज़ और कान देती है। एक ही प्रदाता दोनों संभाल सकता है। वह किस भाषा में बोलता और जवाब देता है, यह सेटिंग → भाषा में है।</string>
     <string name="appearance_theme">थीम</string>
     <string name="appearance_every_theme_works_on_every">हर थीम हर डिवाइस पर काम करती है। जहाँ लाइव ब्लर उपलब्ध नहीं है, वहाँ ग्लास बंद करने के बजाय हल्के तरीके से बनाया जाता है।</string>
     <string name="proactive_master_proactive_offers">सक्रिय सुझाव (मुख्य स्विच)</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">सब कुछ यहीं के पीछे है</string>
     <string name="tour_open_settings_body">यह मेन्यू खोलने के लिए कभी भी बाएँ किनारे से स्वाइप करें। शुरू करने के लिए सेटिंग पर टैप करें।</string>
     <string name="tour_open_settings_hint">टिप: यही स्वाइप चैट में कहीं से भी काम करता है।</string>
-    <string name="tour_open_ai_title">AI से शुरू करें</string>
-    <string name="tour_open_ai_body">Gotcha जिससे सोचता, सुनता और बोलता है, वह सब इस पंक्ति के पीछे है। इसे खोलें।</string>
     <string name="tour_open_ai_config_title">Gotcha को दिमाग़ दें</string>
-    <string name="tour_open_ai_config_body">मॉडल AI कॉन्फ़िगरेशन में रहता है। इसे खोलें — बाद में मॉडल बदलने और आवाज़ चुनने के लिए आप यहीं लौटेंगे।</string>
+    <string name="tour_open_ai_config_body">AI मॉडल में Gotcha का दिमाग़ रहता है। इसे खोलें — बाद में मॉडल बदलने के लिए आप यहीं लौटेंगे।</string>
     <string name="tour_choose_provider_title">चुनें कि सोचेगा कौन</string>
     <string name="tour_choose_provider_body">Samosa AI आपको रोज़ के मुफ़्त कोटे पर मॉडल, स्पीच और ट्रांसक्रिप्शन देता है — कोई कुंजी पेस्ट नहीं करनी। अगर आप अपना ख़ुद का लाना चाहें, तो OpenAI-compatible चुनें।</string>
     <string name="tour_samosa_sign_in_title">एक बार साइन इन करें</string>

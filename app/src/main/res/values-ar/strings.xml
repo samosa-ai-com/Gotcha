@@ -129,8 +129,6 @@
     <string name="second_brain_graph_neighbors"> · %1$d متصلة</string>
     <string name="settings_page_language">اللغة</string>
     <string name="settings_page_language_summary">لغة عرض التطبيق والصوت والنسخ والردود بالذكاء الاصطناعي</string>
-    <string name="settings_page_ai">الذكاء الاصطناعي</string>
-    <string name="settings_page_ai_summary">الطراز، المزوّد، الصوت والنسخ</string>
     <string name="settings_page_ai_config">إعدادات الذكاء الاصطناعي</string>
     <string name="settings_page_ai_config_summary">المزوّد، الطرازات، حدود الوكيل</string>
     <string name="settings_page_speech">الكلام (TTS / STT)</string>
@@ -253,7 +251,6 @@
     <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه — لا يُرسل شيء حتى تُرسل</string>
 
     <!-- AiHubScreen -->
-    <string name="ai_hub_the_model_does_the_thinking">النموذج يفكر؛ الكلام يمنحه صوتًا وأذنين. مزود واحد يمكنه تغطية الاثنين. اللغة التي يتحدث ويجيب بها في الإعدادات ← اللغة.</string>
 
     <!-- AppearanceScreen -->
     <string name="appearance_theme">المظهر</string>
@@ -1237,10 +1234,8 @@
     <string name="tour_open_settings_title">كل شيء خلف هنا</string>
     <string name="tour_open_settings_body">اسحب من الحافة اليسرى في أي وقت للوصول إلى هذه القائمة. اضغط الإعدادات للبدء.</string>
     <string name="tour_open_settings_hint">نصيحة: نفس السحب يعمل من أي مكان في المحادثة.</string>
-    <string name="tour_open_ai_title">ابدأ بالذكاء الاصطناعي</string>
-    <string name="tour_open_ai_body">كل ما يفكر ويسمع ويتحدث به Gotcha خلف هذا الصف. افتحه.</string>
     <string name="tour_open_ai_config_title">امنح Gotcha عقلاً</string>
-    <string name="tour_open_ai_config_body">إعداد الذكاء الاصطناعي هو مكان النموذج. افتحه — ستعود هنا لتغيير النماذج لاحقاً، واختيار صوت.</string>
+    <string name="tour_open_ai_config_body">صفحة نموذج الذكاء الاصطناعي هي مكان عقل Gotcha. افتحها — ستعود إليها لاحقًا لتغيير النماذج.</string>
     <string name="tour_choose_provider_title">اختر من يقوم بالتفكير</string>
     <string name="tour_choose_provider_body">يمنحك Samosa AI نموذجاً وكلاماً ونسخاً ضمن حصة يومية مجانية — دون مفاتيح للصق. اختر متوافق مع OpenAI بدلاً من ذلك إن أردت استخدام مزوّدك.</string>
     <string name="tour_samosa_sign_in_title">سجّل الدخول مرة واحدة</string>

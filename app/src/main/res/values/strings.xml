@@ -132,8 +132,6 @@
     <string name="second_brain_graph_neighbors"> · %1$d connected</string>
     <string name="settings_page_language">Language</string>
     <string name="settings_page_language_summary">App display, voice, transcription and AI reply language</string>
-    <string name="settings_page_ai">AI</string>
-    <string name="settings_page_ai_summary">Model, provider, voice and transcription</string>
     <string name="settings_page_ai_config">AI Configuration</string>
     <string name="settings_page_ai_config_summary">Provider, models, agent limits</string>
     <string name="settings_page_speech">Speech (TTS / STT)</string>
@@ -300,7 +298,6 @@
     <string name="settings_feedback_summary">Tell us what to improve — nothing is sent until you submit</string>
 
     <!-- AiHubScreen -->
-    <string name="ai_hub_the_model_does_the_thinking">The model does the thinking; speech gives it a voice and ears. One provider can cover both. Which language it speaks and answers in lives under Settings → Language.</string>
 
     <!-- AppearanceScreen -->
     <string name="appearance_theme">Theme</string>
@@ -1236,10 +1233,8 @@
     <string name="tour_open_settings_title">Everything lives behind here</string>
     <string name="tour_open_settings_body">Swipe in from the left edge any time to reach this menu. Tap Settings to start.</string>
     <string name="tour_open_settings_hint">Tip: the same swipe works from anywhere in the chat.</string>
-    <string name="tour_open_ai_title">Start with AI</string>
-    <string name="tour_open_ai_body">Everything Gotcha thinks, hears and says with is behind this row. Open it.</string>
     <string name="tour_open_ai_config_title">Give Gotcha a brain</string>
-    <string name="tour_open_ai_config_body">AI Configuration is where the model lives. Open it — you\'ll come back here to change models later, and to pick a voice.</string>
+    <string name="tour_open_ai_config_body">AI model is where Gotcha\'s brain lives. Open it — you\'ll come back here to change models later.</string>
     <string name="tour_choose_provider_title">Pick who does the thinking</string>
     <string name="tour_choose_provider_body">Samosa AI gives you a model, speech and transcription on a free daily allowance — no keys to paste. Choose OpenAI-compatible instead if you\'d rather bring your own.</string>
     <string name="tour_samosa_sign_in_title">Sign in once</string>

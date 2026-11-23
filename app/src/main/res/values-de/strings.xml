@@ -63,8 +63,6 @@
     <string name="second_brain_updated">Im Second Brain aktualisiert</string>
     <string name="settings_page_language">Sprache</string>
     <string name="settings_page_language_summary">App-Sprache, Sprachausgabe, Transkription und Antwortsprache der KI</string>
-    <string name="settings_page_ai">KI</string>
-    <string name="settings_page_ai_summary">Modell, Anbieter, Stimme und Transkription</string>
     <string name="settings_page_ai_config">KI-Konfiguration</string>
     <string name="settings_page_ai_config_summary">Anbieter, Modelle, Agent-Limits</string>
     <string name="settings_page_speech">Sprache (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">Die Einrichtung noch einmal Schritt für Schritt durchgehen</string>
     <string name="settings_feedback">Feedback senden</string>
     <string name="settings_feedback_summary">Sag uns, was wir verbessern sollen – nichts wird gesendet, bevor du es abschickst</string>
-    <string name="ai_hub_the_model_does_the_thinking">Das Modell denkt; die Sprache gibt ihm Stimme und Ohren. Ein Anbieter kann beides übernehmen. In welcher Sprache es spricht und antwortet, steht unter Einstellungen → Sprache.</string>
     <string name="appearance_theme">Design</string>
     <string name="appearance_every_theme_works_on_every">Jedes Design funktioniert auf jedem Gerät. Wo kein Live-Weichzeichner verfügbar ist, wird das Glas sparsamer dargestellt statt abgeschaltet.</string>
     <string name="proactive_master_proactive_offers">Proaktive Vorschläge (Hauptschalter)</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">Hier steckt alles drin</string>
     <string name="tour_open_settings_body">Wisch jederzeit vom linken Rand, um dieses Menü zu öffnen. Tippe auf Einstellungen, um zu beginnen.</string>
     <string name="tour_open_settings_hint">Tipp: Die gleiche Wischgeste funktioniert überall im Chat.</string>
-    <string name="tour_open_ai_title">Fang mit der KI an</string>
-    <string name="tour_open_ai_body">Alles, womit Gotcha denkt, hört und spricht, steckt hinter dieser Zeile. Öffne sie.</string>
     <string name="tour_open_ai_config_title">Gib Gotcha ein Gehirn</string>
-    <string name="tour_open_ai_config_body">In der KI-Konfiguration wohnt das Modell. Öffne sie – hierher kommst du später zurück, um Modelle zu wechseln und eine Stimme zu wählen.</string>
+    <string name="tour_open_ai_config_body">Unter KI-Modell lebt Gotchas Gehirn. Öffne es — hier wechselst du später auch das Modell.</string>
     <string name="tour_choose_provider_title">Wähle, wer denkt</string>
     <string name="tour_choose_provider_body">Samosa AI gibt dir Modell, Sprachausgabe und Transkription mit einem kostenlosen Tageskontingent – ohne Schlüssel. Wähle OpenAI-kompatibel, wenn du lieber deinen eigenen nutzt.</string>
     <string name="tour_samosa_sign_in_title">Einmal anmelden</string>

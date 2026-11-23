@@ -63,8 +63,6 @@
     <string name="second_brain_updated">已在第二大脑中更新</string>
     <string name="settings_page_language">语言</string>
     <string name="settings_page_language_summary">应用、语音、转写和 AI 回复语言</string>
-    <string name="settings_page_ai">AI</string>
-    <string name="settings_page_ai_summary">模型、提供商、语音和转写</string>
     <string name="settings_page_ai_config">AI 配置</string>
     <string name="settings_page_ai_config_summary">提供商、模型、代理限制</string>
     <string name="settings_page_speech">语音 (TTS / STT)</string>
@@ -160,7 +158,6 @@
     <string name="settings_feature_tour_summary">重新逐步完成设置</string>
     <string name="settings_feedback">发送反馈</string>
     <string name="settings_feedback_summary">告诉我们哪里需要改进：确认前不会发送任何内容</string>
-    <string name="ai_hub_the_model_does_the_thinking">模型负责思考，语音为它提供嘴巴和耳朵。一个提供商可以同时负责两者。它说话和回复的语言在 设置 → 语言 中设置。</string>
     <string name="appearance_theme">主题</string>
     <string name="appearance_every_theme_works_on_every">每个主题都适用于所有设备。在不支持实时模糊的设备上，玻璃效果会以较轻的方式呈现，而不是被关闭。</string>
     <string name="proactive_master_proactive_offers">主动建议（总开关）</string>
@@ -870,10 +867,8 @@
     <string name="tour_open_settings_title">一切都在这里</string>
     <string name="tour_open_settings_body">随时从左边缘滑动即可打开此菜单。点按“设置”开始。</string>
     <string name="tour_open_settings_hint">提示：同样的手势在对话中任何地方都可用。</string>
-    <string name="tour_open_ai_title">从 AI 开始</string>
-    <string name="tour_open_ai_body">Gotcha 思考、聆听和说话所用的一切都在这一行后面。打开它。</string>
     <string name="tour_open_ai_config_title">给 Gotcha 一个大脑</string>
-    <string name="tour_open_ai_config_body">模型在 AI 配置中。打开它：之后你还会回到这里更换模型和选择声音。</string>
+    <string name="tour_open_ai_config_body">AI 模型是 Gotcha 的大脑所在。打开它——以后更换模型也回到这里。</string>
     <string name="tour_choose_provider_title">选择由谁思考</string>
     <string name="tour_choose_provider_body">Samosa AI 提供模型、语音和转写，每天有免费额度，无需粘贴密钥。如果你想用自己的，请选择 OpenAI 兼容。</string>
     <string name="tour_samosa_sign_in_title">只需登录一次</string>

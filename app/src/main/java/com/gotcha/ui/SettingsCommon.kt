@@ -142,22 +142,15 @@ enum class SettingsPage(
         R.string.settings_page_language_summary,
         "settings_language_row"
     ),
-    AI(
-        R.string.settings_page_ai,
-        R.string.settings_page_ai_summary,
-        "settings_ai_row"
-    ),
     AI_CONFIG(
         R.string.settings_page_ai_config,
         R.string.settings_page_ai_config_summary,
-        "settings_ai_config_row",
-        { AI }
+        "settings_ai_config_row"
     ),
     SPEECH(
         R.string.settings_page_speech,
         R.string.settings_page_speech_summary,
-        "settings_speech_row",
-        { AI }
+        "settings_speech_row"
     ),
     PERMISSIONS(
         R.string.settings_page_permissions,

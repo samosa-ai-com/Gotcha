@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -16,6 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
+import com.gotcha.ui.SPLASH_OVERLAY_TAG
 import com.gotcha.ui.SettingsHighlighted
 import com.gotcha.testutil.TestSeed
 import org.junit.After
@@ -34,6 +36,20 @@ class SettingsFlowTest {
     private val testBaseUrl = "http://localhost:8080/v1/"
     private val testModel = "flow-test-model"
 
+    /**
+     * Launches and waits out the launch video. It plays once per process, so only
+     * whichever test runs first meets it — and taps landing on it went nowhere,
+     * which failed that one test depending on the order.
+     */
+    private fun launchPastSplash() {
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = SPLASH_TIMEOUT_MS) {
+            composeRule.onAllNodesWithTag(SPLASH_OVERLAY_TAG).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitForIdle()
+    }
+
     @After
     fun tearDown() {
         scenario?.close()
@@ -44,8 +60,7 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
         // An unconfigured install opens on the AI Configuration page itself, so
         // there is no category row to click through first.
@@ -64,8 +79,7 @@ class SettingsFlowTest {
         assertEquals(testModel, persisted.model)
 
         // Relaunch and confirm the configured route is reached with the saved settings intact.
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
         composeRule.onNodeWithTag("chat_input").assertExists()
     }
 
@@ -74,13 +88,9 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        // First run opens on AI Configuration, which sits inside the AI hub, so
-        // reaching the category list takes two Backs.
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
+        // First run opens on AI model; one Back reaches the category list.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
@@ -104,8 +114,6 @@ class SettingsFlowTest {
     private fun openPersonalInfoWithUnsavedName() {
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_user_name").performTextReplacement("Ada")
@@ -116,8 +124,7 @@ class SettingsFlowTest {
     fun personalInfo_backWithUnsavedEdits_asksAndDiscardLeavesStorageAlone() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
         openPersonalInfoWithUnsavedName()
 
         // Back used to drop the edit without a word; now it asks first.
@@ -136,8 +143,7 @@ class SettingsFlowTest {
     fun personalInfo_backWithUnsavedEdits_saveFromTheDialogPersists() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
         openPersonalInfoWithUnsavedName()
 
         composeRule.onNodeWithTag("settings_back").performClick()
@@ -155,12 +161,9 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
+        // First run opens on AI model; one Back reaches the category list.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_language_row").performScrollTo().performClick()
@@ -201,29 +204,34 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        // First run opens on AI Configuration; Back from a sub-page lands on the
-        // hub it hangs off rather than leaving Settings...
+        // First run opens on AI model, a top-level page: Back lands on the list.
         composeRule.onNodeWithTag("settings_base_url").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
-
-        // ...and Back again from the hub lands on the category list.
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_ai_row").assertExists()
-        composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings_speech_row").assertExists()
 
         // Opening a category replaces the list with that page.
-        composeRule.onNodeWithTag("settings_ai_row").performScrollTo().performClick()
-        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
         composeRule.onNodeWithText("TTS Provider").assertExists()
+
+        // A page inside a hub goes Back to its hub, then to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_shell_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_linux_shell_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_termux_row").assertExists()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_shell_row").performScrollTo().assertExists()
     }
 
     @Test
@@ -231,12 +239,9 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
+        // First run opens on AI model; one Back reaches the category list.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
 
@@ -267,27 +272,24 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
 
-        // Speech lives inside the AI hub, so the home list never shows this row —
+        // Termux lives inside the Shell hub, so the home list never shows this row —
         // the search result is the only way to reach it in one tap.
-        composeRule.onNodeWithTag("settings_search").performTextReplacement("read aloud")
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("termux")
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
+        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("TTS Provider").assertExists()
+        composeRule.onNodeWithTag("settings_linux_shell_row").assertDoesNotExist()
 
         // Back from a nested page lands on its hub, and the query is gone: the
         // list that comes back is the whole list.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
+        composeRule.onNodeWithTag("settings_linux_shell_row").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_shell_row").performScrollTo().assertExists()
@@ -298,8 +300,7 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
         // First run opens on AI Configuration. The agent-loop limits are one tap
         // away, not in the way of the fields that make the app work.
@@ -316,18 +317,15 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
 
         // The result says where it will land, down to the field.
         composeRule.onNodeWithTag("settings_search").performTextReplacement("max tool rounds")
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("AI › AI Configuration › Max tool rounds").assertExists()
+        composeRule.onNodeWithText("AI Configuration › Max tool rounds").assertExists()
 
         // Hold the clock, so the highlight can be caught before it fades.
         composeRule.mainClock.autoAdvance = false
@@ -354,7 +352,7 @@ class SettingsFlowTest {
         composeRule.onNodeWithTag("settings_max_tool_rounds")
             .assert(SemanticsMatcher.keyNotDefined(SettingsHighlighted))
 
-        // Back to the hub and in again is an ordinary visit: nothing highlighted,
+        // Back to the list and in again is an ordinary visit: nothing highlighted,
         // and Advanced folded as it always starts.
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
@@ -368,11 +366,8 @@ class SettingsFlowTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
 
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.waitForIdle()
+        launchPastSplash()
 
-        composeRule.onNodeWithTag("settings_back").performClick()
-        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
 
@@ -398,5 +393,6 @@ class SettingsFlowTest {
          * it, so this has to cover that window and the fade, not just one frame.
          */
         const val HIGHLIGHT_CLEAR_MS = 10_000L
+        const val SPLASH_TIMEOUT_MS = 15_000L
     }
 }
