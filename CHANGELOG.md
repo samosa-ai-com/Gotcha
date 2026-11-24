@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [2.0.0]
 ### Added
 - **Gotcha installs Gotcha Shell for you.** A Pro or influencer account gets a
   *Get Gotcha Shell* action on the Linux-shell page; the app downloads the
