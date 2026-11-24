@@ -1,5 +1,5 @@
 {
-  "app_version_code": 9,
+  "app_version_code": 10,
   "events": {
     "agent_run": {
       "props": {
@@ -1008,7 +1008,6 @@
               "finish",
               "grant_accessibility",
               "grant_overlay",
-              "open_ai",
               "open_ai_config",
               "open_permissions",
               "open_personal_info",
