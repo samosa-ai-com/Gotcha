@@ -215,11 +215,17 @@ jobs:
           FEEDBACK_ENTRY_CHAT_LOG: ${{ secrets.FEEDBACK_ENTRY_CHAT_LOG }}
           INFLUENCER_FORM_URL: ${{ secrets.INFLUENCER_FORM_URL }}
           INFLUENCER_ENTRY_EMAIL: ${{ secrets.INFLUENCER_ENTRY_EMAIL }}
+          TELEMETRY_URL: ${{ secrets.TELEMETRY_URL }}
+          TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
         run: |
           # samosaConfig() in app/build.gradle.kts silently falls back to inert
           # *.example placeholders when a value is missing, which produces an APK
           # that installs fine but can never reach the backend. Fail loudly instead.
-          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID; do
+          # TELEMETRY_* blank makes telemetry a no-op, which is right for a public
+          # checkout but not for a release: 2.0.0 shipped the first-run usage-data
+          # choice with both unset, so the Privacy switch was greyed out and nothing
+          # was ever sent. A release must carry them.
+          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID TELEMETRY_URL TELEMETRY_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::$name is not set in repo secrets — the release would ship placeholder config"
               exit 1
