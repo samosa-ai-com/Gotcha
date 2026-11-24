@@ -1,12 +1,17 @@
 DATA RETENTION AND PRIVACY POLICY
 
-Last updated: [effective date]
+Last updated: 23 November 2026
 
 This policy explains what data the Gotcha App ("App") and the underlying
 AI backends handle, how long it is kept, and where it lives. The short
-version: the App itself does not collect or retain data on our
-servers — everything stays on your device unless you choose to use a
-backend that transmits data to a third-party AI provider.
+version: the App itself does not collect or retain your content on
+our servers — everything stays on your device unless you choose to use
+a backend that transmits it, such as Samosa AI (Section 4.2) or an AI
+provider you configure yourself. On first
+launch the App registers the install with us; that registration
+describes the build and the device in broad terms and identifies no
+one. Usage data, which is counts and outcomes only, is on by default
+and can be turned off; see Section 11.
 
 1. WHAT THE APP STORES, AND WHERE
 
@@ -23,16 +28,20 @@ backend that transmits data to a third-party AI provider.
    1.3 Settings (preferences, model selections, permission choices,
        legal acceptance) are stored in Android's encrypted
        SharedPreferences on your device. They are never uploaded to us.
-   1.4 The App does not ship analytics, crash reporting, telemetry, or
-       any background tracking SDK. We have no server-side record of
-       your activity in the App.
+   1.4 The App does not ship any third-party analytics,
+       crash-reporting or tracking SDK. The only server-side records we
+       keep are the install registration made on first launch and the
+       usage data described in Section 11. Neither contains your
+       content.
 
 2. WHAT IS TRANSMITTED, AND WHEN
 
-   2.1 The App does not transmit data unless you send a request to an
-       AI backend. A request is sent only when you (or the agent you
-       have configured) initiate one — for example, by typing a message,
-       starting a voice call, or invoking a tool that needs vision.
+   2.1 The App transmits data when it registers an install on first
+       launch (Section 11), when you send a request to an AI backend, or
+       when usage data is on (also Section 11). An AI request is sent
+       only when you (or the agent you have configured) initiate one —
+       for example, by typing a message, starting a voice call, or
+       invoking a tool that needs vision.
 
    2.2 If you choose to use Samosa AI as your backend, requests are
        transmitted to Samosa AI over HTTPS, authenticated with the
@@ -44,13 +53,17 @@ backend that transmits data to a third-party AI provider.
        authenticated with the API key you supplied. The App does not
        proxy or store that key on any server we operate.
 
-3. ZERO COLLECTION / ZERO RETENTION BY US
+3. WHAT WE KEEP ON OUR SIDE
 
-   3.1 We do not operate a server that retains your chats, calls,
-       screenshots, prompts, completions, or credentials. We have no
-       analytics, no logging pipeline, no telemetry endpoint. There is
-       therefore nothing on our side to "delete," because nothing is
-       kept there in the first place.
+   3.1 The App never sends your chats, calls, screenshots, prompts,
+       completions, or credentials to Gotcha. The one exception is when
+       you choose Samosa AI as your backend: the requests you send it
+       are handled by Samosa AIR as described in Section 4.2. We keep
+       the install registration and, when usage data is on, the counts
+       and outcomes described in Section 11. That data is kept
+       indefinitely in anonymised form; recent data sits in a rolling
+       30-day working window used for day-to-day analysis. Nothing in
+       it identifies you, so there is no per-person record to delete.
    3.2 If you want to remove local data, uninstall the App, or use the
        in-app controls (e.g. "Clear chat," "Clear LLM cache").
 
@@ -61,29 +74,26 @@ backend that transmits data to a third-party AI provider.
        practices. Once a request leaves your device, the backend's
        terms apply.
 
-   4.2 Samosa AI (the Samosa AIR proxy):
-         (a) Samosa AI is operated independently of Gotcha. By
-             using Samosa AI as your backend, you accept Samosa AI's
-             own terms and privacy policy, in addition to these.
-         (b) Samosa AI routes requests to underlying model providers.
-             Samosa AI is designed to minimize what is forwarded:
-             identifying metadata such as your IP address is not
-             included in the prompt payload sent to the underlying
-             model provider.
-         (c) However, Samosa AI cannot fully eliminate provider-side
+   4.2 Samosa AI (the Samosa AIR service):
+         (a) Samosa AIR is a separate service, operated by Samosa AI,
+             with its own Samosa AIR Terms of Service, shown in the
+             App under Settings ▸ About ▸ Legal. When you sign in to
+             Samosa AI, you accept those terms in addition to these.
+             They are the authoritative description of what Samosa AIR
+             keeps.
+         (b) In short: Samosa AIR keeps logs of the requests you send
+             and the responses it returns on its live servers for up to
+             30 days. Your account details, plan, credits, and usage
+             and sign-in records are kept while your account exists,
+             and backups may hold data for longer.
+         (c) Samosa AIR routes requests to underlying model providers.
+             Before forwarding, it removes your account details and IP
+             address from the request.
+         (d) However, Samosa AIR cannot fully eliminate provider-side
              exposure. The underlying model provider will receive the
              contents of your prompt and may receive provider-managed
              identifiers (request IDs, abuse-prevention tokens) for the
              purpose of operating the service.
-         (d) Underlying model providers may, under their own policies,
-             retain prompts and completions, and may use them to train
-             and improve their models. Samosa AI uses providers that
-             commit not to train on inputs delivered via the Samosa
-             AIR proxy, but those commitments are governed by the
-             provider's terms and may change.
-         (e) You should review Samosa AI's privacy policy directly for
-             the current, authoritative description of how Samosa AI
-             and its underlying providers handle your data.
 
    4.3 User-Provided Providers (your own OpenAI-compatible endpoint):
          (a) When you supply your own API key and base URL, requests
@@ -103,10 +113,13 @@ backend that transmits data to a third-party AI provider.
        provides controls to:
          (a) clear individual chat histories ("Clear chat" in the
              drawer);
-         (b) clear the LLM response cache (Settings → AI Configuration);
-         (c) clear debug screenshots (Settings → AI Configuration);
+         (b) clear the LLM response cache (Settings → Chats and storage);
+         (c) clear debug screenshots (Settings → Chats and storage);
          (d) uninstall the App, which removes all app-private data,
              including settings, caches, and history.
+       Uninstalling does not withdraw the install registration or usage
+       data already sent; neither contains anything that identifies
+       you, so there is nothing to delete on request (Section 11.9).
    5.2 Android may retain app-private data in backups (e.g. Auto Backup
        to Google Drive) depending on the user's Android settings. We
        do not control backup behavior; please review your device
@@ -122,8 +135,8 @@ backend that transmits data to a third-party AI provider.
 
 7. YOUR RESPONSIBILITY
 
-   7.1 Because the App does not collect data on our servers, it is
-       your responsibility to:
+   7.1 Because the App does not keep your content on our servers, it
+       is your responsibility to:
          (a) safeguard your device with a screen lock;
          (b) review what permissions you have granted, and revoke
              those you no longer need;
@@ -147,7 +160,7 @@ backend that transmits data to a third-party AI provider.
 10. OPTIONAL WAKE WORD ("Hey Gotcha")
 
    10.1 The wake-word feature is opt-in. When turned on in Settings
-        (Settings → Assistive Ball and Wake Word → "Wake word: Hey Gotcha"), the
+        (Settings → Floating ball and wake word → "Wake word: Hey Gotcha"), the
         App keeps a microphone-type foreground service alive while the Assistive
         Ball is on and no voice call is in progress.
 
@@ -178,5 +191,96 @@ backend that transmits data to a third-party AI provider.
 
    10.6 You can turn the wake-word feature off at any time; when off, the
         App does not retain or process any audio for wake-word purposes.
+
+11. INSTALL REGISTRATION AND USAGE DATA
+
+    11.1 Install registration. On first launch, whether usage data is
+         on or off, the App registers the install with a server
+         operated by Samosa AI over HTTPS. The registration contains:
+           (a) the App's version, build number and build type, and
+               whether it came from a store or was sideloaded;
+           (b) the Android version, API level and security patch level;
+           (c) the device's primary CPU ABI, manufacturer and model,
+               and the manufacturer's software skin as a broad kind;
+           (d) memory, storage, screen size, screen density and refresh
+               rate as broad buckets;
+           (e) the language setting and the country derived from the
+               connection;
+           (f) the install time and the time-zone offset at install;
+               and
+           (g) whether the device looks like an emulator or shows root
+               signals.
+         It contains no name, email address, account, phone number,
+         advertising ID or other device identifier, and it identifies
+         no one. We use it to operate the service — for example, to
+         know which Android versions and screen sizes to support and
+         which builds are in use — and to protect the service from
+         abuse.
+
+    11.2 Usage data is on by default in every country. The switch is
+         always in Settings → Privacy → "Share usage data". On the
+         first screen it is shown as well where the law treats prior
+         consent as required (for example the European Economic Area
+         and the United Kingdom), so the disclosure and the control sit
+         together; elsewhere it is on by default and only in Settings.
+         Nothing in the App depends on it, and turning it off costs you
+         no feature.
+
+    11.3 Purpose: to learn which features are used and where the App
+         fails or crashes, so we can fix and improve it.
+
+    11.4 What is sent. Usage data includes, but is not restricted to,
+         these kinds of information:
+           (a) app use, such as how long the App takes to start and how
+               long a session lasts;
+           (b) assistant and AI activity, such as the kind of AI service
+               and model used, and whether a request succeeded;
+           (c) features, such as which built-in tools, connectors or
+               permissions were used; and
+           (d) crashes, such as the type of error and where in the App
+               it happened.
+         With each batch the App also sends basic details such as its
+         version and the Android version. The full list of events is
+         shown in the App under Settings → Privacy → "What we send".
+
+    11.5 What is never sent: the content of your AI requests and their
+         replies, or the API calls themselves; your messages, what is on
+         your screen, files or file names, contacts, text messages, call
+         logs, calendar entries, notifications, location, health data,
+         shell commands or their output, the names of your apps, web
+         addresses, your API key, your Samosa AI account or email, and
+         any device identifier (Android ID, IMEI, serial number or
+         advertising ID). The text of an error is never sent. None of
+         the content you type, say, see, save or run leaves the phone as
+         part of usage data. Usage data is anonymised before it is sent,
+         so no personally identifiable information is collected.
+
+    11.6 Identifier: the install registration gives the App a random
+         install id and a token. They are not derived from your device
+         or your account, and they are not linked to your Samosa AI
+         account. Nothing else is needed to send usage data.
+
+    11.7 Where it goes and how long it is kept: to a server operated by
+         Samosa AI, over HTTPS. Data is kept indefinitely in anonymised
+         form. Recent data sits in a rolling 30-day working window used
+         for day-to-day analysis, and older data is retained in
+         anonymised aggregate for longer-term product decisions. Your
+         IP address is not stored with it.
+
+    11.8 Consent record. The App records your choice — whether you
+         accept or decline usage data — as evidence of that choice,
+         together with the surface it was made on (first run or
+         Settings) and the policy version. This record is kept whether
+         you accept or decline, and it is kept if you later change the
+         choice.
+
+    11.9 Your choices: turning usage data off stops collection at once
+         and deletes anything waiting on the phone. Turning it back on
+         records the new choice. There is no "delete my data" request,
+         because there is nothing in what we hold that identifies you
+         to delete. Questions can go to contact@samosa-ai.com.
+
+    11.10 Builds of the App that you compile yourself from the public
+          source code send no usage data at all.
 
 — END OF DATA RETENTION POLICY —

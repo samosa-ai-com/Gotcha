@@ -11,6 +11,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.ui.tour.SUPPRESS_TOUR_KEY
+import kotlinx.coroutines.launch
 
 /**
  * Debug-only broadcast receiver that seeds app settings for automated testing.
@@ -30,6 +31,25 @@ class TestHooksReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_SEED_SETTINGS -> seedSettings(context, intent)
             ACTION_SET_APPEARANCE -> setAppearance(context, intent)
+            ACTION_FLUSH_TELEMETRY -> flushTelemetry()
+        }
+    }
+
+    /**
+     * Sends queued usage data now, skipping the 15-minute spacing, and logs the
+     * outcome. Still honours the switch, the network and any server pause, which
+     * is what a test wants to see:
+     * adb shell am broadcast -n com.gotcha/com.gotcha.debug.TestHooksReceiver \
+     *   -a com.gotcha.debug.FLUSH_TELEMETRY
+     */
+    private fun flushTelemetry() {
+        val pending = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                Log.i(TAG, "telemetry flush: ${com.gotcha.telemetry.Telemetry.flush(force = true)}")
+            } finally {
+                pending.finish()
+            }
         }
     }
 
@@ -81,6 +101,7 @@ class TestHooksReceiver : BroadcastReceiver() {
         private const val TAG = "GotchaTestHooks"
         const val ACTION_SEED_SETTINGS = "com.gotcha.debug.SEED_SETTINGS"
         const val ACTION_SET_APPEARANCE = "com.gotcha.debug.SET_APPEARANCE"
+        const val ACTION_FLUSH_TELEMETRY = "com.gotcha.debug.FLUSH_TELEMETRY"
         const val EXTRA_SKIN = "skin"
         const val EXTRA_BASE_URL = "base_url"
         const val EXTRA_API_KEY = "api_key"

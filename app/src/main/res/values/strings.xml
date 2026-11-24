@@ -6,19 +6,24 @@
     <string name="accessibility_service_description">Lets Gotcha read on-screen content and perform taps, swipes and text input on your behalf, so the assistant can operate other apps for you.</string>
     <string name="device_admin_description">Lets Gotcha lock the screen, enforce password policy and disable the camera when you ask it to.</string>
     <string name="legal_consent_title" translatable="false">Before you continue</string>
-    <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
-    <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, the Data Retention and Privacy Policy, and, for when you sign in to Samosa AI, the Samosa AIR Terms of Service. You must be at least 18 years old.</string>
+    <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, Data Retention Policy, and Samosa AIR Terms of Service.</string>
     <string name="legal_consent_age_label" translatable="false">I confirm that I am at least 18 years old.</string>
+    <string name="legal_consent_usage_data_label">Share usage data</string>
+    <string name="legal_consent_usage_data_hint">Counts and outcomes only — never your messages, screen contents, files or commands. It helps keep Gotcha improving, and you can change this any time in Settings ▸ Privacy.</string>
     <string name="legal_consent_agree" translatable="false">I agree</string>
     <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
     <string name="legal_consent_section_privacy" translatable="false">Data Retention and Privacy Policy</string>
+    <string name="legal_consent_section_air_terms" translatable="false">Samosa AIR Terms of Service</string>
+    <string name="samosa_sign_in_terms_notice" translatable="false">By signing in, you agree to the Samosa AIR Terms of Service (Settings ▸ About ▸ Legal).</string>
+    <string name="legal_consent_section_third_party" translatable="false">Third-party notices</string>
     <string name="legal_consent_loading" translatable="false">(loading…)</string>
     <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
-        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
-        <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere. An install registration runs on first launch regardless of your choice and identifies no one. Usage data — counts and outcomes only — is on by default and can be turned off any time in Settings → Privacy.</item>
+        <item>If you sign in to Samosa AI, the Samosa AIR Terms of Service apply, including how long Samosa AIR keeps your requests and account data. A User-Provided Provider you configure yourself has its own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
 
@@ -36,7 +41,7 @@
     <string name="language_arabic">Arabic</string>
 
     <!-- Settings → Language -->
-    <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
+    <string name="language_page_intro">The language Gotcha\'s screens are written in, and the one it answers in. The languages it speaks and listens in are under Voice and speech.</string>
     <string name="language_display_title">App display language</string>
     <string name="language_display_description">The language of Gotcha\'s own buttons and screens. Only Gotcha changes; the rest of your phone stays as it is.</string>
     <string name="language_display_open_settings">Choose app language</string>
@@ -46,7 +51,6 @@
     <string name="language_voice_title">Voice language</string>
     <string name="language_voice_description">What Gotcha speaks aloud and listens for during voice input and calls. Leave it following the reply language unless you want answers written in one language and spoken in another.</string>
     <string name="language_voice_follow_reply">Same as AI reply language</string>
-    <string name="language_voice_speech_hint">Which model and voice read it out are picked under Settings → AI → Speech.</string>
     <string name="language_transcription_title">Transcription language</string>
     <string name="language_transcription_description">The language Gotcha writes your speech down in, for voice input, calls and transcribing audio files.</string>
     <string name="language_transcription_hint_api">Leave this empty and speech is transcribed in the voice language. Set it to force one language, which helps accuracy when the model tends to guess wrong.</string>
@@ -60,18 +64,22 @@
     <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
     <string name="language_reply_title">AI reply language</string>
     <string name="language_reply_description">The language the assistant writes its answers in. Tool names, commands and file paths stay in English so they keep working.</string>
-    <string name="language_saved">Saved language settings.</string>
-    <string name="language_save">Save Language Settings</string>
 
     <!-- Shared actions -->
     <string name="action_cancel">Cancel</string>
 
     <!-- Settings pages: title and the summary under it on the home list -->
-    <string name="settings_page_personal_info">Personal Info</string>
+    <string name="settings_page_personal_info">About you</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
-    <string name="settings_page_chats">Chats</string>
-    <string name="settings_page_chats_summary">Import or back up conversations</string>
+    <string name="settings_page_chats">Chats and storage</string>
+    <string name="settings_page_chats_summary">Import, back up, clear caches</string>
+    <string name="chats_clear_debug_screenshots_summary">Delete screenshots kept for troubleshooting</string>
+    <string name="chats_clear_llm_cache_summary">Forget model replies kept to save time</string>
+    <string name="chats_backup_summary">Save every chat to one file</string>
+    <string name="chats_import_summary">Add chats from a Gotcha backup file</string>
+    <string name="chats_group_storage">Storage</string>
+    <string name="chats_group_chats">Chats</string>
     <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>
     <string name="second_brain_summary">Notes: %1$d · People: %2$d · Areas: %3$d</string>
     <string name="second_brain_setup_title">Your second brain</string>
@@ -130,23 +138,30 @@
     <string name="second_brain_graph_reset">Reset view</string>
     <string name="second_brain_graph_neighbors"> · %1$d connected</string>
     <string name="settings_page_language">Language</string>
-    <string name="settings_page_language_summary">App display, voice, transcription and AI reply language</string>
-    <string name="settings_page_ai">AI</string>
-    <string name="settings_page_ai_summary">Model, provider, voice and transcription</string>
-    <string name="settings_page_ai_config">AI Configuration</string>
-    <string name="settings_page_ai_config_summary">Provider, models, agent limits</string>
-    <string name="settings_page_speech">Speech (TTS / STT)</string>
-    <string name="settings_page_speech_summary">Voices, transcription, read replies aloud</string>
+    <string name="settings_page_language_summary">App display and AI reply language</string>
+    <string name="settings_page_ai_config">AI model</string>
+    <string name="settings_page_ai_config_summary">Provider, model, agent limits</string>
+    <string name="settings_page_speech">Voice and speech</string>
+    <string name="settings_page_speech_summary">Voices, transcription, reading aloud</string>
     <string name="settings_page_permissions">Permissions</string>
     <string name="settings_page_permissions_summary">What the assistant is allowed to do</string>
-    <string name="settings_page_termux">Termux (Linux shell)</string>
-    <string name="settings_page_termux_summary">Run commands in a real Linux shell</string>
-    <string name="settings_page_skills">Skills / Plugins</string>
+    <string name="settings_page_linux_shell">Gotcha Shell</string>
+    <string name="settings_page_linux_shell_summary">A full Linux system in its own app</string>
+    <string name="settings_page_shell">Shell</string>
+    <string name="settings_page_shell_summary">Gotcha Shell or Termux for Linux commands</string>
+    <string name="shell_hub_intro">Two ways to let the assistant run Linux commands. Gotcha Shell is a full Linux system in its own app; Termux uses the Termux app if you already have it. Set up either one, or both.</string>
+    <string name="settings_page_termux">Termux</string>
+    <string name="settings_page_termux_summary">Use the Termux app if you already have it</string>
+    <string name="settings_page_skills">Skills</string>
     <string name="settings_page_skills_summary">Built-in and community skills</string>
-    <string name="settings_page_proactive">Proactive Assistance</string>
+    <string name="skills_hub_connectors_summary">Google, Microsoft, Notion, Home Assistant, email, MCP</string>
+    <string name="skills_hub_intro">Connectors give the assistant your accounts; skills tell it how to use them and the apps around them.</string>
+    <string name="settings_page_skills_and_connectors_summary">Connected accounts and built-in skills</string>
+    <string name="settings_page_skills_and_connectors">Skills and connectors</string>
+    <string name="settings_page_proactive">Proactive assistance</string>
     <string name="settings_page_proactive_summary">Offers, OTP detection, what may be scanned</string>
-    <string name="settings_page_assistive_ball">Assistive Ball and Wake Word</string>
-    <string name="settings_page_assistive_ball_summary">Floating ball over other apps, hands-free calls, \"Hey Gotcha\"</string>
+    <string name="settings_page_assistive_ball">Floating ball and wake word</string>
+    <string name="settings_page_assistive_ball_summary">Hands-free calls and \"Hey Gotcha\"</string>
     <string name="settings_page_appearance">Appearance</string>
     <string name="settings_page_appearance_summary">How the app looks</string>
     <string name="settings_page_notifications">Notifications</string>
@@ -157,6 +172,56 @@
     <string name="settings_page_about_samosa_summary">Mission, products, pricing, developers</string>
     <string name="settings_page_legal">Legal</string>
     <string name="settings_page_legal_summary">Terms, disclaimer, data retention</string>
+    <string name="settings_page_privacy">Privacy</string>
+    <string name="settings_page_privacy_summary">Your usage, and where your data goes</string>
+    <string name="privacy_your_usage_title">Your usage</string>
+    <string name="privacy_your_usage_intro">Counted on this phone from the chats, calls and logs Gotcha already keeps. Nothing here is sent anywhere.</string>
+    <string name="privacy_stat_chats">Chats</string>
+    <string name="privacy_stat_calls">Voice calls</string>
+    <string name="privacy_stat_requests">Requests handled</string>
+    <string name="privacy_stat_requests_recent">Requests in the last %1$d days</string>
+    <string name="privacy_stat_success">Finished successfully</string>
+    <string name="privacy_stat_operator">Run in Operator mode</string>
+    <string name="privacy_stat_tool_calls">Actions taken</string>
+    <string name="privacy_stat_ok_failed">%1$s OK · %2$s failed</string>
+    <string name="privacy_stat_scheduled">Scheduled tasks in use</string>
+    <string name="privacy_stat_crashes">Crashes recorded</string>
+    <string name="privacy_stat_first_use">First request still on this phone</string>
+    <string name="privacy_stat_top_tools">Most-used actions</string>
+    <string name="privacy_stat_models">Models used</string>
+    <string name="privacy_where_data_goes_title">Where your data goes</string>
+    <string name="privacy_where_data_goes_body">Your chats, calls and settings are stored on this phone. Gotcha goes online only for what you use: the AI backend you chose, the accounts you connect, web pages and searches the assistant fetches, and the update check on GitHub. The data retention policy has the details.</string>
+    <string name="privacy_open_policy">Read the data retention policy</string>
+    <string name="privacy_usage_data_title">Usage data</string>
+    <string name="privacy_usage_data_intro">Help improve Gotcha by sending counts and outcomes, such as how long the app was open or what kind of crash happened. On by default. You can turn it off here at any time.</string>
+    <string name="privacy_usage_data_switch">Share usage data</string>
+    <string name="privacy_usage_data_mobile">Also send on mobile data</string>
+    <string name="privacy_usage_data_status_off">Off. Nothing is sent.</string>
+    <string name="privacy_usage_data_status_waiting">On. Nothing sent yet; it goes out in batches over Wi-Fi.</string>
+    <string name="privacy_usage_data_status_sent">On. Last sent %1$s.</string>
+    <string name="privacy_usage_data_status_paused">On, but paused by the server. Gotcha will try again later.</string>
+    <string name="privacy_usage_data_status_not_configured">Not configured. This build sends no usage data.</string>
+    <string name="privacy_what_we_send">What we send</string>
+    <string name="privacy_never_sent">Never sent: your messages or the assistant\'s replies, what is on your screen, your files, contacts, texts, calendar or location, shell commands, the names of your apps, your API key or your Samosa account.</string>
+    <string name="telemetry_event_app_open">That Gotcha was opened, and for a cold start roughly how long it took</string>
+    <string name="telemetry_event_consent">Your terms and usage data choice</string>
+    <string name="telemetry_event_session_profile">A bucketed summary of session activity, reliability and performance</string>
+    <string name="telemetry_event_session_end">Roughly how long Gotcha stayed open</string>
+    <string name="telemetry_event_agent_run">For each request: where it came from (chat, call or scheduled task), Monitor or Operator, Samosa AI or your own server, whether it finished, roughly how long it took and how many actions it took</string>
+    <string name="telemetry_event_ai_request">For each call to the AI model: what it was for, Samosa AI or your own server (named only as a kind, such as \"local\" or \"other\"), the Samosa AI model if you use one, whether it worked and the kind of error, roughly how long it took and how many tokens it used</string>
+    <string name="telemetry_event_tool_call">For each action: which of Gotcha\'s built-in actions it was (actions from MCP servers or connected accounts are only counted, not named), whether it worked and roughly how long it took</string>
+    <string name="telemetry_event_voice_call">For each voice call: whether the ball or \"Hey Gotcha\" started it, roughly how long it lasted, how many times you spoke, and which kind of speech provider was used</string>
+    <string name="telemetry_event_wake_word">That \"Hey Gotcha\" was heard, and whether a call started</string>
+    <string name="telemetry_event_shell">For each Linux shell command: Gotcha Shell or Termux, and whether it worked, never the command or its output</string>
+    <string name="telemetry_event_scheduled_task">When a scheduled task is due or run by hand: whether it is one of the examples or your own, and whether it started, never its name or instructions</string>
+    <string name="telemetry_event_update">The steps of an app update: offered, downloaded, or installing</string>
+    <string name="telemetry_event_connector">When you connect, refresh or disconnect an account such as Gmail, Notion or Home Assistant: which kind of connector it was and whether connecting worked, and for MCP roughly how many servers you have, never their names, addresses or your account</string>
+    <string name="telemetry_event_skill_used">When a skill that ships with Gotcha is offered to the AI or read by it: which skill (skills you imported are counted as \"custom\", never named)</string>
+    <string name="telemetry_event_permission">When a permission Gotcha can use is granted or taken away, such as the microphone or Accessibility: which one, and whether it is now on</string>
+    <string name="telemetry_event_tour">Your progress through the guided setup: which step, and whether it was reached, done or skipped</string>
+    <string name="telemetry_event_setup">When you save the AI setup or test the connection: Samosa AI or your own server (named only as a kind), whether a key is filled in, and whether the test worked, never the key, address or model</string>
+    <string name="telemetry_event_lens">When you use Screen Lens or a Screen Companion suggestion: which kind of action you tapped, such as copy, translate or call, never what was on screen</string>
+    <string name="telemetry_event_crash">When Gotcha crashes: the type of error and the method it came from, never its message</string>
 
     <!-- Settings: shared frame and cards -->
     <string name="action_back">← Back</string>
@@ -232,23 +297,34 @@
     <!-- Settings home -->
     <string name="settings_title">Settings</string>
     <string name="settings_search_hint">Search settings</string>
+    <string name="settings_account_summary_signed_out">Sign in for Samosa AI models and voices</string>
+    <string name="settings_account_summary_signed_in">Account, plan and sign-out</string>
+    <string name="settings_group_help">Help and about</string>
+    <string name="settings_group_privacy">Privacy and permissions</string>
+    <string name="settings_group_app">App</string>
+    <string name="settings_group_automation">Automation</string>
+    <string name="settings_group_assistant">Assistant</string>
+    <string name="settings_unsaved_title">Save your changes?</string>
+    <string name="settings_unsaved_message">You changed this page without saving.</string>
+    <string name="settings_unsaved_save">Save</string>
+    <string name="settings_unsaved_discard">Discard</string>
+    <string name="settings_unsaved_incomplete">Some required fields on this page are empty, so these changes can\'t be saved yet.</string>
+    <string name="settings_unsaved_keep_editing">Keep editing</string>
     <string name="settings_search_clear">Clear search</string>
     <string name="settings_search_empty">No settings match “%1$s”</string>
-    <string name="settings_feature_tour">Feature Tour</string>
+    <string name="settings_feature_tour">Feature tour</string>
     <string name="settings_feature_tour_summary">Walk through setup again, one step at a time</string>
-    <string name="settings_feedback">Send Feedback</string>
-    <string name="settings_feedback_summary">Tell us what to improve — nothing is sent until you submit</string>
+    <string name="settings_feedback">Send feedback</string>
+    <string name="settings_feedback_summary">Tell us what to improve</string>
 
     <!-- AiHubScreen -->
-    <string name="ai_hub_the_model_does_the_thinking">The model does the thinking; speech gives it a voice and ears. One provider can cover both. Which language it speaks and answers in lives under Settings → Language.</string>
 
     <!-- AppearanceScreen -->
     <string name="appearance_theme">Theme</string>
     <string name="appearance_every_theme_works_on_every">Every theme works on every device. Where live blur isn\'t available, the glass is made a cheaper way rather than switched off.</string>
 
     <!-- ProactiveScreen -->
-    <string name="proactive_save_proactive_settings">Save Proactive Settings</string>
-    <string name="proactive_master_proactive_offers">Master Proactive Offers</string>
+    <string name="proactive_master_proactive_offers">Proactive offers</string>
     <string name="proactive_scan_screen_content">Scan Screen Content</string>
     <string name="proactive_scan_clipboard">Scan Clipboard</string>
     <string name="proactive_scan_notifications">Scan Notifications</string>
@@ -265,14 +341,13 @@
     <string name="personal_info_background">Background</string>
     <string name="personal_info_reply_style">Reply style</string>
     <string name="personal_info_preferred_currency">Preferred Currency</string>
-    <string name="personal_info_save_personal_info">Save Personal Info</string>
+    <string name="personal_info_save_personal_info">Save</string>
     <string name="personal_info_about_you">About you</string>
     <string name="personal_info_everything_here_is_optional_stays">Everything here is optional, stays on this device, and is given to the assistant at the start of every conversation so it doesn\'t have to ask.</string>
     <string name="personal_info_for_more_personalized_results_keep">For more personalized results, keep this profile up to date — or just ask Gotcha to record things like your personal website, GitHub link, or CV (PDF) in your profile for you.</string>
     <string name="personal_info_anything_worth_knowing_by_default">Anything worth knowing by default — tools you use, who you work with, what you usually ask for</string>
     <string name="personal_info_how_replies_should_be_written">How replies should be written</string>
     <string name="personal_info_e_g_keep_it_to">e.g. Keep it to a few sentences, no bullet lists, show the command you ran</string>
-    <string name="personal_info_reply_voice_and_app_display">Reply, voice and app display language now live on their own page.</string>
 
     <!-- Appearance and save confirmations -->
     <string name="appearance_tier_solid">Battery saver is on, so the theme is drawn flat until it\'s off.</string>
@@ -280,8 +355,7 @@
     <string name="appearance_brightness_light">light</string>
     <string name="appearance_brightness_dark">dark</string>
     <string name="appearance_skin_description">%1$s, %2$s theme</string>
-    <string name="proactive_saved">Saved Proactive Settings.</string>
-    <string name="personal_info_saved">Saved Personal Info.</string>
+    <string name="personal_info_saved">Saved.</string>
 
     <!-- AiConfigScreen -->
     <string name="ai_config_llm_provider">LLM Provider</string>
@@ -291,6 +365,8 @@
     <string name="ai_config_select_model">(select model)</string>
     <string name="ai_config_no_models_found">No models found</string>
     <string name="ai_config_custom_model">✏️ Custom model…</string>
+    <string name="ai_config_model_locked">Not in your plan</string>
+    <string name="ai_config_model_not_in_plan">%1$s is not in your plan, so %2$s is selected instead. Save to keep it.</string>
     <string name="ai_config_sub_agent_model">Sub-agent model</string>
     <string name="ai_config_same_as_main_agent">Same as main agent</string>
     <string name="ai_config_navigator_model">Navigator model</string>
@@ -323,7 +399,6 @@
     <string name="speech_default_clear">Default (clear)</string>
     <string name="speech_no_voices_suggested_type_a">No voices suggested — type a voice ID above</string>
     <string name="speech_stt_model">STT Model</string>
-    <string name="speech_change_in_settings_language">Change in Settings → Language</string>
     <string name="speech_podcast_host_a_voice_optional">Podcast Host A Voice (optional)</string>
     <string name="speech_podcast_host_b_voice_optional">Podcast Host B Voice (optional)</string>
     <string name="speech_auto_read_replies_aloud">Auto-read replies aloud</string>
@@ -346,7 +421,7 @@
     <string name="assistive_ball_only_while_the_screen_is_2">Only while the screen is off</string>
     <string name="assistive_ball_hands_free_when_you_are">Hands-free when you are not already looking at the phone; the screen being on means the mic is off.</string>
     <string name="assistive_ball_a_draggable_ball_floating_over">A draggable ball floating over other apps. Long-press it to start a hands-free voice call with the assistant; tap it for Start / Pause / End and to open the app. Drag it onto the ✕ to hide it again.</string>
-    <string name="assistive_ball_says_hey_gotcha_the_bundled">Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device, but only while the Assistive Ball is on and no call is active. The listener lives inside the ball\'s service, so switching the ball off switches the wake word off too. Keep microphone permission enabled.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Say \"Hey Gotcha\" to start a call. It is heard on the phone itself, only while the ball is on and no call is running.</string>
     <string name="assistive_ball_turn_on_show_assistive_ball">Turn on \"Show Assistive Ball\" above to use it.</string>
     <string name="assistive_ball_when_to_listen">When to listen</string>
     <string name="assistive_ball_the_listener_is_only_active">The listener is only active while the screen matches the chosen state, so the microphone and its indicator are off the rest of the time.</string>
@@ -365,6 +440,7 @@
     <string name="notifications_notify_when_a_task_finishes">Notify when a task finishes</string>
     <string name="notifications_enable_server_messages">Enable server messages</string>
     <string name="notifications_played_as_soon_as_a">Played as soon as a reply arrives. Turn both off for no alert.</string>
+    <string name="notifications_reply_alerts">Reply alerts</string>
     <string name="notifications_task_finished">Task finished</string>
     <string name="notifications_a_notification_when_a_chat">A notification when a chat task finishes while you are in another app. Tap it to open that chat. On the lock screen it only says a task finished.</string>
     <string name="notifications_notifications_are_blocked_for_gotcha">Notifications are blocked for Gotcha, so none will be shown.</string>
@@ -377,6 +453,16 @@
     <string name="local_notifications_clear">Clear</string>
     <string name="local_notifications_cancel">Cancel</string>
     <string name="local_notifications_reminders_and_tips_gotcha_decides">Reminders and tips Gotcha decides to send, worked out on this phone from your chats. Nothing about how you use Gotcha is uploaded to decide them.</string>
+    <string name="local_notifications_to">To</string>
+    <string name="local_notifications_from">From</string>
+    <string name="local_notifications_time">Time</string>
+    <string name="local_notifications_name_chats">Name chats in notifications</string>
+    <string name="local_notifications_quiet_hours">Quiet hours</string>
+    <string name="local_notifications_daily_tip">Daily tip</string>
+    <string name="local_notifications_quiet_spell">After a quiet spell</string>
+    <string name="local_notifications_routines">Routines</string>
+    <string name="local_notifications_unfinished">Unfinished chats</string>
+    <string name="local_notifications_send">Send Gotcha notifications</string>
     <string name="local_notifications_this_empties_the_list_behind">This empties the list behind the bell on the home screen. Reminders Gotcha has already sent won\'t be sent again.</string>
 
     <!-- AiConfigScreen -->
@@ -416,8 +502,6 @@
     <string name="speech_tts_voice_optional">TTS Voice (optional)</string>
     <string name="speech_provider_default_voice">the provider\'s default</string>
     <string name="speech_default_voice_or_pick">Default (%1$s) or pick below</string>
-    <string name="speech_transcription_follows_voice">Transcription language: %1$s, the voice language.</string>
-    <string name="speech_transcription_forced">Transcription language: forced to %1$s.</string>
 
     <!-- LocalNotificationsSection -->
     <string name="local_notifications_history_cleared">Notification history cleared</string>
@@ -481,6 +565,7 @@
     <string name="skills_add_host">Add host</string>
     <string name="skills_add">Add</string>
     <string name="skills_community_skills">Community Skills</string>
+    <string name="skills_all_skills">All skills (%1$d)</string>
     <string name="skills_paste_community_skill_json">Paste community skill JSON</string>
     <string name="skills_no_community_skills_imported_yet">No community skills imported yet.</string>
     <string name="skills_allowed_community_skill_hosts">Allowed community skill hosts</string>
@@ -524,7 +609,7 @@
     <string name="permissions_health_connect_permission_needed">Health Connect permission needed</string>
     <string name="permissions_open_health_connect">Open Health Connect</string>
     <string name="permissions_not_now">Not now</string>
-    <string name="permissions_nothing_here_is_required_up">Nothing here is required up front — the assistant asks for a permission when it first needs one, and says why. This page is for granting them ahead of time, seeing what is on, and turning anything back off. Runtime permissions show a system dialog when toggled on; special-access permissions open a Settings screen for one-time setup.</string>
+    <string name="permissions_nothing_here_is_required_up">Nothing here is required up front: the assistant asks for a permission when it first needs one. Use this page to grant one early or turn one off.</string>
     <string name="permissions_guided_setup">Guided setup ›</string>
     <string name="permissions_gotcha_can_t_read_your">Gotcha can\'t read your health data yet. Open Health Connect, find Gotcha under App permissions, and allow the data types you\'re comfortable sharing, then return here.</string>
     <string name="permissions_open_settings_screen">Open settings screen</string>
@@ -1176,10 +1261,8 @@
     <string name="tour_open_settings_title">Everything lives behind here</string>
     <string name="tour_open_settings_body">Swipe in from the left edge any time to reach this menu. Tap Settings to start.</string>
     <string name="tour_open_settings_hint">Tip: the same swipe works from anywhere in the chat.</string>
-    <string name="tour_open_ai_title">Start with AI</string>
-    <string name="tour_open_ai_body">Everything Gotcha thinks, hears and says with is behind this row. Open it.</string>
     <string name="tour_open_ai_config_title">Give Gotcha a brain</string>
-    <string name="tour_open_ai_config_body">AI Configuration is where the model lives. Open it — you\'ll come back here to change models later, and to pick a voice.</string>
+    <string name="tour_open_ai_config_body">AI model is where Gotcha\'s brain lives. Open it — you\'ll come back here to change models later.</string>
     <string name="tour_choose_provider_title">Pick who does the thinking</string>
     <string name="tour_choose_provider_body">Samosa AI gives you a model, speech and transcription on a free daily allowance — no keys to paste. Choose OpenAI-compatible instead if you\'d rather bring your own.</string>
     <string name="tour_samosa_sign_in_title">Sign in once</string>
@@ -1194,13 +1277,13 @@
     <string name="tour_grant_overlay_title">And one for the floating ball</string>
     <string name="tour_grant_overlay_body">\"Display over other apps\" lets the assistive ball and Screen Lens appear on top of whatever you\'re using.</string>
     <string name="tour_open_personal_info_title">Last thing: who are you?</string>
-    <string name="tour_open_personal_info_body">Open Personal Info. What you put here reaches every reply — your language, your units, your currency.</string>
+    <string name="tour_open_personal_info_body">Open About you. What you put here reaches every reply — your units, your currency, how you like answers written.</string>
     <string name="tour_fill_personal_info_title">Tell it your name</string>
     <string name="tour_fill_personal_info_body">Type whatever you\'d like to be called. Everything on this page is optional, and all of it makes the answers fit you better.</string>
     <string name="tour_save_personal_info_title">Save it</string>
     <string name="tour_save_personal_info_body">Same as before — nothing on the page counts until you do.</string>
     <string name="tour_finish_title">That\'s the tour</string>
-    <string name="tour_finish_body">Anything you skipped is waiting in Settings, and Feature Tour there replays this whenever you want it.</string>
+    <string name="tour_finish_body">Anything you skipped is waiting in Settings, and Feature tour there replays this whenever you want it.</string>
     <string name="tour_next">Next</string>
     <string name="tour_open_android_settings">Open Android settings</string>
 
@@ -1340,11 +1423,11 @@
     <string name="call_confirmation_needed">Confirmation needed: %1$s</string>
     <string name="call_stt_label">Speech-to-text</string>
     <string name="call_tts_label">Text-to-speech</string>
-    <string name="call_audio_not_configured">%1$s is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_samosa_not_configured">%1$s Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_model_missing">%1$s model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_url_invalid">%1$s API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT).</string>
-    <string name="call_audio_api_model_missing">%1$s API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_not_configured">%1$s is not configured. Set it up in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI is not configured. Sign in from Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_model_missing">%1$s model is not selected. Choose one in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_url_invalid">%1$s API URL is missing or invalid. Fix it in Gotcha → Settings → Voice and speech.</string>
+    <string name="call_audio_api_model_missing">%1$s API model is not selected. Choose one in Gotcha → Settings → Voice and speech.</string>
     <string name="screenshot_channel">Screenshot Capture</string>
     <string name="screenshot_channel_description">One-shot screen capture</string>
     <string name="screenshot_capturing">Capturing screenshot…</string>
@@ -1476,7 +1559,7 @@
     <string name="chat_vm_no_api_key_configured_open">No API key configured. Open settings to add one.</string>
     <string name="chat_vm_microphone_permission_not_granted_enable">Microphone permission not granted. Enable it in Settings → Permissions.</string>
     <string name="chat_vm_failed_to_start_speech_recognition">Failed to start speech recognition.</string>
-    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT is not configured. Sign in from Settings → Speech.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT is not configured. Sign in from Settings → Voice and speech.</string>
     <string name="chat_vm_no_stt_api_url_configured">No STT API URL configured in settings.</string>
     <string name="chat_vm_no_stt_model_selected_refresh">No STT model selected. Refresh audio models in settings.</string>
     <string name="chat_vm_failed_to_start_recording">Failed to start recording.</string>
@@ -1601,7 +1684,7 @@
     <string name="error_generic">Error: %1$s</string>
 
     <!-- Errors: model timeout -->
-    <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration.</string>
+    <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI model.</string>
 
     <!-- Connectors: status lines and connect results -->
     <string name="connector_not_connected">Not connected</string>
@@ -1646,7 +1729,7 @@
     <string name="speech_check_android_tts_missing">Android text-to-speech has no %1$s voice installed, so %1$s replies won\'t be read aloud. Install the voice data, or pick an engine that has it, in Android\'s text-to-speech settings.</string>
     <string name="speech_check_android_stt_unsupported">Android\'s speech recognizer doesn\'t list %1$s, so it may transcribe %1$s speech wrongly. Pick another voice input service in Android\'s settings.</string>
     <string name="speech_android_voice_input_settings_failed">Could not open voice input settings.</string>
-    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Language.</string>
+    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Voice and speech.</string>
     <string name="speech_android_tts_engine">Text-to-speech engine</string>
     <string name="speech_android_stt_engine">Speech recognizer</string>
     <string name="speech_android_phone_default">Phone\'s choice (%1$s)</string>
@@ -1672,9 +1755,9 @@
     <string name="speech_android_on_device_needs_12">On-device only needs Android 12 or later.</string>
     <string name="speech_android_tts_settings">Android text-to-speech settings</string>
     <string name="speech_android_voice_input_settings">Android voice input settings</string>
-    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → AI → Speech.</string>
-    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → AI → Speech.</string>
-    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → AI → Speech.</string>
+    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → Voice and speech.</string>
+    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → Voice and speech.</string>
+    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → Voice and speech.</string>
     <string name="speech_check_android_stt_not_on_device">On-device only is on, but %1$s can\'t be recognised on this phone yet, so voice input will stop with a message. Download it in Android\'s settings, or turn off On-device only.</string>
 
     <!-- Referral sharing -->
@@ -1745,7 +1828,6 @@
     <string name="channel_app_updates_description">A notification when a new version of Gotcha is released</string>
     <string name="update_notification_title">Gotcha %1$s is available</string>
     <string name="update_notification_body">Tap to download and install it.</string>
-    <string name="notifications_app_updates">App updates</string>
     <string name="notifications_app_updates_description">About twice a day, Gotcha downloads a small file from GitHub (raw.githubusercontent.com) to see whether a new version is out. The request carries nothing about you; GitHub sees your IP address, as with any download.</string>
     <string name="notifications_notify_about_new_versions">Notify me about new versions</string>
     <string name="settings_field_update_notifications_enabled">Update notifications</string>
@@ -1803,7 +1885,7 @@
     <string name="scheduled_needs_tap_public_title">A scheduled task is due</string>
     <string name="scheduled_task_gone">This task no longer exists.</string>
     <string name="scheduled_task_files_missing">The files saved with this task can\'t be read any more. Add them again in Settings.</string>
-    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI.</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI model.</string>
     <string name="scheduled_task_needs_exact_alarms">Waiting for a tap: Gotcha may not set exact alarms.</string>
     <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>
@@ -1894,8 +1976,161 @@
         <item quantity="one">Every %1$d day at %2$s</item>
         <item quantity="other">Every %1$d days at %2$s</item>
     </plurals>
+    <string name="linux_shell_intro">Gotcha Shell is a separate app that gives the assistant a full Linux system: installing packages, running scripts and tools no phone ships with. It runs apart from Gotcha, so nothing a command does can change Gotcha\'s settings, chats or memory, and it cannot see your files unless Gotcha hands one over.</string>
+    <string name="linux_shell_plan_title">Samosa Pro</string>
+    <string name="linux_shell_plan_active">Your Pro plan is active.</string>
+    <string name="linux_shell_plan_signed_out">The Linux shell is part of Samosa Pro. Sign in to Samosa AI to use it.</string>
+    <string name="linux_shell_plan_not_pro">The Linux shell is part of Samosa Pro, and your account is on another plan. Your Linux system and its files are kept; you can still reset or uninstall it below.</string>
+    <string name="linux_shell_plan_needs_check">Gotcha could not confirm your Pro plan. Connect to the internet and open this page again.</string>
+    <string name="linux_shell_app_title">Gotcha Shell app</string>
+    <string name="linux_shell_app_not_installed">Gotcha Shell is not installed. It is part of Pro, and Gotcha can download and install it for you.</string>
+    <string name="linux_shell_app_untrusted">An app with Gotcha Shell\'s name is installed, but it is not signed by the makers of Gotcha, so Gotcha will not use it. Uninstall it, then let Gotcha install its own copy.</string>
+    <string name="linux_shell_app_unreachable">Gotcha Shell %1$s is installed, but it did not answer. If your phone has an Autostart setting, allow it for Gotcha Shell, then come back to this page.</string>
+    <string name="linux_shell_app_too_old">Gotcha Shell %1$s is too old for this version of Gotcha. Update Gotcha Shell.</string>
+    <string name="linux_shell_app_installed">Gotcha Shell %1$s is installed and uses %2$s of storage.</string>
+    <string name="linux_shell_runtime_title">Linux runtime</string>
+    <string name="linux_shell_runtime_ready">Installed and verified.</string>
+    <string name="linux_shell_runtime_downloading">Downloading and verifying. This needs a connection.</string>
+    <string name="linux_shell_runtime_missing">Not downloaded yet. It is fetched on first use, then verified before it runs.</string>
+    <string name="linux_shell_runtime_unknown">Not checked yet.</string>
+    <string name="linux_shell_runtime_unavailable">Update Gotcha Shell to see this.</string>
+    <string name="linux_shell_system_title">Linux system</string>
+    <string name="linux_shell_system_unknown">Not checked yet.</string>
+    <string name="linux_shell_system_missing">Not installed. Installing downloads about 30 MB.</string>
+    <string name="linux_shell_system_installing">Installing…</string>
+    <string name="linux_shell_system_installed">%1$s is installed.</string>
+    <string name="linux_shell_system_installed_busy">%1$s is installed. Commands running now: %2$d.</string>
+    <string name="linux_shell_action_install">Install the Linux system</string>
+    <string name="linux_shell_action_get_app">Get Gotcha Shell</string>
+    <string name="linux_shell_prep_title">Installing Gotcha Shell</string>
+    <string name="linux_shell_prep_text">Your phone will show a system prompt asking whether to install this app. That prompt is normal: Gotcha is installing its own companion app, not updating itself.\n\nIf you have not done it before, Android will also ask you to allow installs from Gotcha. Some phones then warn about this app (Play Protect). In both cases choose Continue or Install anyway — the app is signed by the same key as Gotcha, and Gotcha checks that signature before installing.\n\nAfterwards the Linux system downloads automatically.</string>
+    <string name="linux_shell_prep_continue">Continue</string>
+
+    <string name="linux_shell_get_app_started">Downloading Gotcha Shell…</string>
+    <string name="linux_shell_get_app_permission">Allow Gotcha to install apps, then try again.</string>
+    <string name="linux_shell_get_app_expired">The download link expired. Try again.</string>
+    <string name="linux_shell_get_app_corrupt">The download was damaged and was discarded. Try again.</string>
+    <string name="linux_shell_get_app_wrong_build">That is not a newer Gotcha Shell build. Uninstall the installed copy, then try again.</string>
+    <string name="linux_shell_get_app_install_failed">The install did not finish. Try again, and allow the install when your phone asks.</string>
+    <string name="linux_shell_get_app_downgrade">A newer Gotcha Shell is already installed. Uninstall it first if you want to replace it.</string>
+    <string name="linux_shell_get_app_unavailable">Could not reach the Gotcha Shell download. Check your connection and try again.</string>
+    <string name="linux_shell_action_repair">Repair</string>
+    <string name="linux_shell_action_reset">Reset</string>
+    <string name="linux_shell_action_uninstall">Uninstall Gotcha Shell</string>
+    <string name="linux_shell_repairing">Repairing…</string>
+    <string name="linux_shell_repair_reset_help">Repair finishes package installs that were interrupted. Reset deletes the Linux system and everything installed in it.</string>
+    <string name="linux_shell_install_done">The Linux system is installed.</string>
+    <string name="linux_shell_repair_done">Repair finished.</string>
+    <string name="linux_shell_reset_done">The Linux system was deleted.</string>
+    <string name="linux_shell_reset_confirm_title">Delete the Linux system?</string>
+    <string name="linux_shell_reset_confirm_text">This stops any running commands and deletes the Linux system, every package installed in it and every file inside it. Gotcha itself is not affected.</string>
+    <string name="linux_shell_ready">The Linux shell is ready. Try asking the assistant to run a command.</string>
+    <string name="linux_shell_phase_download">Downloading…</string>
+    <string name="linux_shell_phase_verify">Checking the download…</string>
+    <string name="linux_shell_phase_extract">Unpacking…</string>
+    <string name="linux_shell_phase_configure">Setting up…</string>
+    <string name="linux_shell_phase_download_apk">Downloading Gotcha Shell…</string>
+    <string name="linux_shell_phase_verify_apk">Checking the download…</string>
+    <string name="linux_shell_phase_install_apk">Installing Gotcha Shell…</string>
+    <string name="linux_shell_phase_download_runtime">Downloading the runtime…</string>
+    <string name="linux_shell_phase_verify_runtime">Checking the runtime…</string>
+    <string name="linux_shell_phase_install_runtime">Installing the runtime…</string>
     <plurals name="scheduled_retries">
         <item quantity="one">Retry %1$d time</item>
         <item quantity="other">Retry %1$d times</item>
+    </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">No browser is available to open Samosa sign-in. Install or enable a web browser and try again.</string>
+    <string name="samosa_auth_sign_in_timed_out">Sign-in timed out waiting for the browser. Please try again.</string>
+    <string name="samosa_auth_sign_in_link_mismatch">The sign-in reply did not match this request. Please try again.</string>
+    <string name="samosa_auth_sign_in_expired">This sign-in has expired. Please try again.</string>
+    <string name="samosa_auth_sign_in_refused">Samosa sign-in did not complete. Please try again.</string>
+    <string name="samosa_sign_in_website">Sign in to Samosa AI</string>
+    <string name="samosa_sign_in_google_instead">Use Google instead</string>
+    <string name="samosa_sign_in_hint_website">Sign in on the Samosa AI website to use Samosa AI. Your OpenAI-compatible settings are kept separately and are unaffected.</string>
+    <string name="samosa_opening_sign_in">Opening Samosa sign-in…</string>
+    <string name="samosa_manage_account">Manage account</string>
+    <string name="samosa_manage_models">Manage your Models</string>
+    <string name="account_title">Samosa AI account</string>
+    <string name="account_fallback_name">Samosa account</string>
+    <string name="samosa_add_credits">Add credits</string>
+    <string name="samosa_sign_in_cancelled">Sign-in cancelled.</string>
+    <string name="samosa_session_ended">You were signed out of Samosa AI. Sign in again to keep using it.</string>
+    <string name="samosa_session_deactivated">This Samosa AI account was deactivated.</string>
+    <string name="error_out_of_credits_http_402">Out of credits (HTTP 402). Add credits to keep going. For Samosa AI, open your account at the top of Settings and tap Add credits.</string>
+
+    <!-- Linux shell ▸ Terminal -->
+    <string name="settings_page_linux_terminal">Terminal</string>
+    <string name="settings_page_linux_terminal_summary">Type commands in the Linux system yourself</string>
+    <string name="linux_shell_action_open_terminal">Open terminal</string>
+    <string name="linux_shell_terminal_needs_update">The terminal needs a newer Gotcha Shell. Update Gotcha Shell to use it.</string>
+    <string name="linux_terminal_opening">Starting the terminal…</string>
+    <string name="linux_terminal_ended">The session ended.</string>
+    <string name="linux_terminal_restart">Start a new session</string>
+    <string name="linux_terminal_retry">Try again</string>
+    <string name="linux_terminal_more">More</string>
+    <string name="linux_terminal_paste">Paste</string>
+    <string name="linux_terminal_reset">Reset the screen</string>
+    <string name="linux_terminal_end_session">End the session</string>
+    <string name="linux_terminal_key_esc" translatable="false">Esc</string>
+    <string name="linux_terminal_key_tab" translatable="false">Tab</string>
+    <string name="linux_terminal_key_ctrl" translatable="false">Ctrl</string>
+    <string name="linux_terminal_key_alt" translatable="false">Alt</string>
+    <string name="linux_terminal_key_up">Up arrow</string>
+    <string name="linux_terminal_key_down">Down arrow</string>
+    <string name="linux_terminal_key_left">Left arrow</string>
+    <string name="linux_terminal_key_right">Right arrow</string>
+    <string name="linux_terminal_refused_signed_out">The Linux shell is part of Samosa Pro. Sign in to Samosa AI to use it.</string>
+    <string name="linux_terminal_refused_not_pro">The Linux shell is part of Samosa Pro, and this account is on another plan.</string>
+    <string name="linux_terminal_refused_needs_check">Gotcha could not confirm your Samosa Pro plan recently. Connect to the internet and try again.</string>
+    <string name="linux_terminal_refused_not_installed">Gotcha Shell is not installed on this phone.</string>
+    <string name="linux_terminal_refused_untrusted">The Gotcha Shell on this phone is not signed with the same key as Gotcha, so Gotcha will not use it.</string>
+    <string name="linux_terminal_refused_no_answer">Gotcha Shell did not answer. Try again in a moment.</string>
+    <string name="linux_terminal_refused_too_old">This Gotcha Shell is too old for the terminal (it speaks version %1$d, the terminal needs %2$d). Update Gotcha Shell.</string>
+    <string name="linux_terminal_refused_no_system">The Linux system is not installed yet. Install it from Settings › Linux shell.</string>
+    <string name="linux_terminal_refused_installing">The Linux system is still being installed. Try again when it is done.</string>
+    <string name="linux_terminal_refused_runtime_installing">Gotcha Shell is still downloading its Linux runtime. Try again when it is done.</string>
+    <string name="linux_terminal_refused_runtime_missing">Gotcha Shell needs to download its Linux runtime first, and Gotcha could not get it. Check the connection and that your account includes the Linux shell, then try again.</string>
+    <string name="linux_terminal_refused_too_many">Too many terminal sessions are open (at most %1$d). End one first.</string>
+    <string name="linux_terminal_refused_too_many_unknown">Too many terminal sessions are open. End one first.</string>
+    <string name="linux_terminal_refused_failed">The terminal could not start: %1$s</string>
+    <string name="linux_terminal_refused_failed_unknown">The terminal could not start.</string>
+
+    <!-- Samosa AI and Pro nudges -->
+    <string name="upsell_pro_title">Samosa Pro</string>
+    <string name="upsell_pro_lead_shell">Running Linux commands needs Gotcha\'s built-in Linux shell, which comes with Samosa Pro.</string>
+    <string name="upsell_pro_lead_limits">You\'ve reached your plan\'s limit for now. Pro gives you higher limits, so you can keep going.</string>
+    <string name="upsell_pro_lead_value">You\'re getting a lot done with Gotcha. Pro gives it more to work with.</string>
+    <string name="upsell_pro_lead_general">Get more out of Gotcha with Samosa Pro.</string>
+    <string name="upsell_pro_feature_shell">A built-in Linux shell: real Linux commands, from chat or the terminal</string>
+    <string name="upsell_pro_feature_models">More capable models</string>
+    <string name="upsell_pro_feature_limits">Higher limits</string>
+    <string name="upsell_pro_feature_early">Early access to new features</string>
+    <string name="upsell_pro_footnote">Plans are on your Samosa AI account page. Come back to Gotcha when you\'re done and Pro is ready to use.</string>
+    <string name="upsell_pro_action">Get Pro</string>
+    <string name="upsell_pro_see">See Pro</string>
+    <string name="upsell_samosa_title">Discover Samosa AI</string>
+    <string name="upsell_samosa_lead_shell">Gotcha\'s built-in Linux shell comes with Samosa Pro. It starts with a Samosa AI account.</string>
+    <string name="upsell_samosa_lead_limits">Your AI provider stopped answering for now. Samosa AI works without an API key of your own.</string>
+    <string name="upsell_samosa_lead_general">Samosa AI is the AI service built for Gotcha, by the team that makes it.</string>
+    <string name="upsell_samosa_feature_no_key">No API key to manage: sign in and go</string>
+    <string name="upsell_samosa_feature_credits">Free credits to start</string>
+    <string name="upsell_samosa_feature_tuned">Models chosen and set up for Gotcha</string>
+    <string name="upsell_samosa_feature_pro">Pro when you want more: the Linux shell, more capable models and higher limits</string>
+    <string name="upsell_samosa_footnote">You can change your AI provider at any time in AI model.</string>
+    <string name="upsell_samosa_action">Try Samosa AI</string>
+    <string name="upsell_samosa_see">Discover Samosa AI</string>
+    <string name="upsell_not_now">Not now</string>
+    <string name="upsell_settings_plan">You\'re on the %1$s plan. Pro adds the Linux shell, more capable models and higher limits.</string>
+    <string name="upsell_settings_switch">Switch to Samosa AI</string>
+    <string name="upsell_drawer_pro">Get Samosa Pro</string>
+    <string name="upsell_welcome_title">Welcome to Pro</string>
+    <string name="upsell_welcome_text">Your Samosa Pro plan is active: the Linux shell, more capable models and higher limits are ready for you.</string>
+    <string name="upsell_welcome_shell">Set up the Linux shell</string>
+    <string name="upsell_welcome_later">Later</string>
+    <plurals name="local_notifications_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
     </plurals>
 </resources>

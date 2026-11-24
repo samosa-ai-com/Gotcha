@@ -46,6 +46,8 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaAuthManager
+import com.gotcha.auth.SamosaDashboard
+import com.gotcha.auth.SamosaRedirectOutcome
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.FeedbackPrefill
@@ -75,8 +77,10 @@ import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
-import com.gotcha.tools.TermuxTool
+import com.gotcha.tools.ShellEntitlement
+import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
+import com.gotcha.ui.AccountScreen
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatAssetsScreen
 import com.gotcha.ui.ChatScreen
@@ -85,10 +89,12 @@ import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.GITHUB_REPO_URL
 import com.gotcha.ui.InboxScreen
+import com.gotcha.ui.LocalUpsell
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.PermissionAsk
 import com.gotcha.ui.PermissionBlockedDialog
 import com.gotcha.ui.PermissionRationaleDialog
+import com.gotcha.ui.ProWelcomeDialog
 import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.ScheduledTasksScreen
 import com.gotcha.ui.SecondBrainScreen
@@ -98,6 +104,8 @@ import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.SplashVideoOverlay
 import com.gotcha.ui.StarPromptDialog
+import com.gotcha.ui.UpsellDialog
+import com.gotcha.ui.accountDisplayName
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.starPromptDueAt
@@ -111,6 +119,10 @@ import com.gotcha.ui.tour.TourOverlay
 import com.gotcha.ui.tour.TourPlace
 import com.gotcha.ui.tour.rememberTourHost
 import com.gotcha.updater.runUpdateCheck
+import com.gotcha.upsell.Upsell
+import com.gotcha.upsell.UpsellAudience
+import com.gotcha.upsell.UpsellReason
+import com.gotcha.upsell.UpsellStore
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -119,7 +131,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
+enum class Route { HOME, SETTINGS, CONNECTORS, ACCOUNT, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -131,7 +143,6 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
     route == Route.HOME -> TourPlace.CHAT
     route == Route.SETTINGS -> when (page) {
         null -> TourPlace.SETTINGS_HOME
-        SettingsPage.AI -> TourPlace.AI_HUB
         SettingsPage.AI_CONFIG -> TourPlace.AI_CONFIG
         SettingsPage.PERMISSIONS -> TourPlace.PERMISSIONS
         SettingsPage.PERSONAL_INFO -> TourPlace.PERSONAL_INFO
@@ -144,7 +155,6 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
 private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = when (place) {
     TourPlace.CHAT, TourPlace.CHAT_DRAWER -> Route.HOME to null
     TourPlace.SETTINGS_HOME -> Route.SETTINGS to null
-    TourPlace.AI_HUB -> Route.SETTINGS to SettingsPage.AI
     TourPlace.AI_CONFIG -> Route.SETTINGS to SettingsPage.AI_CONFIG
     TourPlace.PERMISSIONS -> Route.SETTINGS to SettingsPage.PERMISSIONS
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
@@ -156,6 +166,22 @@ class MainActivity : ComponentActivity() {
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
     private val starPrompt: StarPromptStore by lazy { StarPromptStore(settingsRepository.prefs) }
+    private val upsellStore: UpsellStore by lazy { UpsellStore(settingsRepository.prefs) }
+
+    /** The Samosa AI / Pro pitch on screen, with who it speaks to and why it came up. */
+    private var upsellRequest by mutableStateOf<Pair<UpsellAudience, UpsellReason>?>(null)
+
+    /** When [checkForNewProPlan] last asked the backend; 0 when not yet. */
+    private var lastProPlanCheckAt = 0L
+
+    /** Set when a return from the account website finds the plan is now Pro. */
+    private var showProWelcome by mutableStateOf(false)
+
+    /** Opens the pitch, for whichever audience this account is; Pro accounts get nothing. */
+    private val openUpsell: (UpsellReason) -> Unit = { reason ->
+        val audience = Upsell.audience(this, settingsRepository.load())
+        if (audience != UpsellAudience.NONE) upsellRequest = audience to reason
+    }
     private lateinit var samosaAuthManager: SamosaAuthManager
 
     /** Active notification payload for display in scrollable dialog. */
@@ -166,6 +192,16 @@ class MainActivity : ComponentActivity() {
 
     /** Chat to open, set when a task-finished notification is tapped (issue #97). */
     private var openSessionRequested by mutableStateOf<String?>(null)
+
+    /**
+     * A website sign-in that finished with no screen waiting for it (Gotcha
+     * was restarted while the browser was open). The UI offers the invite-code
+     * dialog for it, as it does after a sign-in from Settings.
+     */
+    private var samosaWelcome by mutableStateOf<SamosaSignInResult.Success?>(null)
+
+    /** Checks, shortly after a resume, whether a website sign-in was abandoned. */
+    private var samosaReturnCheck: kotlinx.coroutines.Job? = null
 
     /**
      * Prompt and mode a new chat should open with, set when a notification
@@ -395,6 +431,14 @@ class MainActivity : ComponentActivity() {
         window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
+        // Any request that finds the Samosa session over tells the user and brings
+        // the sign-in button back, including ones with no 401 callback of their own.
+        com.gotcha.auth.SamosaSession.current?.onSignedOut = { reason ->
+            runOnUiThread { showSamosaSignedOut(reason) }
+        }
+        // Gotcha may have been restarted while the browser was open, so the
+        // sign-in link can arrive here as well as in onNewIntent.
+        handleSamosaRedirect(intent)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
@@ -464,7 +508,10 @@ class MainActivity : ComponentActivity() {
                     repository = settingsRepository,
                     ready = legalAcceptedVersion == LEGAL_VERSION
                 )
-                CompositionLocalProvider(LocalTourAnchors provides tour.anchors) {
+                CompositionLocalProvider(
+                    LocalTourAnchors provides tour.anchors,
+                    LocalUpsell provides openUpsell
+                ) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -613,18 +660,18 @@ class MainActivity : ComponentActivity() {
      * private storage and can only be set inside Termux.
      */
     private fun requestTermuxAccess() {
-        val granted = ContextCompat.checkSelfPermission(this, TermuxTool.PERMISSION_RUN_COMMAND) ==
+        val granted = ContextCompat.checkSelfPermission(this, TermuxShellBackend.PERMISSION_RUN_COMMAND) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) {
             openTermuxForExternalApps()
         } else {
-            termuxPermissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
+            termuxPermissionLauncher.launch(TermuxShellBackend.PERMISSION_RUN_COMMAND)
         }
     }
 
     /** Opens Termux with the one manual step spelled out; no-op if Termux is not installed. */
     private fun openTermuxForExternalApps() {
-        val launch = packageManager.getLaunchIntentForPackage(TermuxTool.TERMUX_PACKAGE)
+        val launch = packageManager.getLaunchIntentForPackage(TermuxShellBackend.TERMUX_PACKAGE)
         if (launch == null) {
             Toast.makeText(this, "Termux is not installed — install it from F-Droid.", Toast.LENGTH_LONG).show()
             return
@@ -666,7 +713,39 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
             openedFromBall = true
         }
+        handleSamosaRedirect(intent)
         handleNotificationIntent(intent)
+    }
+
+    /** Finishes a website sign-in when [intent] is the account website's sign-in link. */
+    private fun handleSamosaRedirect(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (!SamosaAuthManager.isSignInRedirect(uri)) return
+        // Consumed: a recreation must not replay a code that is already spent.
+        intent.data = null
+        lifecycleScope.launch {
+            val outcome = samosaAuthManager.handleRedirect(uri)
+            if (outcome is SamosaRedirectOutcome.Finished) showFinishedSamosaSignIn(outcome.result)
+        }
+    }
+
+    /** Reports a website sign-in that no screen was waiting for. */
+    private fun showFinishedSamosaSignIn(result: SamosaSignInResult) {
+        when (result) {
+            is SamosaSignInResult.Success -> {
+                chatViewModel.refreshSettings()
+                Toast.makeText(this, getString(R.string.samosa_signed_in_as, result.email), Toast.LENGTH_LONG).show()
+                samosaWelcome = result
+            }
+            is SamosaSignInResult.Error -> Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+            SamosaSignInResult.Cancelled -> Unit
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        samosaReturnCheck?.cancel()
+        samosaAuthManager.onHostPaused()
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
@@ -765,6 +844,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Back from the browser without the sign-in link means the user closed it.
+        samosaReturnCheck?.cancel()
+        samosaReturnCheck = lifecycleScope.launch {
+            kotlinx.coroutines.delay(SamosaAuthManager.RETURN_GRACE_MS)
+            samosaAuthManager.onHostSettled()
+        }
+        checkForNewProPlan()
         // What the inactivity reminder counts from, and the inbox badge (issue #100).
         lifecycleScope.launch(Dispatchers.IO) {
             localNotificationStore.setLastOpenedAt(System.currentTimeMillis())
@@ -796,6 +882,32 @@ class MainActivity : ComponentActivity() {
                 throw e
             } catch (_: Exception) {
                 // Server messages are best-effort; never surface errors.
+            }
+        }
+    }
+
+    /**
+     * Back from the account website after "Get Pro": asks for the plan at once rather than at
+     * the next daily check, and welcomes the user when it is Pro now.
+     */
+    private fun checkForNewProPlan() {
+        val startedAt = upsellStore.upgradeStartedAt()
+        if (startedAt == 0L) return
+        val now = System.currentTimeMillis()
+        if (now - startedAt !in 0 until Upsell.UPGRADE_CHECK_WINDOW_MS) {
+            upsellStore.setUpgradeStartedAt(0L)
+            return
+        }
+        // The forced ask skips the rest after an unanswered one, so it is spaced out by hand:
+        // switching apps back and forth must not send a request on every return.
+        if (now - lastProPlanCheckAt in 0 until PRO_PLAN_CHECK_GAP_MS) return
+        lastProPlanCheckAt = now
+        lifecycleScope.launch {
+            ShellEntitlement.refresh(this@MainActivity, force = true)
+            val audience = Upsell.audience(this@MainActivity, settingsRepository.load())
+            if (audience == UpsellAudience.NONE && ShellEntitlement.knownTier(this@MainActivity) != null) {
+                upsellStore.setUpgradeStartedAt(0L)
+                showProWelcome = true
             }
         }
     }
@@ -858,6 +970,8 @@ class MainActivity : ComponentActivity() {
     /** Any Samosa 401 (LLM or audio) clears the session and refreshes the
      *  ChatViewModel so the UI reflects the unauthenticated state. */
     fun onSamosaUnauthorized() {
+        // The session already ended and the user was told (see showSamosaSignedOut).
+        if (com.gotcha.auth.SamosaSession.current?.tokens()?.accessToken.isNullOrBlank()) return
         val current = settingsRepository.load()
         val samosaUsed = current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI
         val samosaToken = current.samosaSessionToken
@@ -866,8 +980,30 @@ class MainActivity : ComponentActivity() {
             return
         }
         settingsRepository.clearSamosaSession()
-        Toast.makeText(this, "Samosa session expired — please sign in again.", Toast.LENGTH_LONG).show()
+        // A banned account cannot sign in again, so "sign in again" would send the user in a circle.
+        val message = when (com.gotcha.auth.SamosaSession.current?.consumeSignOutReason()) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            com.gotcha.auth.SignOutReason.DEACTIVATED -> getString(R.string.samosa_session_deactivated)
+            else -> getString(R.string.samosa_session_ended)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         chatViewModel.refreshSettings()
+        // An open Settings page shows the sign-in button again.
+        samosaAuthManager.notifySessionChanged()
+    }
+
+    /** Tells the user their Samosa session ended and refreshes what shows it. */
+    private fun showSamosaSignedOut(reason: com.gotcha.auth.SignOutReason) {
+        val message = when (reason) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            com.gotcha.auth.SignOutReason.DEACTIVATED -> getString(R.string.samosa_session_deactivated)
+            com.gotcha.auth.SignOutReason.EXPIRED -> getString(R.string.samosa_session_ended)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        chatViewModel.refreshSettings()
+        samosaAuthManager.notifySessionChanged()
     }
 
     override fun onStop() {
@@ -900,6 +1036,9 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // Where Account (and Connectors) go back to: the drawer opens them from
+        // chat, Settings from its own list, and Back should retrace either path.
+        var accountReturnRoute by rememberSaveable { mutableStateOf(Route.HOME) }
         // The chat whose assets ChatAssetsScreen shows; set on the tap that
         // navigates there, alongside the route, like settingsPage is for Settings.
         var assetsSessionId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -923,6 +1062,35 @@ class MainActivity : ComponentActivity() {
         var referralPrefillCode by remember { mutableStateOf<String?>(null) }
         var referralClaimBusy by remember { mutableStateOf(false) }
         var referralClaimError by remember { mutableStateOf<String?>(null) }
+        // A first sign-in offers the invite-code dialog while the claim window is open.
+        val offerInviteCode: (SamosaSignInResult.Success) -> Unit = { r ->
+            if (r.isNewUser && r.user?.referral?.canClaim == true) {
+                referralPrefillCode = ReferralClipboardHelper.getReferralFromClipboard(this@MainActivity)
+                referralClaimError = null
+                showReferralInviteDialog = true
+            }
+        }
+        LaunchedEffect(samosaWelcome) {
+            samosaWelcome?.let { r ->
+                samosaWelcome = null
+                offerInviteCode(r)
+            }
+        }
+        val toSamosaSignInResult: (SamosaSignInResult) -> Result<Pair<String, String>> = { r ->
+            when (r) {
+                is SamosaSignInResult.Success -> {
+                    // Token is already persisted by the auth manager.
+                    val token = settingsRepository.load().samosaSessionToken
+                    chatViewModel.refreshSettings()
+                    offerInviteCode(r)
+                    Result.success(r.email to token)
+                }
+                is SamosaSignInResult.Cancelled ->
+                    Result.failure(Exception(getString(R.string.samosa_sign_in_cancelled)))
+                is SamosaSignInResult.Error ->
+                    Result.failure(Exception(r.message))
+            }
+        }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
@@ -948,9 +1116,12 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
-        // The "Enjoying Gotcha?" ask, only while the user is idle on Home with
-        // nothing else in front of them. Any of that changing cancels the wait.
-        val starPromptQuiet = !starPromptShownThisLaunch &&
+        // The "Enjoying Gotcha?" ask and the occasional Samosa AI / Pro one, only
+        // while the user is idle on Home with nothing else in front of them. Any
+        // of that changing cancels the wait. At most one of the two per launch.
+        var upsellShownThisLaunch by rememberSaveable { mutableStateOf(false) }
+        val homeQuiet = !starPromptShownThisLaunch && !upsellShownThisLaunch &&
+            upsellRequest == null && !showProWelcome &&
             legalAcceptedVersion == LEGAL_VERSION &&
             !tour.controller.isRunning &&
             currentRoute == Route.HOME &&
@@ -969,6 +1140,7 @@ class MainActivity : ComponentActivity() {
             !showReferralInviteDialog &&
             notificationPayload == null &&
             sharePoster.runs == null
+        val starPromptQuiet = homeQuiet
         val starPromptStillQuiet by rememberUpdatedState(starPromptQuiet)
         LaunchedEffect(starPromptQuiet) {
             if (!starPromptQuiet) return@LaunchedEffect
@@ -986,11 +1158,41 @@ class MainActivity : ComponentActivity() {
                     answered = starPrompt.answered()
                 ) ?: return@repeatOnLifecycle
                 delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
-                // Something that opened this frame hasn't cancelled the wait yet.
-                if (!starPromptStillQuiet) return@repeatOnLifecycle
+                // Something that opened this frame hasn't cancelled the wait yet. The launch flags
+                // are read directly, not through the remembered quiet, which only updates on the
+                // next recomposition: the other prompt may have woken in this same frame.
+                if (!starPromptStillQuiet || upsellShownThisLaunch) return@repeatOnLifecycle
                 starPrompt.markShown(System.currentTimeMillis())
                 starPromptShownThisLaunch = true
                 showStarPrompt = true
+            }
+        }
+
+        // The occasional Samosa AI / Pro dialog, under the same quiet as the star
+        // ask and paced by [Upsell.dialogDueAt]: after a few good tasks, weekly at
+        // most, and never right after the star ask.
+        val upsellStillQuiet by rememberUpdatedState(homeQuiet && !showStarPrompt)
+        LaunchedEffect(homeQuiet && !showStarPrompt) {
+            if (!(homeQuiet && !showStarPrompt)) return@LaunchedEffect
+            val installedAt = runCatching {
+                packageManager.getPackageInfo(packageName, 0).firstInstallTime
+            }.getOrDefault(System.currentTimeMillis())
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val audience = Upsell.audience(this@MainActivity, settingsRepository.load())
+                val dueAt = Upsell.dialogDueAt(
+                    audience = audience,
+                    installedAt = installedAt,
+                    lastShownAt = upsellStore.lastShownAt(),
+                    dismissals = upsellStore.dismissals(audience),
+                    successfulRuns = upsellStore.successfulRuns(),
+                    starPromptShownAt = starPrompt.lastShownAt()
+                ) ?: return@repeatOnLifecycle
+                delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
+                // As above: the star ask may have opened in this same frame.
+                if (!upsellStillQuiet || starPromptShownThisLaunch) return@repeatOnLifecycle
+                upsellStore.markShown(System.currentTimeMillis())
+                upsellShownThisLaunch = true
+                upsellRequest = audience to UpsellReason.VALUE
             }
         }
 
@@ -1058,6 +1260,25 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Read on each opening, so a sign-in or a new plan shows the next time.
+        val drawerUpsellAudience = remember(drawerState.isOpen) {
+            Upsell.audience(this@MainActivity, settingsRepository.load())
+        }
+
+        // The drawer's account row: re-read whenever the session changes
+        // (sign-in, log out, an expired token, or the profile name arriving).
+        var accountSession by remember { mutableStateOf(settingsRepository.load()) }
+        LaunchedEffect(Unit) {
+            samosaAuthManager.sessionChanges.collect { accountSession = settingsRepository.load() }
+        }
+        LaunchedEffect(currentRoute) { accountSession = settingsRepository.load() }
+        val drawerAccountName = if (accountSession.samosaSessionToken.isBlank()) {
+            null
+        } else {
+            accountDisplayName(accountSession.samosaDisplayName, accountSession.samosaEmail)
+                ?: androidx.compose.ui.res.stringResource(R.string.account_fallback_name)
+        }
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             // Deep enough that the floating panel reads as above the app.
@@ -1085,6 +1306,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenConnectors = {
                         scope.launch { drawerState.close() }
+                        accountReturnRoute = Route.HOME
                         currentRoute = Route.CONNECTORS
                     },
                     onOpenScheduledTasks = {
@@ -1094,6 +1316,17 @@ class MainActivity : ComponentActivity() {
                     onOpenSecondBrain = {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SECOND_BRAIN
+                    },
+                    upsellAudience = drawerUpsellAudience,
+                    onOpenUpsell = {
+                        scope.launch { drawerState.close() }
+                        openUpsell(UpsellReason.GENERAL)
+                    },
+                    accountName = drawerAccountName,
+                    onOpenAccount = {
+                        scope.launch { drawerState.close() }
+                        accountReturnRoute = Route.HOME
+                        currentRoute = Route.ACCOUNT
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1178,34 +1411,16 @@ class MainActivity : ComponentActivity() {
                                 client.listModels()
                             }
                         },
+                        onFetchAllowedModels = { samosaAuthManager.fetchAllowedModels() },
                         onSamosaSignIn = {
-                            when (val r = samosaAuthManager.signIn(this@MainActivity)) {
-                                is SamosaSignInResult.Success -> {
-                                    // Token is already persisted by the auth manager.
-                                    val token = settingsRepository.load().samosaSessionToken
-                                    chatViewModel.refreshSettings()
-                                    if (r.isNewUser && r.user?.referral?.canClaim == true) {
-                                        val ctx = this@MainActivity
-                                        referralPrefillCode = ReferralClipboardHelper.getReferralFromClipboard(ctx)
-                                        referralClaimError = null
-                                        showReferralInviteDialog = true
-                                    }
-                                    Result.success(r.email to token)
-                                }
-                                is SamosaSignInResult.Cancelled ->
-                                    Result.failure(Exception("Sign-in cancelled."))
-                                is SamosaSignInResult.Error ->
-                                    Result.failure(Exception(r.message))
-                            }
+                            toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity))
                         },
-                        onSamosaSignOut = {
-                            samosaAuthManager.signOut()
-                            chatViewModel.refreshSettings()
+                        onSamosaSignInWithGoogle = if (samosaAuthManager.websiteSignIn) {
+                            { toSamosaSignInResult(samosaAuthManager.signInWithGoogle(this@MainActivity)) }
+                        } else {
+                            null
                         },
-                        onFetchSamosaProfile = { samosaAuthManager.fetchUserProfile() },
-                        onClaimReferral = { code ->
-                            samosaAuthManager.claimReferralCode(code).map { }
-                        },
+                        samosaSessionChanges = samosaAuthManager.sessionChanges,
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null
@@ -1240,6 +1455,15 @@ class MainActivity : ComponentActivity() {
                         },
                         onImportChats = { chatTransfer.startImport() },
                         onBackupAllChats = { chatTransfer.startBackupAll() },
+                        accountName = drawerAccountName,
+                        onOpenAccount = {
+                            accountReturnRoute = Route.SETTINGS
+                            currentRoute = Route.ACCOUNT
+                        },
+                        onOpenConnectors = {
+                            accountReturnRoute = Route.SETTINGS
+                            currentRoute = Route.CONNECTORS
+                        },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it
@@ -1268,13 +1492,37 @@ class MainActivity : ComponentActivity() {
                         onBack = { currentRoute = Route.HOME }
                     )
                 }
+                Route.ACCOUNT -> {
+                    val leaveAccount = {
+                        chatViewModel.refreshSettings()
+                        currentRoute = accountReturnRoute
+                    }
+                    BackHandler { leaveAccount() }
+                    AccountScreen(
+                        load = { settingsRepository.load() },
+                        onBack = leaveAccount,
+                        onSignIn = { toSamosaSignInResult(samosaAuthManager.signIn(this@MainActivity)) },
+                        onSignInWithGoogle = if (samosaAuthManager.websiteSignIn) {
+                            { toSamosaSignInResult(samosaAuthManager.signInWithGoogle(this@MainActivity)) }
+                        } else {
+                            null
+                        },
+                        sessionChanges = samosaAuthManager.sessionChanges,
+                        onSignOut = {
+                            samosaAuthManager.signOut()
+                            chatViewModel.refreshSettings()
+                        },
+                        onFetchProfile = { samosaAuthManager.fetchUserProfile() },
+                        onClaimReferral = { code -> samosaAuthManager.claimReferralCode(code).map { } }
+                    )
+                }
                 Route.CONNECTORS -> {
                     // refreshSettings() on the way out, like every other route: the
                     // enable/disable toggles write disabledConnectors, and the agent
                     // reads it from ChatViewModel's cached Settings.
                     val leaveConnectors = {
                         chatViewModel.refreshSettings()
-                        currentRoute = Route.HOME
+                        currentRoute = accountReturnRoute
                     }
                     BackHandler { leaveConnectors() }
                     ConnectorsScreen(onBack = leaveConnectors)
@@ -1356,6 +1604,7 @@ class MainActivity : ComponentActivity() {
                             state.activeSessionId?.let { chatViewModel.setProtectionsSkipped(it, on) }
                         },
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
+                        onDismissUpsell = chatViewModel::dismissUpsell,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = ::startListeningWithMic,
@@ -1481,6 +1730,50 @@ class MainActivity : ComponentActivity() {
                     showStarPrompt = false
                     starPrompt.markDismissed()
                 }
+            )
+        }
+
+        upsellRequest?.let { (audience, reason) ->
+            UpsellDialog(
+                audience = audience,
+                reason = reason,
+                onAction = {
+                    upsellRequest = null
+                    if (audience == UpsellAudience.PRO) {
+                        upsellStore.setUpgradeStartedAt(System.currentTimeMillis())
+                        if (!SamosaDashboard.open(this@MainActivity, SamosaDashboard.Section.BILLING)) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(R.string.samosa_auth_no_browser),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        // AI Configuration, where Samosa AI is chosen and signed in to.
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.SETTINGS
+                        settingsPage = SettingsPage.AI_CONFIG
+                        settingsHighlight = SAMOSA_PROVIDER_FIELD
+                    }
+                },
+                onDismiss = {
+                    upsellRequest = null
+                    // Only the interrupting dialog counts towards its limit; one the
+                    // user opened themselves was their own choice to look.
+                    if (reason == UpsellReason.VALUE) upsellStore.markDismissed(audience)
+                }
+            )
+        }
+
+        if (showProWelcome) {
+            ProWelcomeDialog(
+                onSetUpShell = {
+                    showProWelcome = false
+                    currentRoute = Route.SETTINGS
+                    settingsPage = SettingsPage.LINUX_SHELL
+                    settingsHighlight = null
+                },
+                onDismiss = { showProWelcome = false }
             )
         }
 
@@ -1612,7 +1905,8 @@ class MainActivity : ComponentActivity() {
         )
         val response = client.chat(
             messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
-            temperature = 0f
+            temperature = 0f,
+            feature = com.gotcha.telemetry.LlmFeature.CONNECTION_TEST
         )
         response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
     }
@@ -1670,6 +1964,10 @@ class MainActivity : ComponentActivity() {
 
         /** How long Home must stay quiet before the "Enjoying Gotcha?" ask appears. */
         private const val STAR_PROMPT_DELAY_MS = 1_500L
+        private const val PRO_PLAN_CHECK_GAP_MS = 60_000L
+
+        /** The AI Configuration field a Samosa AI nudge points at: the provider picker. */
+        private const val SAMOSA_PROVIDER_FIELD = "settings_llm_provider"
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
         @Volatile

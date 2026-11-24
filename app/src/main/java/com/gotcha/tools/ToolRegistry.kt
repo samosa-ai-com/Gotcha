@@ -120,7 +120,7 @@ object ToolRegistry {
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks",
+        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks", McpServerTool.LIST,
         "question",
         "sleep",
         "finish_task",
@@ -130,7 +130,8 @@ object ToolRegistry {
         "check_root", "search_skills",
         "get_health_summary", "get_health_records",
         "get_now_playing",
-        "about_samosa_ai", "about_gotcha"
+        "about_samosa_ai", "about_gotcha",
+        ShellTools.OFFER
     )
 
     /**
@@ -145,10 +146,13 @@ object ToolRegistry {
     /** Tools a sub-agent never gets; see [subAgentTools]. */
     private val subAgentExcluded = setOf(
         "task",
+        // An offer is made to the user in the main chat, not from inside delegated work.
+        ShellTools.OFFER,
         "navigate_app",
         "finish_task",
         "update_user_profile",
         "update_gotcha_settings",
+        McpServerTool.MANAGE,
         "schedule_agent_task",
         "edit_scheduled_task",
         "delete_scheduled_task"
@@ -159,7 +163,7 @@ object ToolRegistry {
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
      * reports back with ask_final_answer instead — minus update_user_profile,
      * whose modify-and-extend directive lives only in the top-level Operator prompt,
-     * and minus update_gotcha_settings and the scheduled-task writes, whose approval
+     * and minus update_gotcha_settings, manage_mcp_servers and the scheduled-task writes, whose approval
      * prompts belong to the run the user is watching, not to a delegated one.
      * Dynamic tools are included while registered; they are hidden by the
      * hidden-tools mechanism when their connector is not active.
@@ -495,24 +499,35 @@ object ToolRegistry {
      */
     fun toolsForAgent(
         agent: AgentMode,
-        hiddenTools: Set<String> = emptySet()
+        hiddenTools: Set<String> = emptySet(),
+        /** The active Linux shell's notes for `run_shell`, see [ShellTools.describe]. */
+        shellNotes: String? = null
     ): List<ToolDefinition> {
         val dynamic = dynamicSet
         val allowed = when (agent) {
             AgentMode.MONITOR -> baseMonitorTools + ConnectorCatalog.monitorTools + dynamic.readOnlyNames
             AgentMode.OPERATOR -> definitions.keys + dynamic.definitions.keys - setOf("ask_final_answer")
         }
-        return (definitions + dynamic.definitions)
-            .filterKeys { it in allowed && it !in hiddenTools }
-            .values.toList()
+        return ShellTools.describe(
+            (definitions + dynamic.definitions)
+                .filterKeys { it in allowed && it !in hiddenTools }
+                .values.toList(),
+            shellNotes
+        )
     }
 
-    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
+    fun toolsForSubAgent(
+        hiddenTools: Set<String> = emptySet(),
+        shellNotes: String? = null
+    ): List<ToolDefinition> {
         val dynamic = dynamicSet
         val allowed = definitions.keys + dynamic.definitions.keys - subAgentExcluded
-        return (definitions + dynamic.definitions)
-            .filterKeys { it in allowed && it !in hiddenTools }
-            .values.toList()
+        return ShellTools.describe(
+            (definitions + dynamic.definitions)
+                .filterKeys { it in allowed && it !in hiddenTools }
+                .values.toList(),
+            shellNotes
+        )
     }
 
     fun toolsForNavigator(): List<ToolDefinition> =

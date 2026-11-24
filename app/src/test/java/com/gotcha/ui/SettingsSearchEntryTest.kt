@@ -67,7 +67,7 @@ class SettingsSearchEntryTest {
         val voice = pagesFor("voice")
         val voiceLanguage = pagesFor("voice language")
         assertTrue(voiceLanguage.size <= voice.size)
-        assertTrue(SettingsPage.LANGUAGE in voiceLanguage)
+        assertTrue(SettingsPage.SPEECH in voiceLanguage)
     }
 
     @Test
@@ -98,11 +98,12 @@ class SettingsSearchEntryTest {
 
     @Test
     fun nestedPagesNameTheirHub() {
+        // Speech is on the home list itself now, so it names nothing above it.
         val speech = settingsSearchIndex.first { it.page == SettingsPage.SPEECH }
-        assertEquals("AI › ${SettingsPage.SPEECH.titleText}", speech.breadcrumb(text))
+        assertEquals(SettingsPage.SPEECH.titleText, speech.breadcrumb(text))
 
         val termux = settingsSearchIndex.first { it.page == SettingsPage.TERMUX }
-        assertEquals(SettingsPage.TERMUX.titleText, termux.breadcrumb(text))
+        assertEquals("Shell › ${SettingsPage.TERMUX.titleText}", termux.breadcrumb(text))
     }
 
     private fun fieldFor(query: String, page: SettingsPage) =
@@ -140,7 +141,7 @@ class SettingsSearchEntryTest {
     @Test
     fun aFieldResultNamesTheFieldInItsLabel() {
         val result = filterSettings("max tool rounds").first { it.page == SettingsPage.AI_CONFIG }
-        assertEquals("AI › AI Configuration › Max tool rounds", result.label(text))
+        assertEquals("${SettingsPage.AI_CONFIG.titleText} › Max tool rounds", result.label(text))
     }
 
     @Test

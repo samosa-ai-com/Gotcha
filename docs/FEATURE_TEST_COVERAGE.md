@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 34 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 37 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **122** | |
+| **Total** | **125** | |
 
-**58 of 122** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**61 of 125** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -74,11 +74,11 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `notion_create_page` | `UNIT` | `NotionToolsTest` — parent/title handling and request shape |
 | `pause_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `pdf_edit` | `ROBOLECTRIC` | `PdfToolTest`, `PdfPageSpecTest`, `PdfEncryptionTest` — every operation round-tripped through pdfbox (merge order, split naming, extract/delete page identity, cumulative rotation), password-protected files at 40/128/256-bit, and the guards: overwrite refusal, safe write-back over the input, delete-all refusal, non-PDF signature rejection and page-range arithmetic |
-| `pull_from_termux` | `ROBOLECTRIC` | `TermuxFileBridgeTest` — the deterministic bridge that moves a file out of Termux: ~/ and $HOME expansion to Termux's home, the exact python3 loopback sender script (ephemeral port, single-use nonce, READY handshake, size header, 64KiB chunked stream), the socket machinery driven over a real 127.0.0.1 ServerSocket pair (nonce-accept, wrong-nonce refusal then keep-listening, exact-size success, and a sender that closes early failing WITHOUT leaving a destination or stray temp file), and the shared-storage-vs-loopback selection (only /sdcard when the ~/storage link exists AND the destination is reachable from Termux AND the file is below the 100MB FUSE threshold). The live transfer — a real cp through /sdcard or a loopback python3 send on a device with Termux — must be verified by hand |
+| `pull_from_shell` | `ROBOLECTRIC` | `TermuxFileBridgeTest`, `CompanionShellBackendTest`, `ShellToolsTest` — Gotcha Shell export against a fake service (size check, short-copy rejection, temp file then rename) and the old pull_from_termux name as an alias; for Termux, the deterministic bridge that moves a file out of Termux: ~/ and $HOME expansion to Termux's home, the exact python3 loopback sender script (ephemeral port, single-use nonce, READY handshake, size header, 64KiB chunked stream), the socket machinery driven over a real 127.0.0.1 ServerSocket pair (nonce-accept, wrong-nonce refusal then keep-listening, exact-size success, and a sender that closes early failing WITHOUT leaving a destination or stray temp file), and the shared-storage-vs-loopback selection (only /sdcard when the ~/storage link exists AND the destination is reachable from Termux AND the file is below the 100MB FUSE threshold). The live transfer — a real cp through /sdcard or a loopback python3 send on a device with Termux — must be verified by hand |
 | `resume_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `run_command` | `UNIT` | `TerminalToolTest` — argument splitting, timeout, exit codes, output truncation |
 | `run_root_command` | `MANUAL_ONLY` | Requires a rooted device and an interactive superuser grant. |
-| `run_termux_command` | `ROBOLECTRIC` | `TermuxToolTest`, `ActionLogRedactionTest` — installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand |
+| `run_shell` | `ROBOLECTRIC` | `TermuxShellBackendTest`, `CompanionShellBackendTest`, `ShellToolsTest`, `ActionLogRedactionTest` — Termux: installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path. Gotcha Shell: the same guards against a fake service, job polling, timeout and cancellation kills, version and rootfs checks. Also the old run_termux_command name as an alias and the per-shell description notes. The live round-trip needs a real Termux or Gotcha Shell install on an arm64 phone and is verified by hand |
 | `schedule_agent_task` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest`, `ScheduledRunTest`, `ScheduledTaskPlannerTest`, `ScheduledTaskScheduleTest` — argument checks before any prompt, the cap on agent-made tasks, approval on every create (denial saves nothing), the mode capped at the chat's, files read on approval, withheld from Monitor, sub-agents and scheduled runs; the schedule math and the runs it starts |
 | `send_email` | `UNIT` | `EmailToolsTest`, `MimeMessageBuilderTest` — confirmation flow, recipient handling, MIME construction with attachments |
 | `send_sms` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
@@ -136,14 +136,17 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_emails` | `UNIT` | `EmailToolsTest` — backend routing, unread filter, result limits |
 | `list_files` | `ROBOLECTRIC` | `FileToolsTest` — flat and recursive listings |
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
+| `list_mcp_servers` | `ROBOLECTRIC` | `McpServerLoopTest` — lists ids, on/off, header names and tools; never a token, a header value or an address path |
 | `list_scheduled_tasks` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest` — each task with its id, schedule and prompt; the one schedule tool Monitor is offered |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `manage_mcp_servers` | `ROBOLECTRIC` | `McpServerToolTest`, `McpServerLoopTest` — validation per action, secrets dropped on a host change, add asks even when approvals are skipped, decline saves nothing, the audit log holds no token or path, Operator only |
 | `notion_delete_item` | `UNIT` | `NotionToolsMutationTest` — page trash patch vs block delete request shapes |
 | `notion_mark_todo` | `UNIT` | `NotionToolsMutationTest` — checked-state patch request shape and id-prefix stripping |
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |
 | `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting, including database titles and title-column definitions with an object title |
 | `notion_update_page` | `UNIT` | `NotionToolsMutationTest` — property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping |
+| `offer_linux_shell` | `ROBOLECTRIC` | `LinuxShellOfferTest` — returns the SHELL nudge flag the engine passes to the chat, is offered in Monitor, and is offered only when no shell can run and the account is signed out or not on Pro. The card under the chat is checked by hand |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |

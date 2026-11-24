@@ -55,7 +55,7 @@ The Settings → Permissions → *Termux Commands (Optional)* row links to the s
 
 | Tool | Use for |
 |---|---|
-| `run_termux_command(command, workdir, timeout_seconds, stdin)` | Run a shell command in Termux's user-space. `run_command` is the unprivileged shell inside Gotcha's own sandbox; Termux is the full one. |
+| `run_shell(command, workdir, timeout_seconds, stdin)` | Run a shell command in Termux's user-space. `run_command` is the unprivileged shell inside Gotcha's own sandbox; Termux is the full one. |
 
 ## Manual end-to-end check
 
@@ -77,7 +77,7 @@ The Settings → Permissions → *Termux Commands (Optional)* row links to the s
 
 ## What may go wrong
 
-`run_termux_command` works, but it is not a server. The realistic limits,
+`run_shell` works, but it is not a server. The realistic limits,
 in order of how often they bite:
 
 - **Each call is a fresh shell.** `cd`, `export`, activated virtualenvs,
@@ -127,7 +127,7 @@ in order of how often they bite:
 - **4 commands in flight, process-wide.** Sub-agents share the same
   semaphore. A 5th call returns an error.
 - **Android 12+ background restriction.** If Gotcha is in the background
-  and the assistive ball is off, `run_termux_command` fails with
+  and the assistive ball is off, `run_shell` fails with
   *Not allowed to start service*. Bring Gotcha to the foreground, or
   switch the assistive ball on.
 - **The Play-Store build of Termux has no RUN_COMMAND API** and can
@@ -163,13 +163,13 @@ should know these so the user does not have to:
 - **Shared storage (`/sdcard`).** `/sdcard/Download` is the only safe
   cross-uid bridge between Gotcha and Termux. It is empty inside Termux
   until the user runs `termux-setup-storage` once in Termux. When that grant
-  is missing or a `cp` through FUSE is refused, the `pull_from_termux` tool
+  is missing or a `cp` through FUSE is refused, the `pull_from_shell` tool
   falls back to a loopback transfer over `127.0.0.1` (Termux `python3`
   sender → Gotcha receiver) that crosses the uid boundary without the
   storage grant at all — so a file produced inside Termux always reaches the
   user, whichever bridge works.
 - **Long-running processes.** A foreground process started by
-  `run_termux_command` is orphaned the moment Gotcha returns. The
+  `run_shell` is orphaned the moment Gotcha returns. The
   persistence pattern is
   `nohup cmd > /sdcard/Download/x.log 2>&1 < /dev/null & echo $! > /sdcard/Download/x.pid; disown`,
   then `exit 0` immediately. For tasks longer than ~30 s, also call

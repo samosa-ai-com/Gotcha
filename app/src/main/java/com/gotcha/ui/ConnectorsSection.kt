@@ -141,21 +141,7 @@ fun ConnectorsSection() {
     }
 }
 
-/**
- * The auto-sync intervals the slider offers, in minutes, with the label shown
- * for each. 1m is the floor: the loop driving auto-sync in [ConnectorsSection]
- * ticks every 60s, so anything finer would be a setting the app cannot honour.
- */
-private val AUTO_REFRESH_INTERVALS = listOf(
-    0 to "Off",
-    1 to "1m",
-    2 to "2m",
-    5 to "5m",
-    10 to "10m",
-    15 to "15m",
-    30 to "30m",
-    120 to "2h"
-)
+private val AUTO_REFRESH_INTERVALS = com.gotcha.data.CONNECTOR_AUTO_REFRESH_STEPS
 
 /**
  * Slider index for a stored interval. A value that is not one of the offered
@@ -329,6 +315,7 @@ private fun HomeAssistantCard(
         isConnected = homeAssistant::isConnected,
         fields = listOf(url, token),
         headerTestTag = "connector_header_homeassistant",
+        connectorId = "homeassistant",
         blurb = stringResource(R.string.connectors_control_and_query_your_smart),
         steps = listOf(
             stringResource(R.string.connectors_1_in_home_assistant_add),
@@ -359,6 +346,7 @@ private fun NotionCard(
         isConnected = notion::isConnected,
         fields = listOf(token),
         headerTestTag = "connector_header_notion",
+        connectorId = "notion",
         blurb = stringResource(R.string.connectors_search_read_and_write_notion),
         steps = listOf(
             stringResource(R.string.connectors_1_go_to_notion_so),
@@ -414,6 +402,7 @@ private fun ImapCard(
         isConnected = imap::isConnected,
         fields = fields,
         headerTestTag = "connector_header_imap",
+        connectorId = "imap",
         steps = listOf(
             stringResource(R.string.connectors_needs_an_app_password_not),
             stringResource(R.string.connectors_generate_one_at_myaccount_google),
@@ -487,6 +476,7 @@ private fun GoogleCard(
         initialClientSecret = google.credentials()?.clientSecret ?: "",
         flow = flow,
         headerTestTag = "connector_header_google",
+        connectorId = "google",
         onDisconnect = google::disconnect,
         onRefresh = { google.refreshTools(strings) },
         enabled = enabled,
@@ -548,6 +538,7 @@ private fun MicrosoftCard(
         initialClientSecret = null,
         flow = flow,
         headerTestTag = "connector_header_microsoft",
+        connectorId = "microsoft",
         onDisconnect = microsoft::disconnect,
         onRefresh = { microsoft.refreshTools(strings) },
         enabled = enabled,

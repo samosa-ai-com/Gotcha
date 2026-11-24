@@ -1,0 +1,1119 @@
+{
+  "app_version_code": 10,
+  "events": {
+    "agent_run": {
+      "props": {
+        "delegated": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "end": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "delegation_limit",
+              "empty",
+              "exhausted",
+              "finish_task",
+              "model_error",
+              "reply",
+              "stuck"
+            ]
+          }
+        },
+        "endpoint": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "groq",
+              "local",
+              "openai",
+              "openrouter",
+              "other",
+              "samosa"
+            ]
+          }
+        },
+        "mode": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "monitor",
+              "operator"
+            ]
+          }
+        },
+        "ms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        },
+        "ok": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "provider": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "byo",
+              "samosa"
+            ]
+          }
+        },
+        "rounds": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "surface": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "call",
+              "chat",
+              "scheduled"
+            ]
+          }
+        },
+        "tool_calls": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "tool_failures": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        }
+      }
+    },
+    "ai_request": {
+      "props": {
+        "cache_hit": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "completion_tokens": {
+          "optional": true,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<128k",
+              "<16k",
+              "<1k",
+              "<4k",
+              "<64k",
+              ">=128k"
+            ]
+          }
+        },
+        "endpoint": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "groq",
+              "local",
+              "openai",
+              "openrouter",
+              "other",
+              "samosa"
+            ]
+          }
+        },
+        "error": {
+          "optional": true,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "auth",
+              "empty",
+              "http_4xx",
+              "http_5xx",
+              "offline",
+              "other",
+              "parse",
+              "rate",
+              "timeout"
+            ]
+          }
+        },
+        "feature": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "agent",
+              "ball",
+              "compaction",
+              "connection_test",
+              "dictation",
+              "navigator",
+              "share_card",
+              "sub_agent",
+              "title"
+            ]
+          }
+        },
+        "latency_ms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        },
+        "model": {
+          "optional": true,
+          "vocab": {
+            "kind": "regex",
+            "pattern": "[A-Za-z0-9._:/-]{1,64}"
+          }
+        },
+        "ok": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "prompt_tokens": {
+          "optional": true,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<128k",
+              "<16k",
+              "<1k",
+              "<4k",
+              "<64k",
+              ">=128k"
+            ]
+          }
+        },
+        "provider": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "byo",
+              "samosa"
+            ]
+          }
+        }
+      }
+    },
+    "app_open": {
+      "props": {
+        "cold": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "start_ms": {
+          "optional": true,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        }
+      }
+    },
+    "connector": {
+      "props": {
+        "action": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "connect",
+              "disconnect",
+              "error",
+              "refresh"
+            ]
+          }
+        },
+        "connector": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "google",
+              "homeassistant",
+              "imap",
+              "mcp",
+              "microsoft",
+              "notion"
+            ]
+          }
+        },
+        "mcp_servers": {
+          "optional": true,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        }
+      }
+    },
+    "consent": {
+      "props": {
+        "policy_version": {
+          "optional": false,
+          "vocab": {
+            "kind": "count",
+            "max": 999,
+            "min": 1
+          }
+        },
+        "surface": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "first_run",
+              "settings"
+            ]
+          }
+        },
+        "terms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "accepted"
+            ]
+          }
+        },
+        "usage_data": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "accepted",
+              "declined"
+            ]
+          }
+        }
+      }
+    },
+    "crash": {
+      "props": {
+        "exception": {
+          "optional": false,
+          "vocab": {
+            "kind": "regex",
+            "max_length": 160,
+            "pattern": "[A-Za-z0-9_.$]+"
+          }
+        },
+        "foreground": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "frame": {
+          "optional": true,
+          "vocab": {
+            "kind": "regex",
+            "max_length": 160,
+            "pattern": "[A-Za-z0-9_.$]+"
+          }
+        },
+        "thread": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "main",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "lens": {
+      "props": {
+        "action": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "add_contact",
+              "ask",
+              "calendar",
+              "convert",
+              "copy",
+              "dial",
+              "mail",
+              "navigate",
+              "open_link",
+              "prompt",
+              "save",
+              "select",
+              "share",
+              "sms",
+              "summarize_link",
+              "translate",
+              "whatsapp"
+            ]
+          }
+        },
+        "kind": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "companion",
+              "lens"
+            ]
+          }
+        }
+      }
+    },
+    "permission": {
+      "props": {
+        "granted": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "name": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "accessibility",
+              "all_files",
+              "battery",
+              "calendar",
+              "call_log",
+              "camera",
+              "contacts",
+              "device_admin",
+              "dnd",
+              "exact_alarm",
+              "health",
+              "location",
+              "mic",
+              "notification_listener",
+              "notifications",
+              "overlay",
+              "phone",
+              "photos",
+              "read_sms",
+              "sms",
+              "usage_access",
+              "write_settings"
+            ]
+          }
+        }
+      }
+    },
+    "scheduled_task": {
+      "props": {
+        "source": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "custom",
+              "preset"
+            ]
+          }
+        },
+        "start": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "busy",
+              "failed",
+              "queued",
+              "started"
+            ]
+          }
+        },
+        "trigger": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "alarm",
+              "manual"
+            ]
+          }
+        }
+      }
+    },
+    "session_end": {
+      "props": {
+        "length_s": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0-5",
+              "121-600",
+              "31-120",
+              "6-30",
+              "601-1800",
+              ">1800"
+            ]
+          }
+        }
+      }
+    },
+    "session_profile": {
+      "props": {
+        "anr_last_session": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "archetype": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "automation",
+              "chat",
+              "glance",
+              "idle",
+              "lens",
+              "setup",
+              "voice"
+            ]
+          }
+        },
+        "features_used": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "first_run_ms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        },
+        "jank_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "<10",
+              "<25",
+              "<5",
+              ">=25"
+            ]
+          }
+        },
+        "length_s": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0-5",
+              "121-600",
+              "31-120",
+              "6-30",
+              "601-1800",
+              ">1800"
+            ]
+          }
+        },
+        "permission_denied": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "retries": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "rules_version": {
+          "optional": false,
+          "vocab": {
+            "kind": "count",
+            "max": 999,
+            "min": 1
+          }
+        },
+        "run_fail_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "100",
+              "<25",
+              "<50",
+              "<75"
+            ]
+          }
+        },
+        "runs": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        },
+        "struggle": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "high",
+              "mild",
+              "none"
+            ]
+          }
+        },
+        "tool_fail_ratio": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "100",
+              "<25",
+              "<50",
+              "<75"
+            ]
+          }
+        }
+      }
+    },
+    "setup": {
+      "props": {
+        "action": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "saved",
+              "tested"
+            ]
+          }
+        },
+        "endpoint": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "groq",
+              "local",
+              "openai",
+              "openrouter",
+              "other",
+              "samosa"
+            ]
+          }
+        },
+        "has_key": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "provider": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "byo",
+              "samosa"
+            ]
+          }
+        },
+        "test_ok": {
+          "optional": true,
+          "vocab": {
+            "kind": "bool"
+          }
+        }
+      }
+    },
+    "shell": {
+      "props": {
+        "backend": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "gotcha_shell",
+              "other",
+              "termux"
+            ]
+          }
+        },
+        "ok": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        }
+      }
+    },
+    "skill_used": {
+      "props": {
+        "skill": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "calendar_operations",
+              "clock_operations",
+              "custom",
+              "gmail_connector",
+              "gmail_ui",
+              "health_connect",
+              "local_serve",
+              "media_editing",
+              "media_playback",
+              "memory",
+              "notion_connector",
+              "notion_ui",
+              "outlook_connector",
+              "outlook_ui",
+              "pdf_editing",
+              "settings_operations",
+              "termux_background",
+              "termux_filesystem",
+              "termux_operations",
+              "termux_proot",
+              "termux_repositories",
+              "whatsapp_chat",
+              "whatsapp_operations"
+            ]
+          }
+        },
+        "via": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "fetched",
+              "offered"
+            ]
+          }
+        }
+      }
+    },
+    "tool_call": {
+      "props": {
+        "ms": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "<100",
+              "<1000",
+              "<15000",
+              "<2000",
+              "<250",
+              "<500",
+              "<5000",
+              "<60000",
+              ">=60000"
+            ]
+          }
+        },
+        "ok": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        },
+        "tool": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "about_gotcha",
+              "about_samosa_ai",
+              "add_contact",
+              "ask_final_answer",
+              "call_number",
+              "check_availability",
+              "check_root",
+              "complete_task",
+              "compose_email",
+              "connector",
+              "create_calendar_event",
+              "create_task",
+              "delete_alarm",
+              "delete_calendar_event",
+              "delete_scheduled_task",
+              "delete_timer",
+              "dial_number",
+              "disable_camera",
+              "dismiss_notifications",
+              "dismiss_timer",
+              "edit",
+              "edit_alarm",
+              "edit_calendar_event",
+              "edit_scheduled_task",
+              "find_contact",
+              "finish_task",
+              "get_app_usage",
+              "get_audio_recording_status",
+              "get_battery_info",
+              "get_clipboard",
+              "get_data_usage",
+              "get_health_records",
+              "get_health_summary",
+              "get_location",
+              "get_now_playing",
+              "get_storage_info",
+              "get_volume",
+              "glob",
+              "global_action",
+              "grep",
+              "hide_overlay",
+              "input_text",
+              "list_alarms",
+              "list_calendar_events",
+              "list_emails",
+              "list_files",
+              "list_installed_apps",
+              "list_mcp_servers",
+              "list_scheduled_tasks",
+              "list_tasks",
+              "list_timers",
+              "lock_screen",
+              "long_press",
+              "long_press_index",
+              "manage_mcp_servers",
+              "mark_email_read",
+              "mcp",
+              "media_control",
+              "media_convert",
+              "media_edit",
+              "navigate_app",
+              "notion_append_to_page",
+              "notion_create_page",
+              "notion_delete_item",
+              "notion_mark_todo",
+              "notion_read_page",
+              "notion_search",
+              "notion_update_page",
+              "offer_linux_shell",
+              "open_app",
+              "open_setting",
+              "other",
+              "pause_audio_recording",
+              "pdf_edit",
+              "press_key",
+              "pull_from_shell",
+              "question",
+              "read_call_log",
+              "read_email",
+              "read_file",
+              "read_notifications",
+              "read_recent_sms",
+              "read_screen",
+              "read_screen_raw",
+              "resume_audio_recording",
+              "run_command",
+              "run_root_command",
+              "run_shell",
+              "schedule_agent_task",
+              "search_skills",
+              "send_email",
+              "send_sms",
+              "set_alarm",
+              "set_brightness",
+              "set_clipboard",
+              "set_dnd",
+              "set_password_policy",
+              "set_ringer_mode",
+              "set_screen_timeout",
+              "set_timer",
+              "set_volume",
+              "set_wallpaper",
+              "share_podcast",
+              "show_alarms",
+              "show_overlay",
+              "sleep",
+              "snooze_alarm",
+              "start_audio_recording",
+              "stop_audio_recording",
+              "swipe",
+              "synthesize_podcast",
+              "synthesize_podcast_dialogue",
+              "take_photo",
+              "tap",
+              "tap_index",
+              "task",
+              "todowrite",
+              "toggle_torch",
+              "toggle_wifi",
+              "transcribe_file",
+              "uninstall_app",
+              "update_gotcha_settings",
+              "update_user_profile",
+              "vibrate",
+              "webfetch",
+              "websearch",
+              "write_file",
+              "write_secure_settings"
+            ]
+          }
+        }
+      }
+    },
+    "tour": {
+      "props": {
+        "action": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "abandoned",
+              "done",
+              "reached",
+              "skipped"
+            ]
+          }
+        },
+        "step": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "choose_provider",
+              "fill_personal_info",
+              "finish",
+              "grant_accessibility",
+              "grant_overlay",
+              "open_ai_config",
+              "open_permissions",
+              "open_personal_info",
+              "open_settings",
+              "samosa_sign_in",
+              "save_ai_config",
+              "save_personal_info"
+            ]
+          }
+        }
+      }
+    },
+    "update": {
+      "props": {
+        "phase": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "download_failed",
+              "download_ok",
+              "install_started",
+              "notified"
+            ]
+          }
+        }
+      }
+    },
+    "voice_call": {
+      "props": {
+        "length_s": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0-5",
+              "121-600",
+              "31-120",
+              "6-30",
+              "601-1800",
+              ">1800"
+            ]
+          }
+        },
+        "stt": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "android",
+              "api",
+              "none",
+              "samosa"
+            ]
+          }
+        },
+        "trigger": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "ball",
+              "wake_word"
+            ]
+          }
+        },
+        "tts": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "android",
+              "api",
+              "none",
+              "samosa"
+            ]
+          }
+        },
+        "turns": {
+          "optional": false,
+          "vocab": {
+            "kind": "words",
+            "words": [
+              "0",
+              "1",
+              "10-24",
+              "2-4",
+              "25+",
+              "5-9"
+            ]
+          }
+        }
+      }
+    },
+    "wake_word": {
+      "props": {
+        "led_to_call": {
+          "optional": false,
+          "vocab": {
+            "kind": "bool"
+          }
+        }
+      }
+    }
+  },
+  "generated_from": "unknown",
+  "product": "gotcha",
+  "schema": 1
+}

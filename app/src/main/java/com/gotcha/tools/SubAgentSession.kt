@@ -67,7 +67,7 @@ class SubAgentSession(
 
         val maxRounds = settings.maxToolRounds
         val hiddenTools = hiddenTools()
-        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
+        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools, ShellBackends.toolNotes(appContext))
 
         for (round in 0 until maxRounds) {
             GotchaLog.d(TAG) { "Sub-agent round ${round + 1}/$maxRounds" }
@@ -78,7 +78,12 @@ class SubAgentSession(
             }
 
             val response = try {
-                subLlm.chat(messages, subAgentTools, sessionId = sessionId)
+                subLlm.chat(
+                    messages,
+                    subAgentTools,
+                    sessionId = sessionId,
+                    feature = com.gotcha.telemetry.LlmFeature.SUB_AGENT
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -324,7 +329,10 @@ class SubAgentSession(
         )
 
         try {
-            val response = llm.chat(listOf(compactionSystem, compactionUser))
+            val response = llm.chat(
+                listOf(compactionSystem, compactionUser),
+                feature = com.gotcha.telemetry.LlmFeature.COMPACTION
+            )
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()
@@ -372,8 +380,12 @@ class SubAgentSession(
             communityIds = communityIds,
             history = history
         ) ?: return emptyList()
+        com.gotcha.telemetry.SkillTelemetry.trackOffered(message, skillsOffered)
         return listOf(message)
     }
+
+    /** Skills already counted as offered to this sub-agent; the summary is re-sent every round. */
+    private val skillsOffered = mutableSetOf<String>()
 
     private companion object {
         const val TAG = "SubAgentSession"

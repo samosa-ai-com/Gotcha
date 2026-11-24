@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
@@ -66,6 +67,9 @@ fun shouldDismissSplash(playbackFinished: Boolean, contentReady: Boolean, timedO
  * @param contentReady true once the app shell has drawn its first frame.
  * @param onFinished called after the fade, when the player is released.
  */
+/** Tags the launch video so UI tests can wait for it to finish before tapping. */
+const val SPLASH_OVERLAY_TAG = "splash_overlay"
+
 @Composable
 fun SplashVideoOverlay(
     contentReady: Boolean,
@@ -105,6 +109,7 @@ fun SplashVideoOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .testTag(SPLASH_OVERLAY_TAG)
             .background(
                 Brush.verticalGradient(
                     0f to Color(0xFF081B3A),

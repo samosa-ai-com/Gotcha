@@ -3,10 +3,13 @@ package com.gotcha.data
 import com.gotcha.auth.ClaimReferralRequest
 import com.gotcha.auth.ClaimReferralResponse
 import com.gotcha.auth.MeResponse
+import com.gotcha.auth.OAuthTokenRequest
 import com.gotcha.auth.RegisterRequest
 import com.gotcha.auth.RegisterResponse
 import com.gotcha.auth.SamosaAuthApi
 import com.gotcha.auth.SamosaUser
+import com.gotcha.auth.ShellApkRelease
+import com.gotcha.auth.ShellRuntimeSource
 import com.gotcha.llm.ChatMessage
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
@@ -197,12 +200,19 @@ class FeedbackChannelTest {
 
     private fun fakeApi(id: String) = object : SamosaAuthApi {
         override suspend fun register(body: RegisterRequest): RegisterResponse = RegisterResponse()
+        override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse = RegisterResponse()
         override suspend fun me(bearer: String): MeResponse =
             MeResponse(user = SamosaUser(id = id, email = "a@b.com"))
+        override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
         override suspend fun claimReferral(
             bearer: String,
             body: ClaimReferralRequest
         ): ClaimReferralResponse = ClaimReferralResponse()
         override suspend fun logout(bearer: String) = Unit
+
+        override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
+        // The companion APK route. Unused here; present because the interface grew.
+        override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
     }
 }

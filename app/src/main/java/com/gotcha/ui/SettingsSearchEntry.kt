@@ -136,33 +136,29 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.CHATS -> SettingsSearchEntry(
         page,
-        words("chats, conversations, import, backup, export, restore"),
+        words("chats, conversations, import, backup, export, restore, storage, clear"),
         listOf(
             field("settings_chats_import", R.string.drawer_import_chats),
-            field("settings_chats_backup_all", R.string.drawer_back_up_all_chats)
+            field("settings_chats_backup_all", R.string.drawer_back_up_all_chats),
+            field("settings_clear_llm_cache", R.string.ai_config_clear_llm_cache, "cache, storage, space"),
+            field(
+                "settings_clear_debug_screenshots",
+                R.string.ai_config_clear_debug_screenshots,
+                "screenshots, debug, storage, space"
+            )
         )
     )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(
         page,
-        words("translate, locale"),
+        words("translate, locale, reply language"),
         listOf(
             field("settings_open_app_locale", R.string.settings_field_open_app_locale),
-            field("settings_voice_language", R.string.settings_field_voice_language),
-            field(
-                "settings_stt_language",
-                R.string.settings_field_stt_language,
-                "stt language, speech to text language, transcription override"
-            ),
             field("settings_reply_language", R.string.settings_field_reply_language)
         )
     )
-    SettingsPage.AI -> SettingsSearchEntry(
-        page,
-        words("assistant, llm, brain, provider")
-    )
     SettingsPage.AI_CONFIG -> SettingsSearchEntry(
         page,
-        words("samosa sign in, sign in, login, credits, temperature"),
+        words("assistant, llm, brain, ai configuration, samosa sign in, sign in, login, temperature"),
         listOf(
             field("settings_llm_provider", R.string.settings_field_llm_provider, "provider, openai, samosa"),
             field("settings_api_key", R.string.settings_field_api_key),
@@ -184,8 +180,14 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
     )
     SettingsPage.SPEECH -> SettingsSearchEntry(
         page,
-        words("voice, speak, microphone, kokoro, whisper"),
+        words("voice, speak, microphone, kokoro, whisper, test voice"),
         listOf(
+            field("settings_voice_language", R.string.settings_field_voice_language),
+            field(
+                "settings_stt_language",
+                R.string.settings_field_stt_language,
+                "stt language, speech to text language, transcription override"
+            ),
             field("settings_tts_provider", R.string.settings_field_tts_provider, "tts, text to speech"),
             field(
                 "settings_stt_provider",
@@ -226,9 +228,32 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             """
         )
     )
+    SettingsPage.SHELL -> SettingsSearchEntry(
+        page,
+        words("linux, shell, command, terminal, termux, gotcha shell")
+    )
+    SettingsPage.LINUX_SHELL -> SettingsSearchEntry(
+        page,
+        words("linux, shell, ubuntu, command, terminal, package, apt, python, gotcha shell, companion")
+    )
+    SettingsPage.LINUX_TERMINAL -> SettingsSearchEntry(
+        page,
+        words("terminal, console, command line, bash, shell, linux, ssh, vim")
+    )
+    SettingsPage.PRIVACY -> SettingsSearchEntry(
+        page,
+        words("privacy, usage, statistics, stats, data, crashes, what gotcha knows, telemetry, analytics")
+    )
     SettingsPage.TERMUX -> SettingsSearchEntry(
         page,
         words("linux, shell, command, terminal, ffmpeg, package, bash")
+    )
+    SettingsPage.SKILLS_AND_CONNECTORS -> SettingsSearchEntry(
+        page,
+        words(
+            "connectors, accounts, integrations, google, gmail, calendar, microsoft, outlook, notion, " +
+                "home assistant, email, imap, mcp"
+        )
     )
     SettingsPage.SKILLS -> SettingsSearchEntry(
         page,
@@ -256,7 +281,8 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field(
                 "settings_pause_night_light",
                 R.string.settings_field_pause_night_light,
-                "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors"
+                "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors",
+                section = BALL_ADVANCED_SECTION
             ),
             field("settings_wake_word", R.string.settings_field_wake_word, "always listening"),
             field("settings_wake_word_sensitivity", R.string.settings_field_wake_word_sensitivity, "sensitivity")
@@ -281,18 +307,21 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field(
                 "settings_server_messages_enabled",
                 R.string.settings_field_server_messages_enabled,
-                "announcements, sync"
-            ),
+                "announcements, sync",
+                section = NOTIFICATIONS_SERVER_SECTION
+            )
+        )
+    )
+    SettingsPage.ABOUT -> SettingsSearchEntry(
+        page,
+        words("version, update, check for updates, contact, support, company, samosa"),
+        listOf(
             field(
                 "settings_update_notifications_enabled",
                 R.string.settings_field_update_notifications_enabled,
                 "update, updates, new version, release"
             )
         )
-    )
-    SettingsPage.ABOUT -> SettingsSearchEntry(
-        page,
-        words("version, update, check for updates, contact, support, company, samosa")
     )
     SettingsPage.ABOUT_SAMOSA -> SettingsSearchEntry(
         page,
@@ -306,6 +335,13 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
 
 /** The tag of AI Configuration's collapsed "Advanced settings" section. */
 internal const val AI_ADVANCED_SECTION = "settings_ai_advanced"
+
+/** The tags of the Notifications page's two folded sections. */
+internal const val NOTIFICATIONS_GOTCHA_SECTION = "settings_gotcha_notifications"
+internal const val NOTIFICATIONS_SERVER_SECTION = "settings_server_messages"
+
+/** The tag of the floating ball page's collapsed "Advanced settings" section. */
+internal const val BALL_ADVANCED_SECTION = "settings_ball_advanced"
 
 /** Every settings page, in home-list declaration order. */
 val settingsSearchIndex: List<SettingsSearchEntry> = SettingsPage.entries.map(::entryFor)

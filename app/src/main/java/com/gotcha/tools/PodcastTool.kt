@@ -244,7 +244,7 @@ class PodcastTool(
         val voiceB = resolveHostBVoice(hostBVoice, settings, backend, modelB, voiceA)
         val sameVoiceNote = if (voiceA == voiceB) {
             " Both hosts ended up with voice '$voiceA' — no second voice could be found automatically; pass " +
-                "host_b_voice or set one in Settings → Speech to make them distinguishable."
+                "host_b_voice or set one in Settings → Voice and speech to make them distinguishable."
         } else {
             ""
         }
@@ -484,7 +484,7 @@ class PodcastTool(
         if (!settings.ttsProvider.isApiBased()) {
             return ToolResult.error(
                 "The Text-to-Speech provider is '${settings.ttsProvider.label}', which can only speak aloud — " +
-                    "it cannot write audio to a file. Ask the user to set Settings → Speech → Text-to-Speech " +
+                    "it cannot write audio to a file. Ask the user to set Settings → Voice and speech → Text-to-Speech " +
                     "to Samosa AI or External API, then try again."
             )
         }
@@ -495,7 +495,7 @@ class PodcastTool(
                         "in Settings, then retry."
                 } else {
                     "TTS is set to External API but no base URL is configured. Ask the user to complete " +
-                        "Settings → Speech → Text-to-Speech, then retry."
+                        "Settings → Voice and speech → Text-to-Speech, then retry."
                 }
             )
         }
@@ -534,12 +534,12 @@ class PodcastTool(
 
     private fun noModelConfigured(): ToolResult = ToolResult.error(
         "No TTS model is configured. Pass model explicitly, or ask the user to pick one in " +
-            "Settings → Speech → Text-to-Speech."
+            "Settings → Voice and speech → Text-to-Speech."
     )
 
     private fun noVoiceResolvable(model: String): ToolResult = ToolResult.error(
         "No TTS voice is set and the API's voice list for '$model' could not be fetched. " +
-            "Pass voice explicitly, or ask the user to pick one in Settings → Speech."
+            "Pass voice explicitly, or ask the user to pick one in Settings → Voice and speech."
     )
 
     private fun resolveVoice(

@@ -51,13 +51,18 @@ builds and runs but cannot reach the Samosa backend — "Samosa AI" sign-in will
 not work until you supply real values. Everything else, including the
 OpenAI-compatible provider flow, works out of the box.
 
-Three build-time values control it:
+These build-time values control it:
 
 | Variable | Placeholder | What it is |
 |---|---|---|
 | `SAMOSA_API_URL` | `https://api.samosa-ai.example` | API root, **no** trailing slash. `/v1/` and the auth root are derived from it. |
+| `SAMOSA_DASHBOARD_URL` | `https://dashboard.samosa-ai.com` | The Samosa account website: where sign-in happens and what "Manage account" and "Add credits" open |
+| `SAMOSA_DASHBOARD_SIGN_IN` | `true` | `true`: sign in on the account website, with "Use Google instead" as a fallback. `false`: Google sign-in only |
 | `SAMOSA_SKILL_HOST` | `samosa-ai.example` | Host allowed for community-skill imports |
-| `SAMOSA_WEB_CLIENT_ID` | `YOUR_GOOGLE_WEB_CLIENT_ID.…` | Google **WEB** OAuth client ID (not the Android one) |
+| `SAMOSA_WEB_CLIENT_ID` | `YOUR_GOOGLE_WEB_CLIENT_ID.…` | Google **WEB** OAuth client ID (not the Android one), used by the Google fallback |
+
+How the website sign-in works, and how to test it against a local backend, is
+in [`samosa-sign-in.md`](samosa-sign-in.md).
 
 Supply them either way — environment variables take precedence, so CI can
 override a developer's file:
@@ -231,7 +236,7 @@ Type natural-language requests. Examples:
 - **run_command** runs as the unprivileged app user (no root). Many system paths
   are unreadable; destructive commands (`rm -r`, `dd`, `reboot`, `su`, …) are
   blocked, with a 15 s timeout and 32 KB output cap.
-- **run_termux_command** runs inside Termux's user-space, which gives you a
+- **run_shell** runs inside Termux's user-space, which gives you a
   real Linux shell with `pkg`/`apt`, Python, git, compilers and the rest of
   the Unix tail. It is not a server: no root, no systemd, no kernel access,
   no persistence between calls, output capped at 32 KB, hard 600 s timeout,

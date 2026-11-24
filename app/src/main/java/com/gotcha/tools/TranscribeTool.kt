@@ -98,7 +98,7 @@ class TranscribeTool(
         val resolvedModel = resolveModel(model, settings, backend)
             ?: return ToolResult.error(
                 "No STT model is configured and none could be discovered from the API. Pass model " +
-                    "explicitly, or ask the user to pick one in Settings → Speech → Speech-to-Text."
+                    "explicitly, or ask the user to pick one in Settings → Voice and speech → Speech-to-Text."
             )
         val resolvedLanguage = (language ?: settings.sttLanguage).trim().ifBlank { null }
 
@@ -133,7 +133,7 @@ class TranscribeTool(
         if (!settings.sttProvider.isApiBased()) {
             return ToolResult.error(
                 "The Speech-to-Text provider is '${settings.sttProvider.label}', which only listens to the " +
-                    "microphone — it cannot read an audio file. Ask the user to set Settings → Speech → " +
+                    "microphone — it cannot read an audio file. Ask the user to set Settings → Voice and speech → " +
                     "Speech-to-Text to Samosa AI or External API, then try again."
             )
         }
@@ -144,7 +144,7 @@ class TranscribeTool(
                         "in Settings, then retry."
                 } else {
                     "STT is set to External API but no base URL is configured. Ask the user to complete " +
-                        "Settings → Speech → Speech-to-Text, then retry."
+                        "Settings → Voice and speech → Speech-to-Text, then retry."
                 }
             )
         }

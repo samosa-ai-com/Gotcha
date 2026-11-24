@@ -4,9 +4,19 @@ import android.content.Context
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
+import com.gotcha.auth.SamosaAuthInterceptor
 import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
+import com.gotcha.data.LlmProvider
 import com.gotcha.i18n.Language
+import com.gotcha.telemetry.AiError
+import com.gotcha.telemetry.EndpointClass
+import com.gotcha.telemetry.ErrorClass
+import com.gotcha.telemetry.LlmFeature
+import com.gotcha.telemetry.ProviderKind
+import com.gotcha.telemetry.Telemetry
+import com.gotcha.telemetry.TelemetryEvents
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,6 +25,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
+private const val NANOS_PER_MILLI = 1_000_000L
 
 /** Longest a connection to the model server may take to open, however long the API timeout is. */
 private const val MAX_CONNECT_TIMEOUT_SECONDS = 15L
@@ -80,15 +92,8 @@ class LLMClient(
             .connectTimeout(timeouts.connectSeconds, TimeUnit.SECONDS)
             .readTimeout(timeouts.readSeconds, TimeUnit.SECONDS)
             .writeTimeout(timeouts.writeSeconds, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val builder = chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer $apiKey")
-                val response = chain.proceed(builder.build())
-                if (response.code == 401) {
-                    onUnauthorized?.invoke()
-                }
-                response
-            }
+            // Adds the bearer token; for Samosa AI it also keeps the session renewed.
+            .addInterceptor(SamosaAuthInterceptor(apiKey, onUnauthorized))
             .addInterceptor(logging)
             .build()
 
@@ -108,9 +113,12 @@ class LLMClient(
         tools: List<ToolDefinition> = emptyList(),
         temperature: Float? = null,
         sessionId: String? = null,
-        modelOverride: String? = null
+        modelOverride: String? = null,
+        /** What the request is for, for opt-in usage data only. */
+        feature: LlmFeature = LlmFeature.AGENT
     ): ChatResponse {
         val targetModel = modelOverride ?: model
+        val startedAt = System.nanoTime()
         // Safety net for histories that carried a malformed tool call before the
         // append-time sanitization existed (or were restored from an old session):
         // never transmit arguments that aren't valid JSON, or the server 400s the
@@ -120,7 +128,10 @@ class LLMClient(
         val cacheKey = buildCacheKey(targetModel, sanitizedMessages, tools)
 
         if (temperature == null || temperature == 0f) {
-            cache.get(cacheKey)?.let { return it }
+            cache.get(cacheKey)?.let {
+                trackRequest(feature, targetModel, startedAt, it, cacheHit = true, error = null)
+                return it
+            }
         }
 
         val request = ChatRequest(
@@ -131,8 +142,22 @@ class LLMClient(
             promptCacheKey = sessionId
         )
 
-        var response = apiService.chat(request, sessionId)
-        response = normalizeResponse(response)
+        val response = try {
+            normalizeResponse(apiService.chat(request, sessionId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            trackRequest(feature, targetModel, startedAt, null, cacheHit = false, error = ErrorClass.of(e))
+            throw e
+        }
+        trackRequest(
+            feature,
+            targetModel,
+            startedAt,
+            response,
+            cacheHit = false,
+            error = if (response.choices.isEmpty()) AiError.EMPTY else null
+        )
 
         val shouldCache = (temperature == null || temperature == 0f) &&
             response.choices.isNotEmpty() &&
@@ -163,7 +188,12 @@ class LLMClient(
             ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive(wrappedText))
         )
         return try {
-            val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
+            val response = chat(
+                messages = messages,
+                temperature = 0f,
+                modelOverride = modelOverride,
+                feature = LlmFeature.DICTATION
+            )
             response.choices.firstOrNull()?.message?.textContent ?: text
         } catch (_: Exception) {
             // Fall back to original text if the LLM fails (e.g., 401 Unauthorized)
@@ -173,6 +203,33 @@ class LLMClient(
 
     fun clearCache() {
         cache.clear()
+    }
+
+    /** One `ai_request` for opt-in usage data: kinds, buckets and outcome, never content. */
+    @Suppress("LongParameterList")
+    private fun trackRequest(
+        feature: LlmFeature,
+        targetModel: String,
+        startedAt: Long,
+        response: ChatResponse?,
+        cacheHit: Boolean,
+        error: AiError?
+    ) {
+        val provider = if (baseUrl.startsWith(LlmProvider.SAMOSA_BASE_URL)) ProviderKind.SAMOSA else ProviderKind.BYO
+        Telemetry.track(
+            TelemetryEvents.aiRequest(
+                feature = feature,
+                provider = provider,
+                endpoint = EndpointClass.of(baseUrl),
+                model = targetModel,
+                ok = error == null,
+                latencyMs = (System.nanoTime() - startedAt) / NANOS_PER_MILLI,
+                promptTokens = response?.usage?.promptTokens,
+                completionTokens = response?.usage?.completionTokens,
+                cacheHit = cacheHit,
+                error = error
+            )
+        )
     }
 
     suspend fun listModels(): Result<List<String>> = runCatching {

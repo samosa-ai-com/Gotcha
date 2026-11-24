@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorCatalog
+import com.gotcha.i18n.stringLookup
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,9 @@ class ToolExecutor(
     }
 
     private val appContext = context.applicationContext
+
+    /** Fences shell output and remembers that this request has read some. See [ShellOutputGuard]. */
+    val shellOutputGuard = ShellOutputGuard(canonicalPath = { fileResolver.canonicalPath(it) })
     private val phoneTool = PhoneTool(appContext)
     private val settingsRouter = SettingsRouter(appContext)
     private val systemTool = SystemTool(appContext, settingsRouter)
@@ -86,7 +90,6 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
-    private val termuxFileBridge = TermuxFileBridge(appContext)
     private val fileResolver = FileResolver(appContext)
     private val podcastTool = PodcastTool(
         appContext,
@@ -105,11 +108,19 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
-    private val termuxTool = TermuxTool(appContext)
+
+    /**
+     * Chosen on every use, not once here: this executor outlives sign-in, the plan check and the
+     * companion's install, and each of them changes which shell, if any, can run a command.
+     */
+    private val shell: ShellBackend get() = ShellBackends.active(appContext)
     private val healthTool = HealthTool(appContext)
 
     /** The audit log; the engine also writes the answers to its confirmation prompts here. */
     val actionLog = ActionLog(appContext)
+
+    /** `manage_mcp_servers` writes awaiting the user's answer; the engine takes them by id. */
+    val mcpRequests = McpServerTool.PendingRequests()
 
     init {
         com.gotcha.connectors.ConnectorRegistry.init(appContext)
@@ -131,40 +142,42 @@ class ToolExecutor(
          */
         hiddenTools: Set<String> = emptySet()
     ): ToolResult {
-        if (!ToolRegistry.contains(name)) {
+        // A chat or scheduled task saved before the shell tools were renamed still calls the old names.
+        val tool = ShellTools.canonical(name)
+        if (!ToolRegistry.contains(tool)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
-        if (name in hiddenTools) {
-            return unavailableResult(name)
+        if (tool in hiddenTools) {
+            return unavailableResult(tool)
         }
-        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
+        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(tool, agent)) {
             return ToolResult.error(
                 "This action is not available in ${agent.name} mode. " +
                     "Switch to Operator mode if you need to perform this action."
             )
         }
-        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(name)) {
+        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(tool)) {
             return ToolResult.error(
-                "Tool '$name' is not available to sub-agents (no recursive delegation)."
+                "Tool '$tool' is not available to sub-agents (no recursive delegation)."
             )
         }
-        onBeforeTool?.invoke(name, args)?.let { refused ->
-            actionLog.record(name, args.redactedForAudit(), refused)
+        onBeforeTool?.invoke(tool, args)?.let { refused ->
+            actionLog.record(tool, args.redactedForAudit(tool), refused)
             return refused
         }
         val result = try {
-            withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }
+            withContext(Dispatchers.IO) { shellOutputGuard.label(tool, dispatch(tool, args, hiddenTools)) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            ToolResult.error("Tool '$name' failed: ${e.message}")
+            ToolResult.error("Tool '$tool' failed: ${e.message}")
         }
         // Do not log result.message — tool payloads can contain sensitive user data
         // (SMS bodies, clipboard text, file contents, location, etc.).
         GotchaLog.d(TAG) {
-            "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
+            "execute: $tool -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
         }
-        actionLog.record(name, args.redactedForAudit(), result)
+        actionLog.record(tool, args.redactedForAudit(tool), result)
         return result
     }
 
@@ -177,16 +190,23 @@ class ToolExecutor(
      * are passwords, passphrases and tokens. Logging the argument name still leaves the audit
      * trail intact — what ran, and that something was piped to it.
      */
-    private fun JsonObject.redactedForAudit(): String =
-        if (keys.none { it in REDACTED_AUDIT_KEYS }) {
+    private fun JsonObject.redactedForAudit(tool: String): String {
+        // An MCP server's token, headers and address (which may hold a key) never reach the log.
+        val redacted = if (tool == McpServerTool.MANAGE) {
+            REDACTED_AUDIT_KEYS + McpServerTool.AUDIT_REDACTED_KEYS
+        } else {
+            REDACTED_AUDIT_KEYS
+        }
+        return if (keys.none { it in redacted }) {
             toString()
         } else {
             JsonObject(
                 mapValues { (key, value) ->
-                    if (key in REDACTED_AUDIT_KEYS) JsonPrimitive("(redacted)") else value
+                    if (key in redacted) JsonPrimitive("(redacted)") else value
                 }
             ).toString()
         }
+    }
 
     /**
      * Execute an uninstall that was already confirmed by the user.
@@ -290,8 +310,10 @@ class ToolExecutor(
                 bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
-            "pull_from_termux" -> termuxFileBridge.pull(
-                termuxPath = args.requireString("termux_path") ?: return missing("termux_path"),
+            "pull_from_shell" -> shell.exportFile(
+                guestPath = args.requireString(ShellTools.PULL_PATH)
+                    ?: args.requireString(ShellTools.PULL_PATH_LEGACY)
+                    ?: return missing(ShellTools.PULL_PATH),
                 // Resolve relative paths against the session working dir like every other file
                 // tool; a raw string would resolve against the JVM process CWD instead.
                 destination = java.io.File(
@@ -548,6 +570,12 @@ class ToolExecutor(
                         GotchaSettingsUpdate.encodePayload(changes, args.requireString("reason"))
                 )
             }
+            "list_mcp_servers" -> {
+                val connector = McpServerTool.connector()
+                    ?: return ToolResult.error("MCP servers are not available here.")
+                ToolResult.ok(McpServerTool.list(connector, McpServerTool.connectorOn(appContext)))
+            }
+            "manage_mcp_servers" -> McpServerTool.manage(args, mcpRequests, appContext.stringLookup())
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")
@@ -669,12 +697,31 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
-            "run_termux_command" -> termuxTool.runCommand(
-                command = args.requireString("command") ?: return missing("command"),
-                workingDir = args.requireString("working_dir"),
-                timeoutSeconds = args.requireInt("timeout_seconds"),
-                stdin = args.requireString("stdin")
+            "offer_linux_shell" -> ToolResult(
+                success = true,
+                message = "The user is now being shown how to get Gotcha's built-in Linux shell. In one " +
+                    "short sentence, tell them their request needs it and that it comes with Samosa AI " +
+                    "Pro. Do not call ${ShellTools.OFFER} again in this chat. Do any part of the " +
+                    "request that does not need Linux.",
+                upsell = com.gotcha.upsell.UpsellReason.SHELL
             )
+            "run_shell" -> {
+                val backend = shell
+                backend.runCommand(
+                    command = args.requireString("command") ?: return missing("command"),
+                    workingDir = args.requireString("working_dir"),
+                    timeoutSeconds = args.requireInt("timeout_seconds"),
+                    stdin = args.requireString("stdin")
+                ).also {
+                    // Opt-in usage data: which backend and whether it worked, never the command.
+                    com.gotcha.telemetry.Telemetry.track(
+                        com.gotcha.telemetry.TelemetryEvents.shell(
+                            com.gotcha.telemetry.ShellKind.of(backend.id),
+                            it.success
+                        )
+                    )
+                }
+            }
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
                 key = args.requireString("key") ?: return missing("key"),
@@ -685,6 +732,7 @@ class ToolExecutor(
                 // Same gating as the auto-injected skills: never hand back advice
                 // for tools the model cannot currently call.
                 val results = SkillRegistry.searchSkills(query, hidden)
+                com.gotcha.telemetry.SkillTelemetry.trackFetched(results.map { it.id })
                 if (results.isEmpty()) {
                     ToolResult.ok("No skills found matching '$query'.")
                 } else {

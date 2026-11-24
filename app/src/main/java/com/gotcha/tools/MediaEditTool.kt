@@ -462,10 +462,10 @@ class MediaEditTool(private val context: Context) {
                 "holds AAC, is smaller than MP3 at the same quality, and plays on phones, browsers, cars and " +
                 "desktops alike. Do that and tell the user you saved an .m4a because MP3 cannot be made on-device — " +
                 "for almost every purpose it is the same thing. Only if they specifically need MP3 for a device that " +
-                "accepts nothing else is ffmpeg via run_termux_command worth the detour, and that needs Termux installed."
+                "accepts nothing else is ffmpeg via run_shell worth the detour, and that needs Termux installed."
         } else {
             "Output '$path' has $named, but this tool always writes an MP4 container — name it '.mp4' for video or " +
-                "'.m4a' for audio-only. Converting to another container needs ffmpeg via run_termux_command."
+                "'.m4a' for audio-only. Converting to another container needs ffmpeg via run_shell."
         }
     }
 
@@ -484,7 +484,7 @@ class MediaEditTool(private val context: Context) {
             name == "IOException" || message.contains("extractor", ignoreCase = true) ->
                 "Could not open '$path' as a media file. It may be corrupt, incomplete, or in a container Android " +
                     "cannot read. Call operation='info' to check, and note that exotic formats (MKV, OGG) may need " +
-                    "ffmpeg via run_termux_command instead."
+                    "ffmpeg via run_shell instead."
             else -> "Media operation failed: ${message.ifEmpty { name }}"
         }
     }

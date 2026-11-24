@@ -110,6 +110,21 @@ class LocalNotificationsTest {
     }
 
     @Test
+    fun `a tip only every three days, counted in calendar days`() {
+        val tip = candidate(NotificationCategory.DAILY_TIP, key = "tip:today")
+        val tenFive = at(2026, 9, 24, 10, 5)
+        fun lastTipOn(day: Int) =
+            listOf(SentRecord("tip:$day", NotificationCategory.DAILY_TIP.name, at(2026, 9, day, 10, 20)))
+        assertEquals("tip_gap", blockReason(tip, Settings(), lastTipOn(22), tenFive, zone))
+        // Three days on it is due, even a few minutes short of 72 hours.
+        assertNull(blockReason(tip, Settings(), lastTipOn(21), tenFive, zone))
+        // Other kinds of notification don't hold the tip back, and the tip doesn't hold them.
+        val reminder = listOf(SentRecord("r", NotificationCategory.INACTIVITY.name, at(2026, 9, 22, 10)))
+        assertNull(blockReason(tip, Settings(), reminder, tenFive, zone))
+        assertNull(blockReason(candidate(), Settings(), lastTipOn(23), tenFive, zone))
+    }
+
+    @Test
     fun `the daily cap counts today's sends across categories`() {
         val sent = listOf(
             SentRecord("a", NotificationCategory.DAILY_TIP.name, at(2026, 9, 24, 10)),

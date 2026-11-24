@@ -95,43 +95,6 @@ fun SkillsScreen(
     )
 
     SettingsScaffold(title = stringResource(SettingsPage.SKILLS.title), onBack = onBack, overlay = overlay) {
-        val allSkills = SkillRegistry.getAllSkills()
-        if (allSkills.isEmpty()) {
-            Text(stringResource(R.string.skills_no_skills_loaded), style = MaterialTheme.typography.bodyMedium)
-        } else {
-            allSkills.forEach { skill ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(
-                            skill.id,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (skill.description.isNotBlank()) {
-                            Text(skill.description, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    Switch(
-                        checked = !disabledSkills.contains(skill.id),
-                        onCheckedChange = { enabled ->
-                            disabledSkills = if (enabled) {
-                                disabledSkills - skill.id
-                            } else {
-                                disabledSkills + skill.id
-                            }
-                            onSave { applySkills(it) }
-                        }
-                    )
-                }
-            }
-        }
-
-        HorizontalDivider(thickness = 1.dp)
-
         // ---- Community Skills ----
         Text(
             stringResource(R.string.skills_community_skills),
@@ -338,61 +301,101 @@ fun SkillsScreen(
             )
         }
 
+        // ---- Every skill's switch: long, and rarely changed, so folded ----
         HorizontalDivider(thickness = 1.dp)
-
-        // ---- Host allowlist ----
-        Text(
-            stringResource(R.string.skills_allowed_community_skill_hosts),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            stringResource(R.string.skills_hosts_description, BuildConfig.SAMOSA_SKILL_HOST),
-            style = MaterialTheme.typography.bodySmall
-        )
-        communitySkillHosts.forEach { host ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(host, modifier = Modifier.weight(1f))
-                if (host.equals(pinnedHost, ignoreCase = true)) {
-                    Text(
-                        stringResource(R.string.skills_built_in),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    TextButton(onClick = {
-                        communitySkillHosts = communitySkillHosts - host
-                        onSave { applySkills(it) }
-                    }) { Text(stringResource(R.string.skills_remove)) }
+        SettingsAdvancedSection(
+            testTag = "settings_all_skills",
+            title = stringResource(R.string.skills_all_skills, SkillRegistry.getAllSkills().size)
+        ) {
+            val allSkills = SkillRegistry.getAllSkills()
+            if (allSkills.isEmpty()) {
+                Text(stringResource(R.string.skills_no_skills_loaded), style = MaterialTheme.typography.bodyMedium)
+            } else {
+                allSkills.forEach { skill ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                skill.id,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (skill.description.isNotBlank()) {
+                                Text(skill.description, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Switch(
+                            checked = !disabledSkills.contains(skill.id),
+                            onCheckedChange = { enabled ->
+                                disabledSkills = if (enabled) {
+                                    disabledSkills - skill.id
+                                } else {
+                                    disabledSkills + skill.id
+                                }
+                                onSave { applySkills(it) }
+                            }
+                        )
+                    }
                 }
             }
         }
-        var newHost by remember { mutableStateOf("") }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+
+        // ---- Host allowlist: for importing from somewhere other than samosa-ai.com ----
+        SettingsAdvancedSection(
+            testTag = "settings_skill_hosts",
+            title = stringResource(R.string.skills_allowed_community_skill_hosts)
         ) {
-            OutlinedTextField(
-                value = newHost,
-                onValueChange = { newHost = it.trim() },
-                label = { Text(stringResource(R.string.skills_add_host)) },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
+            Text(
+                stringResource(R.string.skills_hosts_description, BuildConfig.SAMOSA_SKILL_HOST),
+                style = MaterialTheme.typography.bodySmall
             )
-            Button(
-                onClick = {
-                    val h = newHost.trim()
-                    if (h.isEmpty()) return@Button
-                    communitySkillHosts = communitySkillHosts + h
-                    onSave { applySkills(it) }
-                    newHost = ""
+            communitySkillHosts.forEach { host ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(host, modifier = Modifier.weight(1f))
+                    if (host.equals(pinnedHost, ignoreCase = true)) {
+                        Text(
+                            stringResource(R.string.skills_built_in),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        TextButton(onClick = {
+                            communitySkillHosts = communitySkillHosts - host
+                            onSave { applySkills(it) }
+                        }) { Text(stringResource(R.string.skills_remove)) }
+                    }
                 }
-            ) { Text(stringResource(R.string.skills_add)) }
+            }
+            var newHost by remember { mutableStateOf("") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = newHost,
+                    onValueChange = { newHost = it.trim() },
+                    label = { Text(stringResource(R.string.skills_add_host)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val h = newHost.trim()
+                        if (h.isEmpty()) return@Button
+                        communitySkillHosts = communitySkillHosts + h
+                        onSave { applySkills(it) }
+                        newHost = ""
+                    }
+                ) { Text(stringResource(R.string.skills_add)) }
+            }
         }
     }
 }

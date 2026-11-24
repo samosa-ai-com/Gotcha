@@ -9,6 +9,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
@@ -42,20 +44,23 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.audio.VoiceInfo
+import com.gotcha.auth.ModelAccess
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import com.gotcha.upsell.UpsellReason
 import kotlinx.coroutines.launch
 
 /**
  * The Speech page: which engines synthesise and transcribe, the models and
  * voices they use, and whether replies are read aloud automatically.
  *
- * No language is set here. The transcription override moved to the Language
- * page (issue #114); this page shows it read-only, with a way there
- * ([onOpenLanguage]), and warns when a model picked here doesn't suit the voice
- * language ([SpeechLanguageCheck], issue #113).
+ * The voice language and the transcription language are set here too
+ * ([VoiceLanguageSection]), beside the models they have to suit, and the page
+ * warns when a model picked here doesn't suit the voice language
+ * ([SpeechLanguageCheck], issue #113). The AI reply language, which an unset
+ * voice language follows, stays on the Language page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,21 +68,23 @@ fun SpeechScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
+    /** The Samosa AI plan's models, or null when nothing is locked; see [com.gotcha.auth.ModelAccess]. */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(emptyList(), emptyList())
     },
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
-    onSamosaSignOut: suspend () -> Unit = {},
-    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
-    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Claims an invite code via the auth manager. */
-    onClaimReferral: suspend (String) -> Result<Unit> = {
-        Result.failure(Exception("Not supported"))
-    },
-    /** Opens Settings → Language, where every language setting lives. */
-    onOpenLanguage: () -> Unit = {},
+    /**
+     * Google sign-in, when the account website is the main sign-in. Null when
+     * Google is the only sign-in (then [onSamosaSignIn] is Google).
+     */
+    onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
+    /** Fires when the Samosa session changed outside this screen; it re-reads it. */
+    samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
+    /** Speaks a test phrase in a language; false when its voice data is missing, null when TTS is off. */
+    onTestVoice: suspend (Language) -> Boolean? = { null },
     /** Android Built-in's engines and what they can do for a language; see [AndroidSpeechStatus]. */
     onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
@@ -99,17 +106,21 @@ fun SpeechScreen(
     var androidSttOnDeviceOnly by remember { mutableStateOf(initial.androidSttOnDeviceOnly) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var autoReadVoiceReplies by remember { mutableStateOf(initial.autoReadVoiceReplies) }
+    var voiceLanguage by remember { mutableStateOf(initial.voiceLanguage) }
+    var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
+
+    /** What the voice uses with the language picked here, before it is saved. */
+    val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { initial.preferredLanguage })
     // Samosa auth state, kept live as the user signs in / out.
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
-    var samosaCredits by remember { mutableStateOf<Double?>(null) }
-    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
-    var referralBusy by remember { mutableStateOf(false) }
-    var referralError by remember { mutableStateOf<String?>(null) }
 
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    // Null: nothing locked (no Samosa AI provider, a plan without a list, or not known yet).
+    var allowedModels by remember { mutableStateOf<Set<String>?>(null) }
+    val openUpsell = LocalUpsell.current
     var refreshingModels by remember { mutableStateOf(false) }
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
@@ -127,16 +138,32 @@ fun SpeechScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the profile & credit balance when signed in, and whenever the token changes
-    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
-    LaunchedEffect(samosaToken) {
-        if (samosaToken.isBlank()) {
-            samosaCredits = null
-            samosaUser = null
-        } else {
-            val profile = onFetchSamosaProfile()
-            samosaUser = profile
-            samosaCredits = profile?.creditsRemaining
+    // The account, its credits and log out live on the Account screen (from
+    // the drawer); this page only needs to know whether the user is signed in.
+    SamosaSessionSync(
+        sessionChanges = samosaSessionChanges,
+        onSessionChanged = {
+            val current = load()
+            samosaToken = current.samosaSessionToken
+            samosaEmail = current.samosaEmail
+        },
+        onResumed = {}
+    )
+
+    /** Runs one sign-in attempt and shows how it went. */
+    fun runSamosaSignIn(startStatus: Int, signIn: suspend () -> Result<Pair<String, String>>) {
+        samosaBusy = true
+        status = localContext.getString(startStatus)
+        scope.launch {
+            val result = signIn()
+            result.onSuccess { (email, token) ->
+                samosaEmail = email
+                samosaToken = token
+                status = localContext.getString(R.string.samosa_signed_in_as, email)
+            }.onFailure { e ->
+                status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
+            }
+            samosaBusy = false
         }
     }
 
@@ -158,8 +185,30 @@ fun SpeechScreen(
         androidSttService = androidSttService,
         androidSttOnDeviceOnly = androidSttOnDeviceOnly,
         autoReadReplies = autoReadReplies,
-        autoReadVoiceReplies = autoReadVoiceReplies
+        autoReadVoiceReplies = autoReadVoiceReplies,
+        voiceLanguage = voiceLanguage,
+        sttLanguage = sttLanguage.trim()
     )
+
+    /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applySpeech(initial)) }
+    val dirty = applySpeech(baseline) != baseline
+
+    fun commit() {
+        onSave { applySpeech(it) }
+        baseline = applySpeech(baseline)
+    }
+
+    /** Switches and the language pickers save as they change, like every other settings switch; [baseline] follows. */
+    fun saveSwitch(change: (Settings) -> Settings) {
+        onSave(change)
+        baseline = change(baseline)
+    }
 
     /** As stored, plus the unsaved edits — audio-model discovery needs both. */
     fun draftSpeech(): Settings = applySpeech(load())
@@ -182,6 +231,12 @@ fun SpeechScreen(
         }
         return ttsOk && sttOk
     }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = speechConfigValid()
+    )
 
     val refreshAudioModelsAction = {
         if (!refreshingModels) {
@@ -192,6 +247,28 @@ fun SpeechScreen(
                 availableTtsModels = tts
                 availableSttModels = stt
                 status = localContext.getString(R.string.speech_models_found, tts.size, stt.size)
+                val samosa = ttsProvider == AudioProvider.SAMOSA_AI || sttProvider == AudioProvider.SAMOSA_AI
+                allowedModels = if (samosa) onFetchAllowedModels() else null
+                // A chosen Samosa AI model outside the plan would be refused on
+                // every use: switch to one the plan allows before it is saved.
+                fun replacement(current: String, models: List<AudioModel>): String? =
+                    if (ModelAccess.isLocked(current, allowedModels)) {
+                        models.firstOrNull { !ModelAccess.isLocked(it.id, allowedModels) }?.id
+                    } else {
+                        null
+                    }
+                if (ttsProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(ttsApiModel, tts)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, ttsApiModel, it)
+                        ttsApiModel = it
+                    }
+                }
+                if (sttProvider == AudioProvider.SAMOSA_AI) {
+                    replacement(sttApiModel, stt)?.let {
+                        status = localContext.getString(R.string.ai_config_model_not_in_plan, sttApiModel, it)
+                        sttApiModel = it
+                    }
+                }
                 refreshingModels = false
             }
         }
@@ -218,11 +295,18 @@ fun SpeechScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val usesAndroidSpeech = ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID
-    LaunchedEffect(usesAndroidSpeech, androidTtsEngine, androidSttService, androidSttOnDeviceOnly, resumes) {
+    LaunchedEffect(
+        usesAndroidSpeech,
+        androidTtsEngine,
+        androidSttService,
+        androidSttOnDeviceOnly,
+        resolvedVoiceLanguage,
+        resumes
+    ) {
         if (usesAndroidSpeech) {
             androidSpeech = onCheckAndroidSpeech(
                 AndroidSpeechQuery(
-                    initial.effectiveVoiceLanguage,
+                    resolvedVoiceLanguage,
                     androidTtsEngine,
                     androidSttService,
                     androidSttOnDeviceOnly
@@ -231,7 +315,7 @@ fun SpeechScreen(
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = guardedBack, overlay = overlay) {
         // ---- Voice / speech recommendations ----
         Text(
             stringResource(R.string.speech_for_mixed_language_text_like),
@@ -245,61 +329,20 @@ fun SpeechScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
-                creditsRemaining = samosaCredits,
-                user = samosaUser,
-                referralBusy = referralBusy,
-                referralError = referralError,
-                onClaimReferral = { code ->
-                    referralBusy = true
-                    referralError = null
-                    scope.launch {
-                        val res = onClaimReferral(code)
-                        res.onSuccess {
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = (profile ?: samosaUser)?.let { u ->
-                                u.copy(
-                                    referral = u.referral.copy(canClaim = false),
-                                    creditsRemaining = profile?.creditsRemaining ?: samosaCredits
-                                )
-                            }
-                            samosaCredits = samosaUser?.creditsRemaining
-                            referralBusy = false
-                            status = localContext.getString(R.string.samosa_invite_applied)
-                        }.onFailure { e ->
-                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
-                            referralBusy = false
-                        }
-                    }
-                },
+                modelsOnly = true,
                 onSignIn = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_in_google)
-                    scope.launch {
-                        val result = onSamosaSignIn()
-                        result.onSuccess { (email, token) ->
-                            samosaEmail = email
-                            samosaToken = token
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = profile
-                            samosaCredits = profile?.creditsRemaining
-                            status = localContext.getString(R.string.samosa_signed_in_as, email)
-                        }.onFailure { e ->
-                            status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
-                        }
-                        samosaBusy = false
-                    }
+                    runSamosaSignIn(
+                        if (onSamosaSignInWithGoogle != null) {
+                            R.string.samosa_opening_sign_in
+                        } else {
+                            R.string.samosa_signing_in_google
+                        },
+                        onSamosaSignIn
+                    )
                 },
-                onSignOut = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_out)
-                    scope.launch {
-                        onSamosaSignOut()
-                        samosaToken = ""
-                        samosaEmail = ""
-                        samosaCredits = null
-                        samosaUser = null
-                        status = localContext.getString(R.string.samosa_signed_out)
-                        samosaBusy = false
+                onSignInWithGoogle = onSamosaSignInWithGoogle?.let { google ->
+                    {
+                        runSamosaSignIn(R.string.samosa_signing_in_google, google)
                     }
                 }
             )
@@ -347,6 +390,11 @@ fun SpeechScreen(
                     onSelect = {
                         ttsApiModel = it
                         ttsModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        ttsModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
                 )
                 TtsVoicePicker(
@@ -417,7 +465,7 @@ fun SpeechScreen(
             }
             AudioProvider.ANDROID -> AndroidTtsSettings(
                 status = androidSpeech,
-                language = initial.effectiveVoiceLanguage,
+                language = resolvedVoiceLanguage,
                 engine = androidTtsEngine,
                 onEngine = {
                     // Voices belong to an engine; the new one starts on its own choice.
@@ -511,12 +559,12 @@ fun SpeechScreen(
                     onSelect = {
                         sttApiModel = it
                         sttModelExpanded = false
+                    },
+                    isLocked = { ModelAccess.isLocked(it, allowedModels) },
+                    onLocked = {
+                        sttModelExpanded = false
+                        openUpsell(UpsellReason.GENERAL)
                     }
-                )
-                TranscriptionLanguageSummary(
-                    sttLanguage = initial.sttLanguage,
-                    voiceLanguage = initial.effectiveVoiceLanguage.label,
-                    onOpenLanguage = onOpenLanguage
                 )
                 SpeechDocsLink(modifier = Modifier.testTag("settings_stt_docs_link"))
             }
@@ -559,22 +607,40 @@ fun SpeechScreen(
                         sttModelExpanded = false
                     }
                 )
-                TranscriptionLanguageSummary(
-                    sttLanguage = initial.sttLanguage,
-                    voiceLanguage = initial.effectiveVoiceLanguage.label,
-                    onOpenLanguage = onOpenLanguage
-                )
             }
             AudioProvider.ANDROID -> AndroidSttSettings(
                 status = androidSpeech,
-                language = initial.effectiveVoiceLanguage,
+                language = resolvedVoiceLanguage,
                 service = androidSttService,
                 onService = { androidSttService = it },
                 onDeviceOnly = androidSttOnDeviceOnly,
-                onOnDeviceOnly = { androidSttOnDeviceOnly = it }
+                onOnDeviceOnly = { on ->
+                    androidSttOnDeviceOnly = on
+                    saveSwitch { it.copy(androidSttOnDeviceOnly = on) }
+                }
             )
             AudioProvider.NONE -> Unit
         }
+        HorizontalDivider(thickness = 1.dp)
+        VoiceLanguageSection(
+            voiceLanguage = voiceLanguage,
+            // Pickers save as they change, like the switches: their Save button
+            // waits on the provider setup, which a language has nothing to do with.
+            onVoiceLanguage = { lang ->
+                voiceLanguage = lang
+                saveSwitch { it.copy(voiceLanguage = lang) }
+            },
+            replyLanguage = initial.preferredLanguage,
+            sttLanguage = sttLanguage,
+            onSttLanguage = { lang ->
+                sttLanguage = lang
+                saveSwitch { it.copy(sttLanguage = lang.trim()) }
+            },
+            sttProvider = sttProvider,
+            sttModel = sttApiModel,
+            sttModels = availableSttModels,
+            onTestVoice = onTestVoice
+        )
         // Android Built-in's problems are shown by its own availability lines above.
         SpeechLanguageWarnings(
             listOfNotNull(
@@ -583,22 +649,25 @@ fun SpeechScreen(
                     ttsApiModel,
                     ttsVoice,
                     availableTtsModels,
-                    initial.effectiveVoiceLanguage,
+                    resolvedVoiceLanguage,
                     LocalContext.current.stringLookup()
                 )
             ) + SpeechLanguageCheck.sttWarnings(
                 sttProvider,
                 sttApiModel,
-                initial.sttLanguage,
+                sttLanguage,
                 availableSttModels,
-                initial.effectiveVoiceLanguage,
+                resolvedVoiceLanguage,
                 LocalContext.current.stringLookup()
             )
         )
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_replies_aloud),
             checked = autoReadReplies,
-            onCheckedChange = { autoReadReplies = it },
+            onCheckedChange = { on ->
+                autoReadReplies = on
+                saveSwitch { it.copy(autoReadReplies = on) }
+            },
             isLarge = true,
             switchTestTag = "settings_auto_read_replies"
         )
@@ -606,19 +675,22 @@ fun SpeechScreen(
         SettingsToggleRow(
             label = stringResource(R.string.speech_auto_read_voice_replies),
             checked = autoReadVoiceReplies || autoReadReplies,
-            onCheckedChange = { autoReadVoiceReplies = it },
+            onCheckedChange = { on ->
+                autoReadVoiceReplies = on
+                saveSwitch { it.copy(autoReadVoiceReplies = on) }
+            },
             isLarge = true,
             enabled = !autoReadReplies,
             switchTestTag = "settings_auto_read_voice_replies"
         )
         Button(
             onClick = {
-                onSave { applySpeech(it) }
+                commit()
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
             enabled = speechConfigValid(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("settings_save_speech")
         ) { Text(stringResource(R.string.speech_save_speech_settings)) }
         status?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium)
@@ -636,7 +708,10 @@ private fun TtsModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -676,9 +751,11 @@ private fun TtsModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }
@@ -779,7 +856,10 @@ private fun SttModelPicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    /** Models outside the user's Samosa AI plan: shown with a lock, opening [onLocked]. */
+    isLocked: (String) -> Boolean = { false },
+    onLocked: () -> Unit = {}
 ) {
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -819,42 +899,16 @@ private fun SttModelPicker(
                 )
             } else {
                 availableModels.forEach { audioModel ->
-                    DropdownMenuItem(
-                        text = { Text(audioModel.id) },
-                        onClick = { onSelect(audioModel.id) }
+                    ModelMenuItem(
+                        model = audioModel.id,
+                        locked = isLocked(audioModel.id),
+                        onPick = { onSelect(audioModel.id) },
+                        onLocked = onLocked
                     )
                 }
             }
         }
     }
-}
-
-/**
- * The transcription language, read-only: it is set on the Language page with the
- * other languages (issue #114), and [onOpenLanguage] goes there.
- */
-@Composable
-private fun TranscriptionLanguageSummary(
-    sttLanguage: String,
-    voiceLanguage: String,
-    onOpenLanguage: () -> Unit
-) {
-    val forced = sttLanguage.trim()
-    Text(
-        if (forced.isEmpty()) {
-            stringResource(
-                R.string.speech_transcription_follows_voice,
-                stringResource(Language.fromLabel(voiceLanguage).nameRes)
-            )
-        } else {
-            stringResource(R.string.speech_transcription_forced, AudioLanguageLabels.label(forced))
-        },
-        style = MaterialTheme.typography.bodyMedium
-    )
-    TextButton(
-        onClick = onOpenLanguage,
-        modifier = Modifier.testTag("settings_speech_open_language")
-    ) { Text(stringResource(R.string.speech_change_in_settings_language)) }
 }
 
 /** Inline link to the Samosa AI docs on choosing a voice and language. */

@@ -253,7 +253,9 @@ data class ChatUiState(
      * The chat whose protections are skipped (issue #155), mirrored from the
      * runner: the menu checkbox and banner light up when it is the open chat.
      */
-    val protectionsSkippedSessionId: String? = null
+    val protectionsSkippedSessionId: String? = null,
+    /** The Samosa AI / Pro nudge under the open chat, or null. */
+    val upsell: ChatUpsell? = null
 )
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
@@ -372,6 +374,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                 isConfigured = run.isConfigured,
                 isSpeaking = run.isSpeaking,
                 protectionsSkippedSessionId = run.protectionsSkippedSessionId,
+                upsell = run.upsell?.takeIf { u -> u.sessionId == it.activeSessionId },
                 messages = if (viewing && (initial || old?.transcript !== run.transcript)) {
                     run.transcript
                 } else {
@@ -1425,6 +1428,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             )
         }
     }
+
+    /** Closes the Samosa AI / Pro nudge under the chat. */
+    fun dismissUpsell() = runner.dismissUpsell()
 
     fun dismissChatTransfer() {
         _chatTransfer.value = ChatTransferState.Idle

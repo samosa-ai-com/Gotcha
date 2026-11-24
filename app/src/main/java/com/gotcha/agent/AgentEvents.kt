@@ -79,6 +79,19 @@ interface AgentEvents {
     fun onRunSummary(runSummary: RunSummary) {}
 
     /**
+     * Something in the run is a moment to mention Samosa AI or Pro: a request that needs the
+     * Linux shell, or a model that is out of credits. The host decides whether and how; the
+     * default, for hosts with no screen to show it on, is to say nothing.
+     */
+    fun onUpsell(reason: com.gotcha.upsell.UpsellReason) {}
+
+    /**
+     * True when [onUpsell] puts something on screen. Tools that promise the user is being shown
+     * an offer, like [com.gotcha.tools.ShellTools.OFFER], are withheld from hosts that can't.
+     */
+    val showsUpsell: Boolean get() = false
+
+    /**
      * The host should hide/show its floating chrome (ball, call buttons) around
      * an agent screenshot capture so Gotcha's own controls never appear in the
      * frame. Default no-op for hosts that have no floating chrome to hide.

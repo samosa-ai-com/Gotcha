@@ -90,7 +90,9 @@ class AgentEngine(
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
     /** Supplies the active agent mode to persist so it survives restarts. */
-    private val agentModeProvider: () -> AgentMode? = { null }
+    private val agentModeProvider: () -> AgentMode? = { null },
+    /** Where runs of this engine start from, for opt-in usage data. A scheduled run overrides it. */
+    private val runSurface: com.gotcha.telemetry.RunSurface = com.gotcha.telemetry.RunSurface.CHAT
 ) {
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
@@ -227,7 +229,7 @@ class AgentEngine(
                 }
             },
             onUpdateUserProfile = onUpdateUserProfile,
-            onBeforeTool = { name, args -> foregroundControl.check(name, args) },
+            onBeforeTool = { name, args -> foregroundControl.check(name, args) ?: confirmAfterShellOutput(name, args) },
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -360,6 +362,12 @@ class AgentEngine(
      */
     private var lastModelRequestFailed = false
 
+    /**
+     * [com.gotcha.upsell.Upsell.offersLinuxShell] as of the start of this model round. It probes
+     * the shell backends, so [hiddenTools] reads this rather than asking on every tool call.
+     */
+    private var linuxShellOfferable = false
+
     /** Falls back to [ChatTitle.fallback] until [generatedTitle] is set. */
     /** Chats deleted while this engine could still save them; see [discardSession]. */
     private val discardedSessionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -423,7 +431,12 @@ class AgentEngine(
             // Capped on its own: the title is a nicety, and the run is not marked
             // finished until it returns.
             val response = withTimeoutOrNull(TITLE_TIMEOUT_MS) {
-                llm.chat(messages = messages, temperature = 0f, modelOverride = titleModel)
+                llm.chat(
+                    messages = messages,
+                    temperature = 0f,
+                    modelOverride = titleModel,
+                    feature = com.gotcha.telemetry.LlmFeature.TITLE
+                )
             } ?: return
             ChatTitle.sanitize(response.choices.firstOrNull()?.message?.textContent)?.let {
                 generatedTitle = it
@@ -518,7 +531,10 @@ class AgentEngine(
         )
 
         try {
-            val response = llm.chat(listOf(compactionSystem, requestMessage))
+            val response = llm.chat(
+                listOf(compactionSystem, requestMessage),
+                feature = com.gotcha.telemetry.LlmFeature.COMPACTION
+            )
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()
@@ -565,6 +581,7 @@ class AgentEngine(
      */
     suspend fun run(agent: AgentMode) {
         foregroundControl.reset()
+        toolExecutor.shellOutputGuard.reset()
         try {
             runLoop(agent)
         } finally {
@@ -612,7 +629,9 @@ class AgentEngine(
 
         // Called at every terminal path: builds the structured record and hands
         // it to the host (persists into this session's runSummaries).
-        fun emitRunSummary(finalReply: String, succeeded: Boolean) {
+        var roundsUsed = 0
+        skillsOfferedThisRun.clear()
+        fun emitRunSummary(finalReply: String, succeeded: Boolean, end: com.gotcha.telemetry.RunEnd) {
             val userPrompt = history.lastOrNull { it.role == "user" }?.textContent?.take(400) ?: ""
             val summary = RunSummary(
                 startedAt = runStartedAt,
@@ -631,10 +650,17 @@ class AgentEngine(
                 repeat(overflow) { runSummaries.removeAt(0) }
             }
             events.onRunSummary(summary)
+            trackRun(summary, succeeded, end, roundsUsed)
         }
         repeat(settings.maxToolRounds) { iteration ->
+            roundsUsed = iteration + 1
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
+
+            // The daily plan check for the Linux shell. A disk read unless a check is due.
+            com.gotcha.tools.ShellEntitlement.refresh(appContext)
+            // Asked once per round, not on every tool call: it probes the shell backends.
+            linuxShellOfferable = com.gotcha.upsell.Upsell.offersLinuxShell(appContext, settings)
 
             // Build message array optimized for prompt caching:
             //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile + memory pointer)
@@ -652,7 +678,11 @@ class AgentEngine(
             val response = try {
                 llm.chat(
                     messages,
-                    ToolRegistry.toolsForAgent(agent, hiddenTools()),
+                    ToolRegistry.toolsForAgent(
+                        agent,
+                        hiddenTools(),
+                        com.gotcha.tools.ShellBackends.toolNotes(appContext)
+                    ),
                     sessionId = promptCacheKey ?: sessionId
                 ).also { lastModelRequestFailed = false }
             } catch (e: CancellationException) {
@@ -662,8 +692,12 @@ class AgentEngine(
                 // Also spoken: on a voice call an unannounced return is silence.
                 val error = friendlyModelError(e, appContext.stringLookup())
                 events.onUi(MessageKind.ERROR, error)
+                // Out of credits or rate-limited: the host may say what would lift the limit.
+                if ((e as? retrofit2.HttpException)?.code() in LIMIT_HTTP_CODES) {
+                    events.onUpsell(com.gotcha.upsell.UpsellReason.LIMITS)
+                }
                 events.onAssistantReply(error)
-                emitRunSummary(error, succeeded = false)
+                emitRunSummary(error, succeeded = false, end = com.gotcha.telemetry.RunEnd.MODEL_ERROR)
                 return
             }
 
@@ -680,7 +714,7 @@ class AgentEngine(
                 val error = "The model returned an empty response."
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
-                emitRunSummary(error, succeeded = false)
+                emitRunSummary(error, succeeded = false, end = com.gotcha.telemetry.RunEnd.EMPTY)
                 return
             }
 
@@ -705,7 +739,7 @@ class AgentEngine(
                 if (content.isNotEmpty()) {
                     events.onAssistantReply(content)
                 }
-                emitRunSummary(content, succeeded = true)
+                emitRunSummary(content, succeeded = true, end = com.gotcha.telemetry.RunEnd.REPLY)
                 return
             }
 
@@ -735,6 +769,7 @@ class AgentEngine(
             var finishSummary: String? = null
             suspend fun executeToolCalls() {
                 for (call in toolCalls) {
+                    val toolStartedAt = android.os.SystemClock.elapsedRealtime()
                     val firstAttempt = when (decision) {
                         ConfirmDecision.APPROVED -> executeCall(call, agent)
                         ConfirmDecision.DENIED ->
@@ -752,6 +787,16 @@ class AgentEngine(
                         firstAttempt
                     }
                     recordTool(call, result)
+                    if (decision == ConfirmDecision.APPROVED) {
+                        com.gotcha.telemetry.Telemetry.track(
+                            com.gotcha.telemetry.TelemetryEvents.toolCall(
+                                call.function.name,
+                                result.success,
+                                android.os.SystemClock.elapsedRealtime() - toolStartedAt
+                            )
+                        )
+                    }
+                    result.upsell?.let { events.onUpsell(it) }
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                         handleImageResult(call, result)
@@ -803,6 +848,10 @@ class AgentEngine(
                         result.message.startsWith(GotchaSettingsUpdate.CONFIRM_PREFIX)
                     ) {
                         handleSettingsUpdateConfirm(call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(com.gotcha.tools.McpServerTool.CONFIRM_PREFIX)
+                    ) {
+                        handleMcpServerConfirm(call, result)
                     } else {
                         history += ChatMessage(
                             role = "tool",
@@ -849,7 +898,7 @@ class AgentEngine(
                 history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                 events.onUi(MessageKind.ASSISTANT, reply)
                 events.onAssistantReply(reply)
-                emitRunSummary(reply, succeeded = true)
+                emitRunSummary(reply, succeeded = true, end = com.gotcha.telemetry.RunEnd.FINISH_TASK)
                 saveCurrentSession()
                 return
             }
@@ -875,7 +924,7 @@ class AgentEngine(
                         "Check that the required service/permission is available, then try again."
                     events.onUi(MessageKind.ERROR, stopped)
                     events.onAssistantReply(stopped)
-                    emitRunSummary(stopped, succeeded = false)
+                    emitRunSummary(stopped, succeeded = false, end = com.gotcha.telemetry.RunEnd.STUCK)
                     return
                 }
             } else {
@@ -905,7 +954,11 @@ class AgentEngine(
                     history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                     events.onUi(MessageKind.ASSISTANT, reply)
                     events.onAssistantReply(reply)
-                    emitRunSummary(reply, succeeded = lastDelegatedAnswer != null)
+                    emitRunSummary(
+                        reply,
+                        succeeded = lastDelegatedAnswer != null,
+                        end = com.gotcha.telemetry.RunEnd.DELEGATION_LIMIT
+                    )
                     saveCurrentSession()
                     return
                 }
@@ -925,7 +978,7 @@ class AgentEngine(
             "to avoid running forever."
         events.onUi(MessageKind.ERROR, exhausted)
         events.onAssistantReply(exhausted)
-        emitRunSummary(exhausted, succeeded = false)
+        emitRunSummary(exhausted, succeeded = false, end = com.gotcha.telemetry.RunEnd.EXHAUSTED)
     }
 
     /**
@@ -986,6 +1039,34 @@ class AgentEngine(
      */
     private fun requestConfirmation(@Suppress("UNUSED_PARAMETER") toolCalls: List<ToolCall>): ConfirmDecision {
         return ConfirmDecision.APPROVED
+    }
+
+    /** One `agent_run` for opt-in usage data: counts, buckets and how it ended, never what was said. */
+    private fun trackRun(summary: RunSummary, succeeded: Boolean, end: com.gotcha.telemetry.RunEnd, rounds: Int) {
+        val current = settings
+        com.gotcha.telemetry.Telemetry.track(
+            com.gotcha.telemetry.TelemetryEvents.agentRun(
+                surface = if (scheduledRun) com.gotcha.telemetry.RunSurface.SCHEDULED else runSurface,
+                mode = if (summary.agentMode == AgentMode.OPERATOR.name) {
+                    com.gotcha.telemetry.AgentModeWire.OPERATOR
+                } else {
+                    com.gotcha.telemetry.AgentModeWire.MONITOR
+                },
+                provider = if (current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI) {
+                    com.gotcha.telemetry.ProviderKind.SAMOSA
+                } else {
+                    com.gotcha.telemetry.ProviderKind.BYO
+                },
+                endpoint = com.gotcha.telemetry.EndpointClass.of(current.provider, current.effectiveBaseUrl),
+                ok = succeeded,
+                durationMs = summary.endedAt - summary.startedAt,
+                rounds = rounds,
+                toolCalls = summary.toolCalls.size,
+                toolFailures = summary.toolCalls.count { !it.success },
+                delegated = summary.delegated,
+                end = end
+            )
+        )
     }
 
     /**
@@ -1101,9 +1182,17 @@ class AgentEngine(
     private suspend fun confirmOrSkip(
         toolNames: List<String>,
         description: String,
-        recordSkip: Boolean = true
+        recordSkip: Boolean = true,
+        /**
+         * For changes to Gotcha itself: ask even when the chat skips protections, if this
+         * request has read shell output. See [com.gotcha.tools.ShellOutputGuard].
+         */
+        askAfterShellOutput: Boolean = false
     ): ConfirmOutcome {
-        if (!skipProtections) return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        val mustAsk = askAfterShellOutput && toolExecutor.shellOutputGuard.shellOutputSeen
+        if (!skipProtections || mustAsk) {
+            return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        }
         if (recordSkip) {
             toolExecutor.actionLog.record(
                 toolNames.joinToString(","),
@@ -1112,6 +1201,21 @@ class AgentEngine(
             )
         }
         return ConfirmOutcome(true, true)
+    }
+
+    /**
+     * Asks before a tool changes Gotcha's memory, profile or own files in a request that has
+     * read shell output; null lets the tool run. Settings and scheduled tasks have their own
+     * prompts, which [confirmOrSkip] keeps on in the same situation. Not skippable: the point
+     * is that the request may no longer be the user's own.
+     */
+    private suspend fun confirmAfterShellOutput(name: String, args: JsonObject): ToolResult? {
+        val what = toolExecutor.shellOutputGuard.gotchaChange(name, args) ?: return null
+        val approved = events.awaitConfirmation(listOf(name), com.gotcha.tools.ShellOutputGuard.question(what))
+        // A refusal is logged by the executor, which records whatever is returned in the tool's place.
+        if (!approved) return com.gotcha.tools.ShellOutputGuard.declined(what)
+        toolExecutor.actionLog.record(name, "(approved) change to $what after shell output", ToolResult.ok("Allowed"))
+        return null
     }
 
     /** An approval decision and whether it was pre-granted by a skip. */
@@ -1214,7 +1318,8 @@ class AgentEngine(
                     val (approved, skipped) = confirmOrSkip(
                         listOf("update_gotcha_settings"),
                         GotchaSettingsUpdate.describe(plan, request.reason),
-                        recordSkip = false
+                        recordSkip = false,
+                        askAfterShellOutput = true
                     )
                     val decided = if (approved) {
                         handler(plan)
@@ -1247,6 +1352,55 @@ class AgentEngine(
     }
 
     /**
+     * Handles a `manage_mcp_servers` marker: CONFIRM_MCP_SERVER:<request id>.
+     *
+     * The request itself waits in the executor, so no token passes through the
+     * marker or the audit log. Adding a server, or moving one to a new address,
+     * asks even in a chat that skips its approvals: both hand Gotcha tools, and
+     * possibly a secret, from an address the user has not yet approved.
+     */
+    private suspend fun handleMcpServerConfirm(call: ToolCall, result: ToolResult) {
+        val tool = com.gotcha.tools.McpServerTool
+        val pending = toolExecutor.mcpRequests.take(result.message.removePrefix(tool.CONFIRM_PREFIX))
+        val connector = tool.connector()
+        var declined = false
+        val outcome = when {
+            pending == null || connector == null ->
+                ToolResult.error("Failed to read the MCP server request. Nothing was changed.")
+            else -> {
+                val description = tool.describe(pending, connector)
+                val (approved, skipped) = if (tool.alwaysAsk(pending.request)) {
+                    ConfirmOutcome(events.awaitConfirmation(listOf(tool.MANAGE), description), false)
+                } else {
+                    confirmOrSkip(listOf(tool.MANAGE), description, recordSkip = false, askAfterShellOutput = true)
+                }
+                val decided = if (approved) {
+                    tool.apply(pending.request, connector, tool.connectorOn(appContext), appContext.stringLookup())
+                } else {
+                    declined = true
+                    ToolResult.error(
+                        "The user declined the MCP server change; nothing was changed. " +
+                            "Do not retry unless the user asks again."
+                    )
+                }
+                toolExecutor.actionLog.record(
+                    tool.MANAGE,
+                    (if (skipped) "(pre-approved) " else if (approved) "(approved) " else "(denied) ") +
+                        tool.auditLine(pending.request),
+                    // The connector's messages name the server and its tools, never a secret.
+                    decided
+                )
+                decided
+            }
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
+    }
+
+    /**
      * Handles a tool result prefixed with CONFIRM_SCHEDULE_TASK:base64(request)
      * (issue #132). A scheduled task runs the agent later with nobody watching,
      * so every create and every edit asks, showing the task exactly as it would
@@ -1264,7 +1418,8 @@ class AgentEngine(
             val (approved, skipped) = confirmOrSkip(
                 listOf(call.function.name),
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) },
-                recordSkip = false
+                recordSkip = false,
+                askAfterShellOutput = true
             )
             val decided = if (approved) {
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }
@@ -1455,7 +1610,27 @@ class AgentEngine(
         ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
             DeviceCapabilities.hiddenToolNames(appContext) +
             // A run a schedule started can't plant, re-enable or widen tasks (issue #132).
-            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet())
+            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet()) +
+            // Nobody is watching a scheduled run to be shown the offer, and a voice call has no
+            // screen to show it on.
+            (
+                if (!scheduledRun && events.showsUpsell && linuxShellOfferable && !offeredLinuxShell()) {
+                    emptySet()
+                } else {
+                    setOf(com.gotcha.tools.ShellTools.OFFER)
+                }
+                )
+
+    /**
+     * True once [com.gotcha.tools.ShellTools.OFFER] has run in this chat: it is offered once per
+     * chat. Counts calls with a result only, so the call being executed is not refused as hidden.
+     */
+    private fun offeredLinuxShell(): Boolean {
+        val offerCalls = history.flatMap { message ->
+            message.toolCalls.orEmpty().filter { it.function.name == com.gotcha.tools.ShellTools.OFFER }.map { it.id }
+        }.toSet()
+        return offerCalls.isNotEmpty() && history.any { it.role == "tool" && it.toolCallId in offerCalls }
+    }
 
     /**
      * A separate system message carrying the facts that differ per chat or per
@@ -1502,8 +1677,12 @@ class AgentEngine(
             communityIds = communityIds,
             history = history
         ) ?: return emptyList()
+        com.gotcha.telemetry.SkillTelemetry.trackOffered(message, skillsOfferedThisRun)
         return listOf(message)
     }
+
+    /** Skills already counted as offered in this run; the summary is re-sent every round. */
+    private val skillsOfferedThisRun = mutableSetOf<String>()
 
     /**
      * Complete System Prompt sent at Index 0.
@@ -1559,17 +1738,17 @@ class AgentEngine(
         // Operator-only and suppressed in voice-call brevity mode. The skill
         // local_serve carries the exact recipe; this nudge is the cheap index-0
         // default that causes the agent to fetch it. Most complex/long-running
-        // commands only work reliably with run_termux_command, so prefer Termux
-        // when available — do not waste turns probing run_command toybox when the
-        // task needs python/build/serve and Termux is installed.
+        // commands only work reliably with run_shell, so prefer the Linux
+        // shell when available — do not waste turns probing run_command toybox when the
+        // task needs python/build/serve and a Linux shell is installed.
         val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
             "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
                 "and does not specify how to run it, default to a self-contained HTML page " +
                 "in the Gotcha chats folder and serve it on a free local port so it is " +
                 "immediately usable on this phone — do not wait for a follow-up 'run it'. " +
-                "If Termux is available (check <env> Termux installed: yes), prefer " +
-                "run_termux_command: copy the HTML to \$HOME via stdin and serve with " +
-                "termux-wake-lock + python3 -m http.server; otherwise use run_command " +
+                "If a Linux shell is available (the run_shell tool is offered), prefer " +
+                "run_shell: copy the HTML to \$HOME via stdin and serve with " +
+                "python3 -m http.server (in Termux, take termux-wake-lock first); otherwise use run_command " +
                 "toybox nc loop. If the request is genuinely ambiguous (could be an " +
                 "Android APK vs a web app vs a Python script vs a Termux program), ask one " +
                 "clarifying question whether they want it runnable on this phone as a web app " +
@@ -1739,7 +1918,7 @@ class AgentEngine(
         val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
-        val termux = com.gotcha.tools.TermuxTool(app).status()
+        val shellLines = com.gotcha.tools.ShellBackends.envLines(app)
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -1776,23 +1955,7 @@ class AgentEngine(
             )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
-            // run_termux_command is withheld unless Termux is installed, and refuses until its
-            // RUN_COMMAND permission is granted, so this line is how the model knows to say
-            // "install Termux" or "allow the permission" rather than just failing.
-            appendLine(
-                when {
-                    !termux.installed ->
-                        "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
-                    !termux.pluginApiAvailable ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}) but this build " +
-                            "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
-                            "run_termux_command is unavailable and no permission can fix it; only replacing " +
-                            "Termux with the F-Droid or GitHub build would."
-                    else ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
-                            "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
-                }
-            )
+            shellLines.forEach { appendLine(it) }
             // Tools depending on a capability that is "no" here are withheld from
             // the tool list, so these lines are the model's only way to explain
             // what the user should enable.
@@ -2086,6 +2249,9 @@ class AgentEngine(
     companion object {
         /** Tools that run many steps of their own; see [resolveMissingPermission]. */
         private val REPLAYING_TOOLS = setOf("task", "navigate_app")
+
+        /** Payment required and too many requests: limits a plan change can lift. */
+        private val LIMIT_HTTP_CODES = setOf(402, 429)
 
         /**
          * Returns a copy of [messages] with old screen observations and old images

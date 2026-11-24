@@ -2,11 +2,14 @@ package com.gotcha.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -20,20 +23,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.gotcha.R
+import com.gotcha.auth.ModelAccess
 import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.data.DEFAULT_MAX_CONTEXT_TOKENS
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.telemetry.FeatureEvents
+import com.gotcha.telemetry.SetupAction
+import com.gotcha.telemetry.Telemetry
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
+import com.gotcha.upsell.UpsellReason
 import kotlinx.coroutines.launch
 
 /**
@@ -59,18 +70,21 @@ fun AiConfigScreen(
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = {
         Result.failure(Exception("Not available"))
     },
+    /**
+     * The models the Samosa AI plan may call, or null when nothing is locked
+     * (see [com.gotcha.auth.ModelAccess]). Only asked while Samosa AI is the provider.
+     */
+    onFetchAllowedModels: suspend () -> Set<String>? = { null },
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
-    onSamosaSignOut: suspend () -> Unit = {},
-    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
-    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Claims an invite code via the auth manager. */
-    onClaimReferral: suspend (String) -> Result<Unit> = {
-        Result.failure(Exception("Not supported"))
-    },
-    onClearLlmCache: () -> Unit = {},
-    onClearDebugScreenshots: () -> Unit = {}
+    /**
+     * Google sign-in, when the account website is the main sign-in. Null when
+     * Google is the only sign-in (then [onSamosaSignIn] is Google).
+     */
+    onSamosaSignInWithGoogle: (suspend () -> Result<Pair<String, String>>)? = null,
+    /** Fires when the Samosa session changed outside this screen; it re-reads it. */
+    samosaSessionChanges: kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
 ) {
     val initial = remember { load() }
     var provider by remember { mutableStateOf(initial.provider) }
@@ -81,10 +95,6 @@ fun AiConfigScreen(
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
-    var samosaCredits by remember { mutableStateOf<Double?>(null) }
-    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
-    var referralBusy by remember { mutableStateOf(false) }
-    var referralError by remember { mutableStateOf<String?>(null) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
@@ -95,6 +105,9 @@ fun AiConfigScreen(
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
 
     var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Null: nothing locked (another provider, a plan without a list, or not known yet).
+    var allowedModels by remember { mutableStateOf<Set<String>?>(null) }
+    val openUpsell = LocalUpsell.current
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     val localContext = LocalContext.current
@@ -109,16 +122,32 @@ fun AiConfigScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the profile & credit balance when signed in, and whenever the token changes
-    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
-    LaunchedEffect(samosaToken) {
-        if (samosaToken.isBlank()) {
-            samosaCredits = null
-            samosaUser = null
-        } else {
-            val profile = onFetchSamosaProfile()
-            samosaUser = profile
-            samosaCredits = profile?.creditsRemaining
+    // The account, its credits and log out live on the Account screen (from
+    // the drawer); this page only needs to know whether the user is signed in.
+    SamosaSessionSync(
+        sessionChanges = samosaSessionChanges,
+        onSessionChanged = {
+            val current = load()
+            samosaToken = current.samosaSessionToken
+            samosaEmail = current.samosaEmail
+        },
+        onResumed = {}
+    )
+
+    /** Runs one sign-in attempt and shows how it went. */
+    fun runSamosaSignIn(startStatus: Int, signIn: suspend () -> Result<Pair<String, String>>) {
+        samosaBusy = true
+        status = localContext.getString(startStatus)
+        scope.launch {
+            val result = signIn()
+            result.onSuccess { (email, token) ->
+                samosaEmail = email
+                samosaToken = token
+                status = localContext.getString(R.string.samosa_signed_in_as, email)
+            }.onFailure { e ->
+                status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
+            }
+            samosaBusy = false
         }
     }
 
@@ -146,35 +175,95 @@ fun AiConfigScreen(
     )
 
     /**
+     * What storage held when this page last saved, so [dirty] compares the form
+     * against it rather than reading storage on every recomposition. Starts from
+     * the form's own reading of storage (trimmed, limits defaulted), so a page
+     * nobody touched never counts as changed.
+     */
+    var baseline by remember { mutableStateOf(applyAiConfig(initial)) }
+    val dirty = applyAiConfig(baseline) != baseline
+
+    fun commit() {
+        onSave { applyAiConfig(it) }
+        baseline = applyAiConfig(baseline)
+    }
+
+    /** What the Save button needs; the unsaved-changes dialog holds to it too. */
+    val canSave = when (provider) {
+        LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+        LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
+    }
+    val guardedBack = rememberUnsavedChangesGuard(
+        dirty = dirty,
+        onSave = ::commit,
+        onLeave = onBack,
+        canSave = canSave
+    )
+
+    /**
      * The settings as they stand on screen, for calls that must see unsaved edits
      * (connection tests, model discovery) rather than what is in storage.
      */
     fun draftAiConfig(): Settings = applyAiConfig(load())
 
+    fun isLocked(m: String) = provider == LlmProvider.SAMOSA_AI && ModelAccess.isLocked(m, allowedModels)
+
+    /**
+     * Reads the model list and, for Samosa AI, which of them the plan allows. A
+     * chosen model the plan does not allow is swapped for one it does, so Save
+     * cannot store a model every chat would then be refused (HTTP 403).
+     */
+    suspend fun loadModels(announce: Boolean) {
+        if (announce) status = localContext.getString(R.string.ai_config_refreshing_models)
+        val result = onRefreshChatModels(draftAiConfig())
+        result.onSuccess { models ->
+            availableChatModels = models
+            if (announce) status = localContext.getString(R.string.models_found, models.size)
+        }.onFailure { e ->
+            if (announce) status = localContext.getString(R.string.models_failed, e.message.orEmpty())
+        }
+        allowedModels = if (provider == LlmProvider.SAMOSA_AI) onFetchAllowedModels() else null
+        if (isLocked(subAgentModel)) subAgentModel = ""
+        if (isLocked(navigatorModel)) navigatorModel = ""
+        if (isLocked(model)) {
+            availableChatModels.firstOrNull { !isLocked(it) }?.let { replacement ->
+                status = localContext.getString(R.string.ai_config_model_not_in_plan, model, replacement)
+                model = replacement
+            }
+        }
+    }
+
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {
             refreshingChatModels = true
-            status = localContext.getString(R.string.ai_config_refreshing_models)
             scope.launch {
-                val result = onRefreshChatModels(draftAiConfig())
-                result.onSuccess { models ->
-                    availableChatModels = models
-                    status = localContext.getString(R.string.models_found, models.size)
-                }.onFailure { e ->
-                    status = localContext.getString(R.string.models_failed, e.message.orEmpty())
-                }
+                loadModels(announce = true)
                 refreshingChatModels = false
             }
         }
     }
 
-    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = onBack, overlay = overlay) {
-        // ---- Provider / model guidance ----
-        Text(
-            stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    // Samosa AI's list is checked on opening too, not only when a menu opens:
+    // a model saved before the plan changed must be caught before the next chat.
+    LaunchedEffect(provider, samosaToken) {
+        if (provider == LlmProvider.SAMOSA_AI && samosaToken.isNotBlank() && !refreshingChatModels) {
+            refreshingChatModels = true
+            loadModels(announce = false)
+            refreshingChatModels = false
+        } else if (provider != LlmProvider.SAMOSA_AI) {
+            allowedModels = null
+        }
+    }
+
+    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = guardedBack, overlay = overlay) {
+        // ---- Provider / model guidance: moot once Samosa AI is the provider ----
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // ---- LLM provider selector ----
         ExposedDropdownMenuBox(
@@ -211,69 +300,37 @@ fun AiConfigScreen(
             }
         }
 
+        if (provider == LlmProvider.OPENAI_COMPATIBLE && samosaToken.isBlank()) {
+            // Someone on their own key: Samosa AI, one tap from the picker above.
+            UpsellCard(
+                audience = com.gotcha.upsell.UpsellAudience.DISCOVER_SAMOSA,
+                reason = com.gotcha.upsell.UpsellReason.GENERAL,
+                onOpen = { provider = LlmProvider.SAMOSA_AI },
+                actionLabel = R.string.upsell_settings_switch
+            )
+        }
+
         if (provider == LlmProvider.SAMOSA_AI) {
             // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
             SamosaAuthSection(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
-                creditsRemaining = samosaCredits,
-                user = samosaUser,
-                referralBusy = referralBusy,
-                referralError = referralError,
-                onClaimReferral = { code ->
-                    referralBusy = true
-                    referralError = null
-                    scope.launch {
-                        val res = onClaimReferral(code)
-                        res.onSuccess {
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = (profile ?: samosaUser)?.let { u ->
-                                u.copy(
-                                    referral = u.referral.copy(canClaim = false),
-                                    creditsRemaining = profile?.creditsRemaining ?: samosaCredits
-                                )
-                            }
-                            samosaCredits = samosaUser?.creditsRemaining
-                            referralBusy = false
-                            status = localContext.getString(R.string.samosa_invite_applied)
-                        }.onFailure { e ->
-                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
-                            referralBusy = false
-                        }
-                    }
-                },
+                modelsOnly = true,
                 signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_in_google)
-                    scope.launch {
-                        val result = onSamosaSignIn()
-                        result.onSuccess { (email, token) ->
-                            samosaEmail = email
-                            samosaToken = token
-                            val profile = onFetchSamosaProfile()
-                            samosaUser = profile
-                            samosaCredits = profile?.creditsRemaining
-                            status = localContext.getString(R.string.samosa_signed_in_as, email)
-                        }.onFailure { e ->
-                            status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
-                        }
-                        samosaBusy = false
-                    }
+                    runSamosaSignIn(
+                        if (onSamosaSignInWithGoogle != null) {
+                            R.string.samosa_opening_sign_in
+                        } else {
+                            R.string.samosa_signing_in_google
+                        },
+                        onSamosaSignIn
+                    )
                 },
-                onSignOut = {
-                    samosaBusy = true
-                    status = localContext.getString(R.string.samosa_signing_out)
-                    scope.launch {
-                        onSamosaSignOut()
-                        samosaToken = ""
-                        samosaEmail = ""
-                        samosaCredits = null
-                        samosaUser = null
-                        availableChatModels = emptyList()
-                        status = localContext.getString(R.string.samosa_signed_out)
-                        samosaBusy = false
+                onSignInWithGoogle = onSamosaSignInWithGoogle?.let { google ->
+                    {
+                        runSamosaSignIn(R.string.samosa_signing_in_google, google)
                     }
                 }
             )
@@ -314,7 +371,9 @@ fun AiConfigScreen(
             OutlinedTextField(
                 value = model,
                 onValueChange = { model = it },
-                readOnly = false,
+                // Samosa AI serves a fixed list: pick from it. Typing a name is
+                // for OpenAI-compatible servers, whose models Gotcha cannot know.
+                readOnly = provider == LlmProvider.SAMOSA_AI,
                 label = { Text(stringResource(R.string.ai_config_main_model)) },
                 placeholder = { Text(stringResource(R.string.ai_config_select_model)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
@@ -341,22 +400,29 @@ fun AiConfigScreen(
                     )
                 } else {
                     availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
+                        ModelMenuItem(
+                            model = m,
+                            locked = isLocked(m),
+                            onPick = {
                                 model = m
                                 modelExpanded = false
+                            },
+                            onLocked = {
+                                modelExpanded = false
+                                openUpsell(UpsellReason.GENERAL)
                             }
                         )
                     }
                 }
-                // Always allow manual text input
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ai_config_custom_model)) },
-                    onClick = {
-                        modelExpanded = false
-                    }
-                )
+                if (provider != LlmProvider.SAMOSA_AI) {
+                    // Closes the menu so the field can be typed in.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_config_custom_model)) },
+                        onClick = {
+                            modelExpanded = false
+                        }
+                    )
+                }
             }
         }
         // ---- Advanced: model overrides, agent-loop limits, maintenance ----
@@ -407,11 +473,16 @@ fun AiConfigScreen(
                     )
                     if (availableChatModels.isNotEmpty()) {
                         availableChatModels.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
+                            ModelMenuItem(
+                                model = m,
+                                locked = isLocked(m),
+                                onPick = {
                                     subAgentModel = m
                                     subAgentModelExpanded = false
+                                },
+                                onLocked = {
+                                    subAgentModelExpanded = false
+                                    openUpsell(UpsellReason.GENERAL)
                                 }
                             )
                         }
@@ -461,11 +532,16 @@ fun AiConfigScreen(
                     )
                     if (availableChatModels.isNotEmpty()) {
                         availableChatModels.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
+                            ModelMenuItem(
+                                model = m,
+                                locked = isLocked(m),
+                                onPick = {
                                     navigatorModel = m
                                     navigatorModelExpanded = false
+                                },
+                                onLocked = {
+                                    navigatorModelExpanded = false
+                                    openUpsell(UpsellReason.GENERAL)
                                 }
                             )
                         }
@@ -523,33 +599,25 @@ fun AiConfigScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")
             )
-            OutlinedButton(
-                onClick = {
-                    onClearLlmCache()
-                    overlay.show(localContext.getString(R.string.ai_config_llm_response_cache_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_llm_cache)) }
-            OutlinedButton(
-                onClick = {
-                    onClearDebugScreenshots()
-                    overlay.show(localContext.getString(R.string.ai_config_debug_screenshots_cleared))
-                    status = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.ai_config_clear_debug_screenshots)) }
         }
         Button(
             onClick = {
-                onSave { applyAiConfig(it) }
+                commit()
+                Telemetry.track(
+                    FeatureEvents.setup(
+                        SetupAction.SAVED,
+                        provider,
+                        baseUrl.trim(),
+                        hasKey = when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank()
+                        }
+                    )
+                )
                 overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
-            enabled = when (provider) {
-                LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
-                LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
-            },
+            enabled = canSave,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save")
@@ -563,7 +631,9 @@ fun AiConfigScreen(
                 overlay.show(localContext.getString(R.string.ai_config_testing_connection), sticky = true)
                 status = null
                 scope.launch {
-                    val result = onTestConnection(draftAiConfig())
+                    val draft = draftAiConfig()
+                    val result = onTestConnection(draft)
+                    Telemetry.track(FeatureEvents.setup(draft, SetupAction.TESTED, testOk = result.isSuccess))
                     overlay.show(
                         result.fold(
                             onSuccess = { localContext.getString(R.string.ai_config_connected, it) },
@@ -585,9 +655,42 @@ fun AiConfigScreen(
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
 
-        Text(
-            stringResource(R.string.ai_config_the_api_key_is_stored),
-            style = MaterialTheme.typography.bodySmall
-        )
+        // About the key and base URL fields, which only an OpenAI-compatible provider shows.
+        if (provider != LlmProvider.SAMOSA_AI) {
+            Text(
+                stringResource(R.string.ai_config_the_api_key_is_stored),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
+}
+
+/**
+ * One model in a model menu. A model outside the user's Samosa AI plan keeps
+ * its place in the list, dimmed with a lock, and opens the Pro offer instead of
+ * being chosen.
+ */
+@Composable
+internal fun ModelMenuItem(
+    model: String,
+    locked: Boolean,
+    onPick: () -> Unit,
+    onLocked: () -> Unit
+) {
+    val lockedLabel = stringResource(R.string.ai_config_model_locked)
+    DropdownMenuItem(
+        text = {
+            Text(
+                model,
+                color = if (locked) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified
+            )
+        },
+        trailingIcon = if (locked) {
+            { Icon(Icons.Outlined.Lock, contentDescription = lockedLabel) }
+        } else {
+            null
+        },
+        onClick = if (locked) onLocked else onPick,
+        modifier = if (locked) Modifier.semantics { stateDescription = lockedLabel } else Modifier
+    )
 }

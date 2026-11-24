@@ -23,7 +23,7 @@ import java.util.UUID
  * Gotcha runs at `/storage/emulated/0/Gotcha/...` under its own uid, Termux at
  * `/data/data/com.termux/files/home` under another — the two cannot see each other's files. The
  * documented bridge is shared storage (`/sdcard`) via `termux-setup-storage`, but that only exists
- * after the user has run the command AND granted Android's dialog, and `run_termux_command` always
+ * after the user has run the command AND granted Android's dialog, and `run_shell` always
  * reports `exit 0` whether or not the grant happened. So the bridge here is chosen
  * deterministically, not left to the model:
  *
@@ -43,7 +43,7 @@ import java.util.UUID
  */
 class TermuxFileBridge(
     private val context: Context,
-    private val termux: TermuxTool = TermuxTool(context)
+    private val termux: TermuxShellBackend = TermuxShellBackend(context)
 ) {
 
     private val resolver = FileResolver(context)
@@ -376,7 +376,7 @@ class TermuxFileBridge(
      * stall the transfer.
      */
     internal fun senderCommand(port: Int, nonce: String, source: String): String =
-        TermuxTool.withWakeLock("python3 - $port $nonce ${FfmpegCommand.shellQuote(source)}")
+        TermuxShellBackend.withWakeLock("python3 - $port $nonce ${FfmpegCommand.shellQuote(source)}")
 
     /** The `python3` client program, reading port/nonce/path from argv. It announces the file size
      * before streaming so the receiver can reject a truncated body rather than accept it. */

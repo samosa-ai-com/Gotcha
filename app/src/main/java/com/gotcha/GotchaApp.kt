@@ -43,13 +43,22 @@ class GotchaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Before anything can send a Samosa request: every client looks the session up here.
+        com.gotcha.auth.SamosaSession.install(this)
+        // Usage data waits for the first terms decision, and is a no-op in a build
+        // without an endpoint; installed early so the crash handler below can use it.
+        com.gotcha.telemetry.Telemetry.install(this)
+        com.gotcha.telemetry.Telemetry.ensureRegistered()
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
-                startedActivities++
+                if (startedActivities++ == 0) com.gotcha.telemetry.Telemetry.onForeground()
+                com.gotcha.telemetry.Telemetry.observeActivity(activity)
             }
 
             override fun onActivityStopped(activity: Activity) {
+                com.gotcha.telemetry.Telemetry.stopObservingActivity(activity)
                 startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                if (startedActivities == 0) com.gotcha.telemetry.Telemetry.onBackground()
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -70,6 +79,18 @@ class GotchaApp : Application() {
                 val settings = com.gotcha.data.SettingsRepository(this).load()
                 com.gotcha.data.MemoryStore.ensureDefaults(settings)
             }
+            // Learn whether an installed Gotcha Shell has its Linux system, if that was never
+            // asked, so the choice between it and Termux does not wait for a settings visit.
+            runCatching {
+                kotlinx.coroutines.runBlocking {
+                    // The plan first: an account that is not Pro has no reason to wake the companion.
+                    com.gotcha.tools.ShellEntitlement.refresh(this@GotchaApp)
+                    com.gotcha.tools.ShellBackends.refreshIfUnknown(this@GotchaApp)
+                }
+            }
+            // Sends what an earlier run queued, a crash included. Spaced and
+            // network-gated inside, so a quick reopen does not send again.
+            com.gotcha.telemetry.Telemetry.flushInBackground()
         }.start()
         setupUncaughtExceptionHandler()
     }
@@ -80,6 +101,12 @@ class GotchaApp : Application() {
             try {
                 Log.e(TAG, "Uncaught exception on thread ${thread.name}: ${throwable.message}", throwable)
                 appendCrashLog(thread, throwable)
+            } catch (_: Throwable) {
+                // Ensure logging itself never throws
+            }
+            try {
+                // Class and throwing method only, and only with usage data on.
+                com.gotcha.telemetry.Telemetry.recordCrash(thread, throwable, hasStartedActivity)
             } catch (_: Throwable) {
                 // Ensure logging itself never throws
             }
@@ -105,18 +132,20 @@ class GotchaApp : Application() {
         }
         val existing = if (file.exists()) file.readText() else ""
         // Newest first: prepend, then trim the tail to the cap.
-        file.writeText(trimToMaxEntries(entry + ENTRY_SEPARATOR + existing))
+        file.writeText(trimToMaxEntries(entry + CRASH_ENTRY_SEPARATOR + existing))
     }
 
     private fun trimToMaxEntries(content: String): String {
-        val entries = content.split(ENTRY_SEPARATOR).filter { it.isNotBlank() }
+        val entries = content.split(CRASH_ENTRY_SEPARATOR).filter { it.isNotBlank() }
         val retained = if (entries.size <= MAX_CRASH_ENTRIES) entries else entries.take(MAX_CRASH_ENTRIES)
-        return retained.joinToString(ENTRY_SEPARATOR)
+        return retained.joinToString(CRASH_ENTRY_SEPARATOR)
     }
 
     companion object {
         private const val TAG = "GotchaApp"
-        private const val CRASH_LOG_FILE = "crash.log"
+
+        /** In `filesDir`. The Privacy page counts its entries (see `UsageOverview`). */
+        internal const val CRASH_LOG_FILE = "crash.log"
         private const val MAX_CRASH_ENTRIES = 50
         private const val MAX_STACK_FRAMES = 20
 
@@ -126,6 +155,6 @@ class GotchaApp : Application() {
          * messages rarely contain a full line of equals signs, so this is safe
          * to split on where a bare `---` could collide with message text.
          */
-        private const val ENTRY_SEPARATOR = "\n\n===== Gotcha Crash =====\n\n"
+        internal const val CRASH_ENTRY_SEPARATOR = "\n\n===== Gotcha Crash =====\n\n"
     }
 }

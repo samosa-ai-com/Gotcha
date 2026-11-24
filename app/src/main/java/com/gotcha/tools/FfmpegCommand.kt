@@ -10,7 +10,7 @@ import java.util.Locale
  * [MediaTimeSpec] is: this is where the bugs would be, and none of it needs a
  * device to test. Two parts carry real risk.
  *
- * First, quoting. [TermuxTool] runs its argument through `sh -c`, so every path
+ * First, quoting. [TermuxShellBackend] runs its argument through `sh -c`, so every path
  * that reaches here is shell source. A file called `my song.mp3` would split into
  * two arguments unquoted, and one called `a';rm -rf ~;'.mp3` would do rather
  * worse. [shellQuote] is therefore applied to every interpolated value without

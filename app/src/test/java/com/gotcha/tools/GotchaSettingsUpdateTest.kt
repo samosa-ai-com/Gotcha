@@ -72,6 +72,44 @@ class GotchaSettingsUpdateTest {
         assertEquals(setOf("maps"), updated.disabledSkills)
     }
 
+    @Test
+    fun `times of day, currency, auto-sync and on-device recognition are applied`() {
+        val updated = applied(
+            """{"daily_tip_time":"7:05","quiet_hours_start":"23:30","quiet_hours_end":"06:00",
+               "preferred_currency":"eur","connector_auto_refresh":"2H",
+               "on_device_speech_recognition":true,"pause_night_light_for_screenshots":true}"""
+        )
+        assertEquals(7 * 60 + 5, updated.dailyTipMinuteOfDay)
+        assertEquals(23 * 60 + 30, updated.quietHoursStartMinute)
+        assertEquals(6 * 60, updated.quietHoursEndMinute)
+        assertEquals("EUR", updated.preferredCurrency)
+        assertEquals(120, updated.connectorAutoRefreshIntervalMinutes)
+        assertTrue(updated.androidSttOnDeviceOnly)
+        assertTrue(updated.pauseNightLightForScreenshots)
+    }
+
+    @Test
+    fun `times are shown on a 24-hour clock`() {
+        val changes = parse("""{"quiet_hours_start":"21:00"}""").getOrThrow()
+        assertEquals(
+            listOf("Quiet hours start: 22:00 → 21:00"),
+            GotchaSettingsUpdate.plan(changes, current).lines()
+        )
+    }
+
+    @Test
+    fun `apps can be added to and taken off the proactive ignore list`() {
+        val base = current.copy(proactiveAppBlacklist = setOf("com.bank.app"))
+        val changes = parse("""{"proactive_ignored_apps":{"com.bank.app":false,"org.chat.app":true}}""").getOrThrow()
+        val plan = GotchaSettingsUpdate.plan(changes, base)
+        assertEquals(setOf("org.chat.app"), plan.applyTo(base).proactiveAppBlacklist)
+        assertTrue(plan.impacts.contains(SettingImpact.PRIVACY))
+        // Survives the trip through the confirmation.
+        val decoded = GotchaSettingsUpdate.decodePayload(GotchaSettingsUpdate.encodePayload(changes, null), catalog)!!
+        val replayed = GotchaSettingsUpdate.plan(decoded.changes, base).applyTo(base)
+        assertEquals(setOf("org.chat.app"), replayed.proactiveAppBlacklist)
+    }
+
     // ---- rejected values ----
 
     @Test
@@ -92,6 +130,13 @@ class GotchaSettingsUpdateTest {
         assertTrue(rejection("""{"reply_language":"Klingon"}""").contains("reply_language"))
         assertTrue(rejection("""{"skin":"neon"}""").contains("skin"))
         assertTrue(rejection("""{"reply_chime":null}""").contains("reply_chime"))
+        assertTrue(rejection("""{"daily_tip_time":"24:00"}""").contains("daily_tip_time"))
+        assertTrue(rejection("""{"quiet_hours_end":"7pm"}""").contains("quiet_hours_end"))
+        assertTrue(rejection("""{"quiet_hours_start":1320}""").contains("quiet_hours_start"))
+        assertTrue(rejection("""{"preferred_currency":"BTC"}""").contains("preferred_currency"))
+        assertTrue(rejection("""{"connector_auto_refresh":"45m"}""").contains("connector_auto_refresh"))
+        assertTrue(rejection("""{"proactive_ignored_apps":{"not a package":true}}""").contains("not a package"))
+        assertTrue(rejection("""{"proactive_ignored_apps":{"com.x.y":"yes"}}""").contains("com.x.y"))
     }
 
     @Test

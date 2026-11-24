@@ -11,7 +11,7 @@ import java.io.File
  * Android ships an MP3 decoder but no encoder, and [MediaEditTool]'s muxer
  * writes only AAC, so MP3 — the format people ask for by name more than any
  * other — is unreachable on-device through the media3 pipeline at any effort.
- * Termux's ffmpeg carries libmp3lame and the rest, and [TermuxTool] is already
+ * Termux's ffmpeg carries libmp3lame and the rest, and [TermuxShellBackend] is already
  * wired up, so the conversion still happens entirely on the phone.
  *
  * Kept a separate tool from [MediaEditTool] rather than an eighth operation on
@@ -24,8 +24,11 @@ import java.io.File
  */
 class MediaConvertTool(
     private val context: Context,
-    private val termux: TermuxTool = TermuxTool(context)
+    /** Asked on every use, so a shell that becomes usable after this tool was built is picked up. */
+    private val shellProvider: () -> ShellBackend = { ShellBackends.active(context) }
 ) {
+
+    private val shell: ShellBackend get() = shellProvider()
 
     private val resolver = FileResolver(context)
 
@@ -51,12 +54,12 @@ class MediaConvertTool(
         /**
          * Ceiling for one conversion. Audio re-encoding is roughly realtime-over-N
          * on a phone, so this covers a long album side while staying under
-         * [TermuxTool]'s own 600s hard limit.
+         * [TermuxShellBackend]'s own 600s hard limit.
          */
         const val TIMEOUT_SECONDS = 480
 
         /**
-         * [TermuxTool.formatResult] always opens with this. Its presence is how a
+         * [TermuxShellBackend.formatResult] always opens with this. Its presence is how a
          * command that *ran and failed* is told apart from Termux itself being
          * unavailable — the latter carries its own well-written message from
          * [TermuxMessages], which should reach the model unaltered rather than be
@@ -91,7 +94,7 @@ class MediaConvertTool(
             sharedRoot = sharedRoot
         )
 
-        val result = termux.runCommand(command = command, timeoutSeconds = TIMEOUT_SECONDS)
+        val result = shell.runCommand(command = command, timeoutSeconds = TIMEOUT_SECONDS)
         if (!result.success) return interpretFailure(result, source, destination)
 
         // ffmpeg reports success on some malformed inputs after writing nothing.
@@ -204,7 +207,7 @@ class MediaConvertTool(
      * missing file and send the model hunting for a typo.
      */
     private fun unreachableFromTermux(file: File, role: String): ToolResult? {
-        if (FfmpegCommand.isReachableFromTermux(file.canonicalPath, sharedRoot)) return null
+        if (shell.guestPathFor(file) != null) return null
         return ToolResult.error(
             "$role path '${file.canonicalPath}' is inside Gotcha's private storage, which Termux cannot see — " +
                 "they run as different Android users. Use a shared-storage path instead, under " +
@@ -247,7 +250,7 @@ class MediaConvertTool(
                     "or tap Exit on the Termux notification; never delete the lock files or kill -9 the process. " +
                     "On a slow or blocked network, split it as 'pkg download ffmpeg' then 'dpkg -i " +
                     "\$PREFIX/var/cache/apt/archives/*.deb' (see the termux_repositories skill). You may also run " +
-                    "it yourself with run_termux_command if the user agrees."
+                    "it yourself with run_shell if the user agrees."
             )
             text.contains("No such file or directory", ignoreCase = true) -> ToolResult.error(
                 "ffmpeg could not see '${input.canonicalPath}', although Gotcha can. This almost always means the " +

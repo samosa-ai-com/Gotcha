@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,27 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.BubbleChart
+import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DeveloperMode
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.Hub
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
@@ -56,9 +79,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -72,11 +97,13 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.BuildConfig
 import com.gotcha.R
 import com.gotcha.auth.ReferralClipboardHelper
+import com.gotcha.auth.SamosaDashboard
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
 import com.gotcha.i18n.StringLookup
 import com.gotcha.ui.theme.fade
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -90,6 +117,15 @@ import kotlin.math.round
  * lives here.
  */
 
+/** The headed sections of the settings home list, in the order they appear. */
+enum class SettingsGroup(@StringRes val title: Int) {
+    ASSISTANT(R.string.settings_group_assistant),
+    AUTOMATION(R.string.settings_group_automation),
+    APP(R.string.settings_group_app),
+    PRIVACY(R.string.settings_group_privacy),
+    HELP(R.string.settings_group_help)
+}
+
 /**
  * A settings sub-page, reached from the settings home list and left with Back —
  * the same shape as the system Settings app. `null` in [SettingsScreen]'s page
@@ -97,23 +133,32 @@ import kotlin.math.round
  *
  * [title] doubles as the row label on the home list and the sub-page's top-bar
  * title, so the two can't drift apart.
- */
-/**
- * Declaration order is the order of the home list; nothing reads the ordinal, so
- * this is the only place the menu is arranged. What the assistant *is* comes
- * first — who it thinks you are, which model it runs, what it may touch — and
- * the page about how the app presents itself sits at the end.
  *
- * Most pages hang directly off the home list. The exceptions declare a [parent]:
+ * Every settings page. Declaration order is the order within each [SettingsGroup]
+ * on the home list; nothing reads the ordinal, so this is the only place the menu
+ * is arranged.
+ *
+ * The home list is grouped rather than one long column: what the assistant thinks
+ * with and knows about you, what it does by itself, how the app looks and talks
+ * to you, what it may touch, then help. Seventeen ungrouped rows of equal weight
+ * made every setting a scroll and a guess.
+ *
+ * Most pages hang directly off the home list. The exceptions declare a parent:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. Two hubs exist: [AI], which collects
- * everything the assistant thinks, hears and speaks with, and [ABOUT], which
- * collects "who made this app and what did I agree to".
+ * that parent instead of from the home list. Three hubs exist:
+ * [SKILLS_AND_CONNECTORS], which puts the accounts the assistant can reach beside
+ * the skills that tell it how to use them, [SHELL], which collects the two ways
+ * it can run Linux commands, and [ABOUT], which collects "who made this app and
+ * what did I agree to".
  */
 enum class SettingsPage(
     @StringRes val title: Int,
     @StringRes val summary: Int,
     val testTag: String,
+    /** The row's icon, on the home list and in hubs. */
+    val icon: ImageVector,
+    /** The home-list section this page sits in; null for a page inside a hub. */
+    val group: SettingsGroup?,
     /**
      * The page this one is reached from, or null for the home list. Doubles as
      * the Back target, so a nested page returns to its hub rather than skipping
@@ -122,136 +167,163 @@ enum class SettingsPage(
      */
     val parentPage: () -> SettingsPage? = { null }
 ) {
-    PERSONAL_INFO(
-        R.string.settings_page_personal_info,
-        R.string.settings_page_personal_info_summary,
-        "settings_personal_info_row"
-    ),
-    CHATS(
-        R.string.settings_page_chats,
-        R.string.settings_page_chats_summary,
-        "settings_chats_row"
-    ),
-    LANGUAGE(
-        R.string.settings_page_language,
-        R.string.settings_page_language_summary,
-        "settings_language_row"
-    ),
-    AI(
-        R.string.settings_page_ai,
-        R.string.settings_page_ai_summary,
-        "settings_ai_row"
-    ),
     AI_CONFIG(
         R.string.settings_page_ai_config,
         R.string.settings_page_ai_config_summary,
         "settings_ai_config_row",
-        { AI }
+        Icons.Outlined.Psychology,
+        SettingsGroup.ASSISTANT
     ),
     SPEECH(
         R.string.settings_page_speech,
         R.string.settings_page_speech_summary,
         "settings_speech_row",
-        { AI }
+        Icons.Outlined.RecordVoiceOver,
+        SettingsGroup.ASSISTANT
     ),
-    PERMISSIONS(
-        R.string.settings_page_permissions,
-        R.string.settings_page_permissions_summary,
-        "settings_permissions_row"
+    PERSONAL_INFO(
+        R.string.settings_page_personal_info,
+        R.string.settings_page_personal_info_summary,
+        "settings_personal_info_row",
+        Icons.Outlined.Person,
+        SettingsGroup.ASSISTANT
     ),
-    TERMUX(
-        R.string.settings_page_termux,
-        R.string.settings_page_termux_summary,
-        "settings_termux_row"
+    SKILLS_AND_CONNECTORS(
+        R.string.settings_page_skills_and_connectors,
+        R.string.settings_page_skills_and_connectors_summary,
+        "settings_skills_and_connectors_row",
+        Icons.Outlined.Hub,
+        SettingsGroup.ASSISTANT
     ),
     SKILLS(
         R.string.settings_page_skills,
         R.string.settings_page_skills_summary,
-        "settings_skills_row"
-    ),
-    SCHEDULED_TASKS(
-        R.string.settings_page_scheduled_tasks,
-        R.string.settings_page_scheduled_tasks_summary,
-        "settings_scheduled_tasks_row"
+        "settings_skills_row",
+        Icons.Outlined.Extension,
+        null,
+        { SKILLS_AND_CONNECTORS }
     ),
     PROACTIVE(
         R.string.settings_page_proactive,
         R.string.settings_page_proactive_summary,
-        "settings_proactive_row"
+        "settings_proactive_row",
+        Icons.Outlined.AutoAwesome,
+        SettingsGroup.AUTOMATION
+    ),
+    SCHEDULED_TASKS(
+        R.string.settings_page_scheduled_tasks,
+        R.string.settings_page_scheduled_tasks_summary,
+        "settings_scheduled_tasks_row",
+        Icons.Outlined.Schedule,
+        SettingsGroup.AUTOMATION
     ),
     ASSISTIVE_BALL(
-        // The wake word listens from inside the ball's service, so it is not a
-        // page of its own — the title says so to make it findable.
         R.string.settings_page_assistive_ball,
         R.string.settings_page_assistive_ball_summary,
-        "settings_assistive_ball_row"
+        "settings_assistive_ball_row",
+        Icons.Outlined.BubbleChart,
+        SettingsGroup.AUTOMATION
+    ),
+    SHELL(
+        R.string.settings_page_shell,
+        R.string.settings_page_shell_summary,
+        "settings_shell_row",
+        Icons.Outlined.Terminal,
+        SettingsGroup.AUTOMATION
+    ),
+    LINUX_SHELL(
+        R.string.settings_page_linux_shell,
+        R.string.settings_page_linux_shell_summary,
+        "settings_linux_shell_row",
+        Icons.Outlined.Terminal,
+        null,
+        { SHELL }
+    ),
+    LINUX_TERMINAL(
+        R.string.settings_page_linux_terminal,
+        R.string.settings_page_linux_terminal_summary,
+        "settings_linux_terminal_row",
+        Icons.Outlined.Code,
+        null,
+        { LINUX_SHELL }
+    ),
+    TERMUX(
+        R.string.settings_page_termux,
+        R.string.settings_page_termux_summary,
+        "settings_termux_row",
+        Icons.Outlined.DeveloperMode,
+        null,
+        { SHELL }
     ),
     APPEARANCE(
         R.string.settings_page_appearance,
         R.string.settings_page_appearance_summary,
-        "settings_appearance_row"
+        "settings_appearance_row",
+        Icons.Outlined.Palette,
+        SettingsGroup.APP
+    ),
+    LANGUAGE(
+        R.string.settings_page_language,
+        R.string.settings_page_language_summary,
+        "settings_language_row",
+        Icons.Outlined.Language,
+        SettingsGroup.APP
     ),
     NOTIFICATIONS(
         R.string.settings_page_notifications,
         R.string.settings_page_notifications_summary,
-        "settings_notifications_row"
+        "settings_notifications_row",
+        Icons.Outlined.Notifications,
+        SettingsGroup.APP
+    ),
+    CHATS(
+        R.string.settings_page_chats,
+        R.string.settings_page_chats_summary,
+        "settings_chats_row",
+        Icons.Outlined.Forum,
+        SettingsGroup.APP
+    ),
+    PERMISSIONS(
+        R.string.settings_page_permissions,
+        R.string.settings_page_permissions_summary,
+        "settings_permissions_row",
+        Icons.Outlined.AdminPanelSettings,
+        SettingsGroup.PRIVACY
+    ),
+    PRIVACY(
+        R.string.settings_page_privacy,
+        R.string.settings_page_privacy_summary,
+        "settings_privacy_row",
+        Icons.Outlined.PrivacyTip,
+        SettingsGroup.PRIVACY
     ),
     ABOUT(
         R.string.settings_page_about,
         R.string.settings_page_about_summary,
-        "settings_about_row"
+        "settings_about_row",
+        Icons.Outlined.Info,
+        SettingsGroup.HELP
     ),
     ABOUT_SAMOSA(
         R.string.settings_page_about_samosa,
         R.string.settings_page_about_samosa_summary,
         "settings_about_samosa_row",
+        Icons.Outlined.Business,
+        null,
         { ABOUT }
     ),
     LEGAL(
         R.string.settings_page_legal,
         R.string.settings_page_legal_summary,
         "settings_legal_row",
+        Icons.Outlined.Gavel,
+        null,
         { ABOUT }
     );
 
-    /** Pages the home list shows: everything that isn't nested inside a hub. */
     companion object {
+        /** Pages the home list shows: everything that isn't nested inside a hub. */
         val topLevel: List<SettingsPage> get() = entries.filter { it.parentPage() == null }
-    }
-}
-
-/**
- * A row on the settings home list that opens a sub-page. Uses the same text
- * chevron as the rest of this screen rather than an icon font.
- */
-@Composable
-fun SettingsNavRow(
-    page: SettingsPage,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    /** Overrides the row label. Search results pass the "hub › page" path. */
-    title: String = stringResource(page.title)
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = stringResource(page.summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Text(text = "›", style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -312,6 +384,7 @@ fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
     overlay: SettingsOverlayState,
+    scrollState: ScrollState = rememberScrollState(),
     header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -343,7 +416,7 @@ fun SettingsScaffold(
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     content = content
                 )
@@ -701,14 +774,20 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
     }
 }
 
-/** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
+/**
+ * Samosa AI sign-in block. The Account screen shows all of it; AI Configuration
+ * and Speech pass [modelsOnly] and show just the sign-in, or once signed in,
+ * a link to manage models: the account itself is reached from the drawer.
+ */
 @Composable
 fun SamosaAuthSection(
     email: String,
     signedIn: Boolean,
     busy: Boolean,
     onSignIn: () -> Unit,
-    onSignOut: () -> Unit,
+    onSignOut: () -> Unit = {},
+    /** Signed in, show only "Manage your Models": no credits, log out or referral cards. */
+    modelsOnly: Boolean = false,
     /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
     creditsRemaining: Double? = null,
     /** Full user profile containing tier, tags, and referral metadata. */
@@ -718,8 +797,26 @@ fun SamosaAuthSection(
     referralBusy: Boolean = false,
     referralError: String? = null,
     /** Applied to the sign-in button only, so the tour can spotlight it. */
-    signInModifier: Modifier = Modifier
+    signInModifier: Modifier = Modifier,
+    /**
+     * Set when the account website is the main sign-in: shows a secondary
+     * "Use Google instead" button that runs this.
+     */
+    onSignInWithGoogle: (() -> Unit)? = null,
+    /** False when the caller already shows [email]; it still pre-fills the influencer form. */
+    showEmail: Boolean = true
 ) {
+    val websiteSignIn = onSignInWithGoogle != null
+    val context = LocalContext.current
+    val openDashboard: (SamosaDashboard.Section) -> Unit = { section ->
+        if (!SamosaDashboard.open(context, section)) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.samosa_auth_no_browser),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -746,25 +843,83 @@ fun SamosaAuthSection(
             }
         }
 
-        if (signedIn && email.isNotBlank()) {
+        if (signedIn && showEmail && email.isNotBlank()) {
             Text(
                 text = email,
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+        if (signedIn && modelsOnly) {
+            OutlinedButton(
+                onClick = { openDashboard(SamosaDashboard.Section.OVERVIEW) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.samosa_manage_models)) }
+            return@Column
+        }
         if (signedIn && creditsRemaining != null) {
-            Text(
-                text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { openDashboard(SamosaDashboard.Section.BILLING) }) {
+                    Text(stringResource(R.string.samosa_add_credits))
+                }
+            }
+        }
+        // A plan without Pro's features: what Pro adds, one tap from the pitch.
+        val tier = user?.tier
+        if (tier != null &&
+            com.gotcha.upsell.Upsell.audience(signedIn, tier.id) == com.gotcha.upsell.UpsellAudience.PRO
+        ) {
+            val openUpsell = LocalUpsell.current
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.fillMaxWidth().testTag("settings_upsell_pro")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.upsell_settings_plan, tier.displayName.ifBlank { tier.id }),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { openUpsell(com.gotcha.upsell.UpsellReason.GENERAL) }) {
+                        Text(stringResource(R.string.upsell_pro_see), fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
         }
         if (!signedIn) {
             Text(
-                text = stringResource(R.string.samosa_sign_in_hint),
+                text = stringResource(
+                    if (websiteSignIn) R.string.samosa_sign_in_hint_website else R.string.samosa_sign_in_hint
+                ),
                 style = MaterialTheme.typography.bodySmall
+            )
+            // Every sign-in button is in this section, so the notice reaches
+            // all of them. The full text is on the Legal page.
+            Text(
+                text = stringResource(R.string.samosa_sign_in_terms_notice),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("samosa_sign_in_terms_notice")
             )
         }
         if (signedIn) {
+            OutlinedButton(
+                onClick = { openDashboard(SamosaDashboard.Section.OVERVIEW) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.samosa_manage_account)) }
+
             OutlinedButton(
                 onClick = onSignOut,
                 enabled = !busy,
@@ -791,8 +946,57 @@ fun SamosaAuthSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(signInModifier)
-            ) { Text(stringResource(if (busy) R.string.samosa_signing_in else R.string.samosa_sign_in)) }
+            ) {
+                Text(
+                    stringResource(
+                        when {
+                            busy -> R.string.samosa_signing_in
+                            websiteSignIn -> R.string.samosa_sign_in_website
+                            else -> R.string.samosa_sign_in
+                        }
+                    )
+                )
+            }
+            if (onSignInWithGoogle != null) {
+                TextButton(
+                    onClick = onSignInWithGoogle,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.samosa_sign_in_google_instead)) }
+            }
         }
+    }
+}
+
+/**
+ * Keeps a Samosa sign-in card current while its screen is open: re-reads the
+ * session through [onSessionChanged] when [sessionChanges] fires (a sign-in
+ * that finished after a restart, or a session that ended elsewhere), and calls
+ * [onResumed] each time the screen comes back, for example from the account
+ * website, so credits bought there show up.
+ */
+@Composable
+fun SamosaSessionSync(
+    sessionChanges: Flow<Unit>,
+    onSessionChanged: () -> Unit,
+    onResumed: () -> Unit
+) {
+    val latestOnSessionChanged by androidx.compose.runtime.rememberUpdatedState(onSessionChanged)
+    val latestOnResumed by androidx.compose.runtime.rememberUpdatedState(onResumed)
+    LaunchedEffect(sessionChanges) {
+        sessionChanges.collect { latestOnSessionChanged() }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var first = true
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                // The first resume is the screen opening; it loads on its own.
+                if (first) first = false else latestOnResumed()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
 

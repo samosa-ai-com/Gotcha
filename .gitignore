@@ -121,3 +121,5 @@ docs/WAKE_WORD_PLAN.md
 testing/scripts/wake_battery_idle.sh
 scripts/wake_battery_idle.sh
 docs/internal_dev_doc
+# Local runtime data (dev JWT key, generated artefacts). Never commit.
+data/

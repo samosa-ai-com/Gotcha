@@ -48,6 +48,11 @@ class SamosaAuthManagerTest {
         var lastClaimRequest: ClaimReferralRequest? = null
         var lastMeBearer: String? = null
 
+        override suspend fun shellRuntime(bearer: String) = ShellRuntimeSource()
+
+        // The companion APK route. Unused by these tests; present because the interface grew.
+        override suspend fun shellApkRelease(bearer: String) = ShellApkRelease()
+
         override suspend fun register(body: RegisterRequest): RegisterResponse {
             lastRegisterRequest = body
             return registerResponse
@@ -58,6 +63,7 @@ class SamosaAuthManagerTest {
             return meResponse
         }
 
+        override suspend fun limits(bearer: String, app: String) = com.gotcha.auth.LimitsResponse()
         override suspend fun claimReferral(bearer: String, body: ClaimReferralRequest): ClaimReferralResponse {
             lastClaimBearer = bearer
             lastClaimRequest = body
@@ -66,6 +72,8 @@ class SamosaAuthManagerTest {
         }
 
         override suspend fun logout(bearer: String) {}
+
+        override suspend fun exchangeCode(body: OAuthTokenRequest): RegisterResponse = registerResponse
     }
 
     @Test
