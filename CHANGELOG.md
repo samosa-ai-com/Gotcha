@@ -71,6 +71,25 @@ All notable changes to Gotcha are documented here.
   sits next to your credit balance. Credits bought there show up when you come
   back.
 
+- **A Samosa account row in the drawer** (#190), opening a new Account screen
+  with your plan, credits, Add credits and sign-out. Samosa AI models your plan
+  doesn't include are shown locked, and Samosa AI model names are picked from
+  the list instead of typed.
+- **Samosa Pro and Samosa AI offers** (#185). The drawer, the account card and
+  the Gotcha Shell page offer Samosa Pro to Free accounts and Samosa AI to
+  people on their own key. A card under the chat appears when a request needs
+  the Linux shell, or runs out of credits or hits a rate limit that a plan
+  would lift. The Linux shell is offered at most once per chat and never in a
+  voice call, and an occasional Home dialog stops after three dismissals.
+- **Samosa AIR Terms of Service** (#192), on the Legal page and in the
+  first-launch dialog. Everyone is asked to accept the legal documents again,
+  and signing in to Samosa AI says the AIR terms apply.
+- **Gotcha can change more of its own settings** (#193): the tip time, quiet
+  hours, on-device speech recognition, Night Light for screenshots, the
+  preferred currency, connector auto-refresh and the apps proactive help
+  ignores. It can also list, add, edit and remove your MCP servers. Every
+  change is shown to you first.
+
 ### Changed
 - **Tips come every three days, not every day.** The tip alarm still goes off
   each morning, but it only sends a tip when the last one was at least three
