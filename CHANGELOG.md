@@ -2,7 +2,6 @@
 
 All notable changes to Gotcha are documented here.
 
-## [Unreleased]
 
 ## [2.0.1]
 ### Fixed
