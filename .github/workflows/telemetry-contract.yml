@@ -1,0 +1,154 @@
+name: Telemetry contract
+
+# Opens a pull request in the ingest repository when the app's telemetry vocabulary
+# changes, so the server can learn a new tool name or property before any build that
+# sends it is published.
+#
+# Why this is not part of release.yml: the vocabulary has to reach the server *before*
+# the APK that uses it, and release.yml both builds and publishes in one run. Running
+# here, on the version-bump PR, puts the contract PR in front of a reviewer while the
+# app change is still being reviewed — days before a release, if the bump sits.
+#
+# It opens a PR and nothing more. The ingest service only accepts the change once it
+# is merged, tagged and deployed, which stays a reviewed, deliberate step.
+#
+# The repository slug and token are secrets, not variables: this file is public, and
+# naming a private repository here would disclose it.
+
+on:
+  pull_request:
+    branches: [development, main]
+    paths:
+      - "app/build.gradle.kts"
+      - "app/src/main/telemetry/**"
+  push:
+    branches: [development]
+    paths:
+      - "app/build.gradle.kts"
+      - "app/src/main/telemetry/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      INGEST_REPO: ${{ secrets.TELEMETRY_CONTRACT_REPO }}
+      INGEST_TOKEN: ${{ secrets.TELEMETRY_CONTRACT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read versionCode and vocabulary
+        id: v
+        run: |
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          FILE="app/src/main/telemetry/schema-1/vocab.v${CODE}.json"
+          if [ -z "$CODE" ]; then
+            echo "::error::couldn't read versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          if [ ! -f "$FILE" ]; then
+            echo "::error::$FILE is missing — run ./gradlew :app:exportTelemetryVocabulary and commit it"
+            exit 1
+          fi
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      # Fork PRs never receive secrets, and a checkout without them cannot open a PR.
+      # Say so out loud rather than failing a contributor's build on something they
+      # cannot fix.
+      - name: No ingest credentials
+        if: env.INGEST_REPO == '' || env.INGEST_TOKEN == ''
+        run: |
+          echo "::notice::Telemetry contract not checked: TELEMETRY_CONTRACT_REPO / TELEMETRY_CONTRACT_TOKEN are not set for this run (expected on forks)."
+
+      - name: Clone the ingest repository
+        if: env.INGEST_REPO != '' && env.INGEST_TOKEN != ''
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${INGEST_TOKEN}@github.com/${INGEST_REPO}.git" ingest
+
+      # The versionCode in the file name changes on every bump, but the events inside
+      # it only change when the release actually alters what is sent. Comparing the
+      # events block encodes the documented rule: a bump that only renames the file
+      # needs nothing from the server, so it opens no PR and leaves no noise.
+      - name: Did the events change?
+        id: diff
+        if: env.INGEST_REPO != '' && env.INGEST_TOKEN != ''
+        env:
+          NEW_FILE: ${{ steps.v.outputs.file }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os
+          new = json.load(open(os.environ["NEW_FILE"]))
+          same_as = None
+          for path in sorted(glob.glob("ingest/contracts/gotcha/schema-1/vocab.v*.json")):
+              try:
+                  old = json.load(open(path))
+              except json.JSONDecodeError:
+                  continue
+              if old.get("events") == new.get("events"):
+                  same_as = path
+                  break
+          changed = same_as is None
+          print(f"events identical to {same_as}" if same_as else "events differ from every vendored vocabulary")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"changed={'true' if changed else 'false'}\n")
+          PY
+
+      - name: Vendor, verify, open the PR
+        if: env.INGEST_REPO != '' && env.INGEST_TOKEN != '' && steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.TELEMETRY_CONTRACT_TOKEN }}
+          CODE: ${{ steps.v.outputs.code }}
+          SOURCE: ${{ steps.v.outputs.file }}
+        run: |
+          set -eu
+          REL="contracts/gotcha/schema-1/vocab.v${CODE}.json"
+          cp "$SOURCE" "ingest/$REL"
+
+          # The ingest repository's own check, run before anything is pushed: it fails
+          # if the app would send something the vendored contract does not describe.
+          # Historical versions are notes there, not errors, so a bump does not fail.
+          ( cd ingest && GOTCHA_DIR="$GITHUB_WORKSPACE" python3 scripts/check_contract.py )
+
+          cd ingest
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="contracts/gotcha-v${CODE}"
+          git checkout -q -B "$BRANCH"
+          git add "$REL"
+          if git diff --cached --quiet; then
+            echo "::notice::vocabulary already vendored at v${CODE}; nothing to open"
+            exit 0
+          fi
+          git commit -q -m "contracts: vendor gotcha vocab v${CODE}
+
+          Opened automatically by the Gotcha telemetry-contract workflow for
+          versionCode ${CODE}. Review, merge, tag and deploy this before the
+          matching APK is published: events from a client whose vocabulary the
+          server does not know are rejected and stored nowhere."
+          git push -q --force origin "HEAD:refs/heads/${BRANCH}"
+
+          if gh pr view "$BRANCH" --repo "$INGEST_REPO" --json number >/dev/null 2>&1; then
+            echo "::notice::updated the existing contract PR for v${CODE}"
+          else
+            cat > /tmp/contract_pr.md <<EOF
+          Vendors Gotcha's \`vocab.v${CODE}.json\`, opened automatically from the Gotcha
+          repository.
+
+          Deploy this **before** the matching APK is published. Events from a client
+          whose vocabulary the server does not know are rejected and stored nowhere,
+          while the client still receives \`200\`, so getting the order wrong loses the
+          first data from that release without any error anywhere.
+
+          Adding a vocabulary never invalidates older ones: a value is accepted if any
+          vocabulary ever shipped matches.
+          EOF
+            gh pr create --repo "$INGEST_REPO" --base main --head "$BRANCH" \
+              --title "contracts: vendor gotcha vocab v${CODE}" \
+              --body-file /tmp/contract_pr.md
+          fi
