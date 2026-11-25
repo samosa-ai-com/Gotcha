@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [2.0.1]
 ### Fixed
 - **Usage data is actually sent.** 2.0.0 turned usage data on by default, but the
   release build compiled without the telemetry endpoint, so nothing ever left the
