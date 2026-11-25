@@ -215,11 +215,17 @@ jobs:
           FEEDBACK_ENTRY_CHAT_LOG: ${{ secrets.FEEDBACK_ENTRY_CHAT_LOG }}
           INFLUENCER_FORM_URL: ${{ secrets.INFLUENCER_FORM_URL }}
           INFLUENCER_ENTRY_EMAIL: ${{ secrets.INFLUENCER_ENTRY_EMAIL }}
+          TELEMETRY_URL: ${{ secrets.TELEMETRY_URL }}
+          TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
         run: |
           # samosaConfig() in app/build.gradle.kts silently falls back to inert
           # *.example placeholders when a value is missing, which produces an APK
           # that installs fine but can never reach the backend. Fail loudly instead.
-          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID; do
+          # TELEMETRY_* blank makes telemetry a no-op, which is right for a public
+          # checkout but not for a release: 2.0.0 shipped the first-run usage-data
+          # choice with both unset, so the Privacy switch was greyed out and nothing
+          # was ever sent. A release must carry them.
+          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID TELEMETRY_URL TELEMETRY_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::$name is not set in repo secrets — the release would ship placeholder config"
               exit 1
@@ -241,6 +247,7 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         env:
           EXPECTED_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+          TELEMETRY_URL: ${{ secrets.TELEMETRY_URL }}
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
           SDK_ROOT="${ANDROID_HOME:-$HOME/Android/Sdk}"
@@ -302,6 +309,22 @@ jobs:
               exit 1
             fi
           done
+
+          # Telemetry has no inert placeholder to grep for: a missing value compiles to
+          # "", which is a legitimate no-op build, so the loop above cannot see it. Check
+          # the other direction instead — when the secret is set, its host must be in the
+          # dex. That is the only proof TELEMETRY_URL survived samosaConfig() into this
+          # APK, and without it 2.0.0 shipped a Privacy screen with nothing behind it.
+          if [ -n "$TELEMETRY_URL" ]; then
+            HOST=$(printf '%s' "$TELEMETRY_URL" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
+            if ! grep -qa "$HOST" "$DEXDIR"/classes*.dex; then
+              echo "::error::APK does not contain the telemetry host '$HOST' — TELEMETRY_URL did not reach the build"
+              exit 1
+            fi
+            echo "Telemetry endpoint compiled in: $HOST"
+          else
+            echo "::warning::TELEMETRY_URL is empty — the APK is built without an ingest endpoint"
+          fi
           rm -rf "$DEXDIR"
           echo "Signature, ABI and config checks passed."
 
