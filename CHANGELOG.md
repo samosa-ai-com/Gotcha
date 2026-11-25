@@ -3,6 +3,13 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Fixed
+- **Usage data is actually sent.** 2.0.0 turned usage data on by default, but the
+  release build compiled without the telemetry endpoint, so nothing ever left the
+  phone. The release job now carries the endpoint and fails if it is missing, so a
+  build that cannot send cannot ship again. The switch, the "what we send" list and
+  Section 11 of the data retention policy were always correct; only the delivery
+  was not.
 
 ## [2.0.0]
 ### Added
