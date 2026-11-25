@@ -93,6 +93,7 @@ one-time setup walkthrough.
 * ❓ [**FAQ & Known Limitations**](https://samosa-ai.com/gotcha/docs/faq) — backend compatibility and rough edges.
 * ✅ [**Feature Test Coverage**](docs/FEATURE_TEST_COVERAGE.md) — every tool and how it's verified.
 * 🔌 [**MCP Servers**](docs/mcp-servers.md) — add your own Model Context Protocol servers and use their tools.
+* 🚢 [**Releasing**](docs/RELEASING.md) — version bump, release workflow, and the telemetry handoff.
 
 ## 🧪 Beta Testers
 

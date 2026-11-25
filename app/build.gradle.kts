@@ -359,6 +359,10 @@ val telemetryVocabularyFile = layout.projectDirectory.file(
     "src/main/telemetry/schema-1/vocab.v${android.defaultConfig.versionCode}.json"
 )
 
+// Named after versionCode, so a version bump renames this file. Re-export it with
+// `./gradlew :app:exportTelemetryVocabulary`; if its content changed, it must also
+// be vendored to the ingest repository before the APK ships. See docs/RELEASING.md.
+
 fun Test.configureTelemetryVocabulary(output: String, expected: String? = null) {
     val unitTest = tasks.named<Test>("testDebugUnitTest").get()
     testClassesDirs = unitTest.testClassesDirs
