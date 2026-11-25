@@ -75,6 +75,10 @@ If you want the full CI matrix on a branch, trigger it manually from **Actions â
 - Link the related issue (e.g. `Closes #123`).
 - Describe what changed and how you verified it. Screenshots or a screen recording help a lot for UI and copilot-behaviour changes.
 
+Cutting a release is a different flow from a feature PR â€” see
+[`docs/RELEASING.md`](docs/RELEASING.md) for the version bump, the release
+workflow, and the one telemetry step that is not automatic.
+
 ## Adding or changing a tool
 
 Tools are the app's feature surface, and they're tracked by a generated manifest.
